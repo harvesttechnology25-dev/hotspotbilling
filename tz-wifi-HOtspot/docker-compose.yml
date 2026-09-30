@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    container_name: tzwifi-billing
+    restart: always
+    ports:
+      - "80:3000"
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - .env

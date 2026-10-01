@@ -79,8 +79,8 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   const [apPassword, setApPassword] = useState('');
 
   // Inform parameters from server
-  const [informUrl, setInformUrl] = useState('http://infotechwifi.com:29810/inform');
-  const [vpsIp, setVpsIp] = useState('infotechwifi.com');
+  const [informUrl, setInformUrl] = useState('http://167.99.120.45:29810/inform');
+  const [vpsIp, setVpsIp] = useState('167.99.120.45');
   const [copiedInform, setCopiedInform] = useState(false);
   const [copiedIp, setCopiedIp] = useState(false);
 
@@ -811,7 +811,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   <div>
                     <span className="text-slate-400 block text-[10px]">External Portal URL:</span>
                     <span className="text-emerald-300 font-bold truncate block">
-                      https://infotechwifi.com/?ap_vendor=omada
+                      https://wifi.infotech.co.tz/?ap_vendor=omada
                     </span>
                   </div>
                   <div>

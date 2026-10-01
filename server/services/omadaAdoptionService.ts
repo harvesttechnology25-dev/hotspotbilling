@@ -54,7 +54,7 @@ export interface OmadaAdoptResult {
 }
 
 export class OmadaAdoptionService {
-  private static defaultVpsIp = 'infotechwifi.com';
+  private static defaultVpsIp = '167.99.120.45';
 
   /**
    * Normalize MAC address to standard XX:XX:XX:XX:XX:XX uppercase
@@ -297,7 +297,7 @@ export class OmadaAdoptionService {
       created_at: nowIso,
     });
 
-    const portalUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`;
+    const portalUrl = `https://wifi.infotech.co.tz/?routerId=${router.id}&ap_vendor=omada`;
 
     return {
       success: true,
@@ -362,7 +362,7 @@ export class OmadaAdoptionService {
         channel2g: router.omada_channel_2g || 6,
         channel5g: router.omada_channel_5g || 44,
         signalStrengthDbm: -54,
-        captivePortalUrl: `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`,
+        captivePortalUrl: `https://wifi.infotech.co.tz/?routerId=${router.id}&ap_vendor=omada`,
         radiusCoaPort: 3799,
         status: 'CONNECTED',
       },

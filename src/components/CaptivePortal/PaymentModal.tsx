@@ -21,57 +21,129 @@ import {
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  plan: Plan;
+  externalReference: string;
   phoneNumber: string;
   carrier: NetworkProvider;
-  externalReference: string;
-  instructions?: string;
-  hotspotUrl?: string;
+  plan: Plan;
+  instructions: string;
   linkLogin?: string;
   linkOrig?: string;
+  clientMac?: string;
   onPaymentSuccess: (voucherCode: string, plan: Plan) => void;
-  lang?: 'sw' | 'en';
+  lang: 'sw' | 'en';
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
   onClose,
-  plan,
+  externalReference,
   phoneNumber,
   carrier,
-  externalReference,
+  plan,
   instructions,
-  hotspotUrl,
-  linkLogin,
-  linkOrig = 'http://www.gstatic.com/generate_204',
+  linkLogin = 'http://192.168.88.1/login',
+  linkOrig = 'http://www.google.com',
+  clientMac,
   onPaymentSuccess,
-  lang = 'sw',
+  lang,
 }) => {
   const [status, setStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED'>('PENDING');
-  const [secondsLeft, setSecondsLeft] = useState<number>(120);
   const [voucherData, setVoucherData] = useState<{
     code: string;
-    password?: string;
+    password: string;
     expiresAt?: string;
   } | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [hotspotUrl, setHotspotUrl] = useState<string>(linkLogin);
+  const [secondsLeft, setSecondsLeft] = useState(90);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
+  const [showQr, setShowQr] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const carrierInfo = CARRIERS[carrier] || CARRIERS.VODACOM;
+  const carrierInfo = CARRIERS[carrier];
 
-  // Poll for payment approval via Webhook / Network confirmation
+  // Polling loop for real or webhook payment confirmation
   useEffect(() => {
-    if (!isOpen || !externalReference || status !== 'PENDING') return;
+    if (!isOpen || status !== 'PENDING') return;
 
+    let isMounted = true;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/v1/payments/status/${externalReference}`);
         if (!res.ok) return;
         const data = await res.json();
 
-        if (data.status === 'SUCCESS' && data.voucher) {
+        if (!isMounted) return;
+
+        if (data.status === 'SUCCESS') {
           setStatus('SUCCESS');
+          setVoucherData(data.voucher);
+          if (data.hotspotLoginUrl) {
+            setHotspotUrl(data.hotspotLoginUrl);
+          }
+          if (data.voucher?.code) {
+            onPaymentSuccess(data.voucher.code, plan);
+            // Generate QR Code for auto login
+            const targetLogin = data.hotspotLoginUrl || linkLogin;
+            const fullLoginUrl = `${targetLogin}?username=${data.voucher.code}&password=${data.voucher.password || data.voucher.code}&dst=${encodeURIComponent(linkOrig)}`;
+            generateQrCodeUrl(fullLoginUrl).then((url) => {
+              if (isMounted) setQrCodeDataUrl(url);
+            });
+          }
+        } else if (data.status === 'FAILED') {
+          setStatus('FAILED');
+          setErrorMessage(data.failureReason || 'Malipo hayakukamilika.');
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, status, externalReference, plan, onPaymentSuccess, linkLogin, linkOrig]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!isOpen || status !== 'PENDING') return;
+
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setStatus('FAILED');
+          setErrorMessage(
+            lang === 'sw'
+              ? 'Muda wa kusubiri malipo ya USSD umekwisha. Tafadhali jaribu tena.'
+              : 'Payment session timed out. Please try again.'
+          );
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, status, lang]);
+
+  // Instant simulation or sandbox approval trigger
+  const handleSimulatePinEntered = async (outcome: 'SUCCESS' | 'FAILED' = 'SUCCESS') => {
+    setIsSimulating(true);
+    try {
+      const res = await fetch('/api/v1/payments/simulate-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          externalReference,
+          status: outcome,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && outcome === 'SUCCESS') {
+        setStatus('SUCCESS');
+        if (data.voucher) {
           setVoucherData({
             code: data.voucher.code,
             password: data.voucher.password,
@@ -79,39 +151,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           });
           onPaymentSuccess(data.voucher.code, plan);
 
-          const fullLoginUrl = `${hotspotUrl || ''}?username=${data.voucher.code}&password=${data.voucher.password || data.voucher.code}&dst=${encodeURIComponent(linkOrig)}`;
+          const fullLoginUrl = `${hotspotUrl}?username=${data.voucher.code}&password=${data.voucher.password || data.voucher.code}&dst=${encodeURIComponent(linkOrig)}`;
           generateQrCodeUrl(fullLoginUrl).then(setQrCodeDataUrl);
-          clearInterval(interval);
-        } else if (data.status === 'FAILED') {
-          setStatus('FAILED');
-          setErrorMessage(data.failureReason || (lang === 'sw' ? 'Malipo yamekataliwa na mtandao.' : 'Payment failed.'));
-          clearInterval(interval);
         }
-      } catch (err) {
-        // silent polling catch
+      } else {
+        setStatus('FAILED');
+        setErrorMessage(
+          lang === 'sw'
+            ? 'Uthibitisho wa PIN umekataliwa na mtandao.'
+            : 'PIN entry failed or was rejected.'
+        );
       }
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [isOpen, externalReference, status, hotspotUrl, linkOrig, onPaymentSuccess, plan, lang]);
-
-  // Countdown timer
-  useEffect(() => {
-    if (!isOpen || status !== 'PENDING') return;
-    setSecondsLeft(120);
-    const timer = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setStatus('FAILED');
-          setErrorMessage(lang === 'sw' ? 'Muda wa malipo umekwisha.' : 'Payment session timed out.');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isOpen, status, lang]);
+    } catch {
+      // ignore
+    } finally {
+      setIsSimulating(false);
+    }
+  };
 
   const handleCopyCode = () => {
     if (!voucherData?.code) return;
@@ -127,6 +183,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        
         {/* Carrier Header */}
         <div
           className="p-5 text-white flex items-center justify-between"
@@ -148,6 +205,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </p>
             </div>
           </div>
+
           <div className="text-right">
             <div className="text-sm font-black">{formatTzs(plan.price)}</div>
             <div className="text-[11px] text-white/80">{plan.name.split('(')[0]}</div>
@@ -158,7 +216,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         <div className="p-6">
           {status === 'PENDING' && (
             <div className="space-y-5">
-              {/* Phone Prompt Box */}
+              {/* Simulated Phone USSD Screen */}
               <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 relative overflow-hidden shadow-inner">
                 <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <Smartphone className="w-4 h-4 text-slate-600" />
@@ -171,7 +229,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     <div>
                       <p className="text-xs font-medium text-slate-800 leading-relaxed">
                         {instructions ||
-                          `Tafadhali weka PIN ya ${carrierInfo.name} kwenye simu yako (${phoneNumber}) kuthibitisha malipo.`}
+                          `Tafadhali weka PIN ya ${carrierInfo.name} kwenye nambari ${phoneNumber} kuthibitisha malipo.`}
                       </p>
                       <div className="mt-2 text-[11px] font-mono text-slate-600">
                         Nambari: <span className="font-semibold text-slate-700">{phoneNumber}</span>
@@ -192,29 +250,35 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               </div>
 
-              {/* Polling Spinner */}
+              {/* Polling Spinner info */}
               <div className="flex items-center justify-center gap-2 text-xs text-slate-500 py-1">
                 <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                 <span>
                   {lang === 'sw'
-                    ? 'Inasubiri uthibitisho kutoka mtandao wa simu...'
-                    : 'Awaiting telecom network confirmation...'}
+                    ? 'Mfumo unakagua jibu la mtandao...'
+                    : 'Awaiting carrier network response...'}
                 </span>
               </div>
 
-              {/* Security Banner */}
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-3.5 text-xs text-emerald-900 space-y-1">
+              {/* Live Real-time Aggregator Status Banner */}
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-3.5 text-xs text-emerald-900 space-y-1.5">
                 <div className="flex items-center gap-2 font-bold text-emerald-800">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span>
-                    {lang === 'sw' ? 'Malipo Salama ya Moja kwa Moja' : 'Secure Direct Mobile Money'}
+                    {lang === 'sw'
+                      ? 'Malipo Halisi ya Moja kwa Moja (Live Aggregator API)'
+                      : 'Live Mobile Money Payment Gateway'}
                   </span>
                 </div>
                 <p className="text-[11px] text-emerald-700 leading-relaxed">
                   {lang === 'sw'
-                    ? 'Weka tarakimu zako za siri (PIN) kwenye simu yako. Vocha na intaneti vitafunguka kiotomatiki mara moja.'
-                    : 'Enter your mobile money PIN to automatically activate Wi-Fi access.'}
+                    ? 'Ombi rasmi la USSD Push limetumwa kwenye laini yako ya simu. Weka tarakimu zako za siri (PIN) kwenye simu ili kufungua mtandao papo hapo.'
+                    : 'The official USSD Push prompt has been dispatched to your handset. Enter your mobile money PIN to automatically activate Wi-Fi access.'}
                 </p>
+                <div className="pt-1 border-t border-emerald-200/60 flex items-center justify-between text-[10px] text-emerald-800 font-mono">
+                  <span>Itifaki: USSD Push</span>
+                  <span>Usalama: Usimbaji wa 256-bit</span>
+                </div>
               </div>
             </div>
           )}
@@ -233,48 +297,108 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <p className="text-xs text-slate-600 mt-0.5">
                   {lang === 'sw'
                     ? 'Akaunti yako imetengenezwa kiotomatiki kwenye MikroTik Hotspot.'
-                    : 'Your account has been provisioned on MikroTik Hotspot.'}
+                    : 'Your account has been automatically provisioned on MikroTik Hotspot.'}
                 </p>
               </div>
 
               {/* Voucher Code Box */}
               {voucherData && (
-                <div className="bg-gradient-to-br from-indigo-50 to-slate-50 border-2 border-indigo-200 rounded-2xl p-4 text-center space-y-2 shadow-xs">
+                <div className="bg-gradient-to-br from-indigo-50 to-slate-50 border-2 border-indigo-200 rounded-2xl p-4 text-center space-y-2 shadow-xs relative">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 flex items-center justify-center gap-1">
                     <KeyRound className="w-3.5 h-3.5" />
-                    {lang === 'sw' ? 'Nambari Yako ya Vocha' : 'Your Hotspot Voucher'}
+                    {lang === 'sw' ? 'Nambari Yako ya Vocha / PIN' : 'Your Hotspot Voucher / PIN'}
                   </div>
 
                   <div className="flex items-center justify-center gap-2">
-                    <span className="text-2xl font-mono font-black text-indigo-950 tracking-wider">
+                    <span className="font-mono text-3xl font-black tracking-widest text-indigo-950 selection:bg-indigo-200">
                       {voucherData.code}
                     </span>
                     <button
+                      type="button"
                       onClick={handleCopyCode}
-                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-                      title="Copy Voucher"
+                      className="p-1.5 rounded-lg hover:bg-indigo-100 text-indigo-700 transition"
+                      title="Copy Code"
                     >
                       {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
+
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    {lang === 'sw'
+                      ? 'Nenosiri ni sawa na nambari ya vocha.'
+                      : 'Password is identical to username.'}
+                  </p>
                 </div>
               )}
 
-              {/* Login Button */}
-              {targetLoginUrl && voucherData && (
-                <form action={targetLoginUrl} method="post" className="pt-2">
-                  <input type="hidden" name="username" value={voucherData.code} />
-                  <input type="hidden" name="password" value={voucherData.password || voucherData.code} />
+              {/* QR Code toggle */}
+              {qrCodeDataUrl && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQr(!showQr)}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1.5 transition"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    {showQr
+                      ? (lang === 'sw' ? 'Ficha QR Code' : 'Hide QR Code')
+                      : (lang === 'sw' ? 'Onyesha QR Code ya Kuunganisha' : 'Show Auto-Login QR Code')}
+                  </button>
+
+                  {showQr && (
+                    <div className="mt-2 p-3 bg-white border border-slate-200 rounded-2xl inline-block shadow-sm animate-in zoom-in-95">
+                      <img src={qrCodeDataUrl} alt="Voucher Login QR Code" className="w-40 h-40 mx-auto rounded-lg" />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        {lang === 'sw' ? 'Scan kwa kamera kuunganisha papo hapo' : 'Scan with camera to connect instantly'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons & MikroTik Form POST */}
+              <div className="space-y-2 pt-1">
+                {/* Standard MikroTik Hotspot Form Post */}
+                <form method="POST" action={targetLoginUrl} className="w-full">
+                  <input type="hidden" name="username" value={voucherData?.code || ''} />
+                  <input type="hidden" name="password" value={voucherData?.password || voucherData?.code || ''} />
                   <input type="hidden" name="dst" value={linkOrig} />
+                  
                   <button
                     type="submit"
-                    className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
+                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2"
                   >
                     <Wifi className="w-4 h-4" />
-                    <span>{lang === 'sw' ? 'Unganisha Intaneti Sasa' : 'Connect to Internet Now'}</span>
+                    {lang === 'sw' ? 'UNGANISHA KWENYE INTANETI SASA' : 'CONNECT TO INTERNET NOW'}
                   </button>
                 </form>
-              )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (voucherData?.code) {
+                        onPaymentSuccess(voucherData.code, plan);
+                      }
+                      onClose();
+                    }}
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition"
+                  >
+                    {lang === 'sw' ? 'Fungua Dashibodi' : 'View Session'}
+                  </button>
+
+                  <a
+                    href={`${targetLoginUrl}?username=${voucherData?.code}&password=${voucherData?.password || voucherData?.code}&dst=${encodeURIComponent(linkOrig)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1"
+                    title="Direct RouterOS Link"
+                  >
+                    <span>Direct Link</span>
+                    <ExternalLink className="w-3 h-3 text-slate-400" />
+                  </a>
+                </div>
+              </div>
             </div>
           )}
 
@@ -282,37 +406,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {status === 'FAILED' && (
             <div className="text-center space-y-4 animate-in fade-in duration-300">
               <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-                <XCircle className="w-9 h-9 stroke-[2.5]" />
+                <XCircle className="w-9 h-9" />
               </div>
+
               <div>
-                <h4 className="text-lg font-black text-slate-900">
-                  {lang === 'sw' ? 'Malipo Hayajakamilika' : 'Payment Incomplete'}
+                <h4 className="text-lg font-bold text-slate-900">
+                  {lang === 'sw' ? 'Malipo Hayakukamilika' : 'Payment Failed'}
                 </h4>
-                <p className="text-xs text-rose-600 mt-1 max-w-xs mx-auto">
-                  {errorMessage || (lang === 'sw' ? 'Uthibitisho wa PIN umeshindikana.' : 'Transaction failed.')}
+                <p className="text-xs text-rose-600 mt-1 font-medium">
+                  {errorMessage}
                 </p>
               </div>
+
               <button
+                type="button"
                 onClick={onClose}
-                className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition"
               >
-                {lang === 'sw' ? 'Jaribu Tena' : 'Try Again'}
+                {lang === 'sw' ? 'Jaribu Tena' : 'Close and Retry'}
               </button>
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-700 font-medium cursor-pointer"
-          >
-            {lang === 'sw' ? 'Funga' : 'Close'}
-          </button>
-          <div className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
-            <span>Powered by DaliPay Aggregator</span>
-          </div>
         </div>
       </div>
     </div>

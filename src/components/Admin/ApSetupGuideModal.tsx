@@ -82,7 +82,7 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
 <body>
   <h1>📘 Mwongozo Kamili wa Kusanidi Access Point & Malipo ya Hotspot</h1>
   <p><strong>Mifumo Inayoungwa Mkono:</strong> Ruijie Reyee, TP-Link Omada, Cudy, D-Link, Ubiquiti UniFi, MikroTik</p>
-  <p><strong>VPS RADIUS Server:</strong> <code>infotechwifi.com</code> | <strong>Portal URL:</strong> <code>https://infotechwifi.com/?routerId=${defaultRouterId}</code></p>
+  <p><strong>VPS RADIUS Server:</strong> <code>167.99.120.45</code> | <strong>Portal URL:</strong> <code>https://wifi.infotech.co.tz/?routerId=${defaultRouterId}</code></p>
   
   <h2>1. Muhtasari wa Jinsi Mfumo Unavyofanya Kazi</h2>
   <div class="box">
@@ -95,8 +95,8 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
   <h2>2. Vigezo Muhimu vya Kusanidi Kwenye AP Yako</h2>
   <table>
     <tr><th>Kipengele</th><th>Thamani ya Kuweka</th><th>Kazi Yake</th></tr>
-    <tr><td>External Web Portal URL</td><td><code>https://infotechwifi.com/?routerId=${defaultRouterId}</code></td><td>Ukurasa wa kuingia wateja</td></tr>
-    <tr><td>RADIUS Server IP</td><td><code>infotechwifi.com</code></td><td>Inathibitisha watumiaji na vocha</td></tr>
+    <tr><td>External Web Portal URL</td><td><code>https://wifi.infotech.co.tz/?routerId=${defaultRouterId}</code></td><td>Ukurasa wa kuingia wateja</td></tr>
+    <tr><td>RADIUS Server IP</td><td><code>167.99.120.45</code></td><td>Inathibitisha watumiaji na vocha</td></tr>
     <tr><td>Authentication Port</td><td><code>1812</code> (UDP)</td><td>Inashughulikia maombi ya kuingia</td></tr>
     <tr><td>Accounting Port</td><td><code>1813</code> (UDP)</td><td>Inarekodi muda na data iliyotumika</td></tr>
     <tr><td>RADIUS CoA Port</td><td><code>3799</code> (RFC 5176)</td><td>Inafungua simu mara tu PIN ya M-Pesa inapowekwa</td></tr>
@@ -108,7 +108,7 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
     <p>1. Ingia kwenye Controller au App (Ruijie Reyee App au Omada Controller).</p>
     <p>2. Nenda <strong>Settings &rarr; Authentication &rarr; Hotspot / Auth Portal</strong>.</p>
     <p>3. Washa Hotspot na uchague <strong>External Web Portal Server</strong>, weka ile Portal URL hapo juu.</p>
-    <p>4. Unda RADIUS Profile yenye IP <code>infotechwifi.com</code>, Auth <code>1812</code>, Secret <code>radius_secret_2026</code>, na washa <strong>CoA Port 3799</strong>.</p>
+    <p>4. Unda RADIUS Profile yenye IP <code>167.99.120.45</code>, Auth <code>1812</code>, Secret <code>radius_secret_2026</code>, na washa <strong>CoA Port 3799</strong>.</p>
     <p>5. Weka Walled Garden domains: <code>api.palmpesa.com, checkout.azampay.com, *.vodacom.co.tz, *.tigo.co.tz, *.airtel.co.tz</code>.</p>
     <p>6. Hifadhi. Kuanzia hapo mteja yeyote anayeunganisha Wi-Fi atalipia au kuweka vocha!</p>
   </div>
@@ -135,8 +135,8 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const portalUrl = `https://infotechwifi.com/?routerId=${defaultRouterId}`;
-  const radiusIp = 'infotechwifi.com';
+  const portalUrl = `https://wifi.infotech.co.tz/?routerId=${defaultRouterId}`;
+  const radiusIp = '167.99.120.45';
   const radiusSecret = 'radius_secret_2026';
 
   return (
@@ -451,7 +451,7 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
                       <li>Washa <strong>RADIUS CoA (Port 3799)</strong>.</li>
                     </ul>
                   </li>
-                  <li>Kwenye <strong>Walled Garden Whitelist</strong>, ongeza: <code>api.palmpesa.com, checkout.azampay.com, *.vodacom.co.tz, *.tigo.co.tz, *.airtel.co.tz, infotechwifi.com</code>.</li>
+                  <li>Kwenye <strong>Walled Garden Whitelist</strong>, ongeza: <code>api.palmpesa.com, checkout.azampay.com, *.vodacom.co.tz, *.tigo.co.tz, *.airtel.co.tz, wifi.infotech.co.tz</code>.</li>
                   <li>Bonyeza <strong>Save & Deliver</strong>. AP itaanza kusukuma wateja kwenye mfumo mara moja!</li>
                 </ol>
               </div>
@@ -476,10 +476,10 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
                     <span className="text-[10px] text-slate-400">Port 29810 (UDP) / 29811 (TCP)</span>
                   </div>
                   <div className="flex items-center justify-between bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700">
-                    <span className="text-emerald-300 font-bold">http://infotechwifi.com:29810/inform</span>
+                    <span className="text-emerald-300 font-bold">http://167.99.120.45:29810/inform</span>
                     <button
                       type="button"
-                      onClick={() => handleCopy('http://infotechwifi.com:29810/inform', 'inform_modal')}
+                      onClick={() => handleCopy('http://167.99.120.45:29810/inform', 'inform_modal')}
                       className="text-[10px] text-teal-300 hover:text-white flex items-center gap-1 cursor-pointer font-sans"
                     >
                       {copiedText === 'inform_modal' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
@@ -493,7 +493,7 @@ export const ApSetupGuideModal: React.FC<ApSetupGuideModalProps> = ({
                     <strong>Hatua 1: Sajili MAC Address ya AP:</strong> Ingia kwenye mfumo wetu, bofya <em>"Omada AP Adoption"</em> na uweke MAC Address iliyo nyuma ya AP (mfano: <code>50:D4:F7:2B:8C:1A</code>).
                   </li>
                   <li>
-                    <strong>Hatua 2: Weka Controller Inform URL:</strong> Ingia kwenye ukurasa wa AP (<code>http://192.168.0.254</code>) &rarr; Nenda <strong>Management / Settings</strong> &rarr; <strong>Controller Settings</strong> &rarr; Kwenye <strong>Controller Inform URL</strong> weka <code>http://infotechwifi.com:29810/inform</code> kisha bofya <strong>Save</strong>.
+                    <strong>Hatua 2: Weka Controller Inform URL:</strong> Ingia kwenye ukurasa wa AP (<code>http://192.168.0.254</code>) &rarr; Nenda <strong>Management / Settings</strong> &rarr; <strong>Controller Settings</strong> &rarr; Kwenye <strong>Controller Inform URL</strong> weka <code>http://167.99.120.45:29810/inform</code> kisha bofya <strong>Save</strong>.
                   </li>
                   <li>
                     <strong>Hatua 3: Weka SSID & Taarifa za AP:</strong> Kwenye mfumo wetu, weka jina la Wi-Fi (SSID, mfano: <code>KARIAKOO-FREE-WIFI</code>) na uweke Device Username na Password ulizoweka kwenye AP.

@@ -559,35 +559,23 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
                   </span>
                 </div>
 
-                {/* Instant Simulation Button (User can click to instantly approve without telecom wait) */}
-                <div className="pt-2 border-t border-slate-100 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => handleConfirmPayment(true)}
-                    disabled={confirming}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {confirming ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>{lang === 'sw' ? 'Inathibitisha...' : 'Verifying...'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>
-                          {lang === 'sw'
-                            ? 'Nimeshaweka PIN (Fungua Mfumo Sasa)'
-                            : 'I have entered PIN (Unlock System)'}
-                        </span>
-                      </>
-                    )}
-                  </button>
-
+                {/* Real Live Payment Confirmation Status */}
+                <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                  <div className="p-3.5 bg-emerald-50/80 border border-emerald-100 rounded-2xl text-center space-y-1">
+                    <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-800">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span>{lang === 'sw' ? 'Ombi Lipaswa Kuthibitishwa Kwenye Simu' : 'Waiting for Device Authorization'}</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 leading-relaxed">
+                      {lang === 'sw'
+                        ? 'Weka PIN yako kwenye simu. Mfumo unasikiliza majibu ya muamala moja kwa moja kupitia Webhook ya mtandao na utafungua akaunti yako papo hapo ukishathibitisha.'
+                        : 'Enter your PIN on your mobile device. System is monitoring the live aggregator webhook.'}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(false)}
-                    className="w-full py-2 text-xs text-slate-500 hover:text-slate-800 font-semibold transition"
+                    className="w-full py-2.5 text-xs text-slate-500 hover:text-slate-800 font-semibold transition rounded-xl hover:bg-slate-100 cursor-pointer"
                   >
                     {lang === 'sw' ? 'Ghairi au Badilisha Namba ya Simu' : 'Cancel or Change Number'}
                   </button>

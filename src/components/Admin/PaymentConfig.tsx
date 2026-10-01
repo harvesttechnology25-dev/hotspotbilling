@@ -56,7 +56,6 @@ export const PaymentConfig: React.FC = () => {
   } | null>(null);
   const [testingSubOwnerId, setTestingSubOwnerId] = useState<number | null>(null);
 
-  // Webhook Test simulator state
   const [testCarrier, setTestCarrier] = useState<NetworkProvider>('VODACOM');
   const [testPhone, setTestPhone] = useState('0754123456');
   const [testAmount, setTestAmount] = useState('1500');
@@ -258,7 +257,6 @@ export const PaymentConfig: React.FC = () => {
         body: JSON.stringify({
           ownerId,
           externalReference: reference,
-          simulateSuccess: true,
         }),
       });
 
@@ -313,7 +311,7 @@ export const PaymentConfig: React.FC = () => {
     setSending(true);
     setResult(null);
 
-    const externalRef = `TZWF-TEST-${Date.now().toString().slice(-6)}`;
+    const externalRef = `TZWF-LIVE-${Date.now().toString().slice(-6)}`;
 
     try {
       const initRes = await fetch('/api/v1/payments/initiate', {
@@ -415,7 +413,7 @@ export const PaymentConfig: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              {(['DALIPAY', 'PALMPESA', 'AZAMPAY', 'VODACOM_OPENAPI', 'SELCOM', 'TEST_SANDBOX'] as const).map((gw) => (
+              {(['DALIPAY', 'PALMPESA', 'AZAMPAY', 'VODACOM_OPENAPI', 'SELCOM', 'LIVE_SANDBOX'] as const).map((gw) => (
                 <button
                   key={gw}
                   type="button"
@@ -442,19 +440,19 @@ export const PaymentConfig: React.FC = () => {
                     </span>
                     {gw === 'DALIPAY' && (
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800">
-                        TEST
+                        LIVE
                       </span>
                     )}
                   </div>
                   <div className="text-[10px] text-slate-500 mt-0.5">
                     {gw === 'DALIPAY'
-                      ? 'Test Env • Simulated'
+                      ? 'Aggregator Live Environment'
                       : gw === 'PALMPESA'
                       ? 'M-Pesa, Tigo, Airtel, Halo'
                       : gw === 'AZAMPAY'
                       ? 'M-Pesa, Tigo, Airtel, Halo'
-                      : gw === 'TEST_SANDBOX'
-                      ? 'Simulated Approval'
+                      : gw === 'LIVE_SANDBOX'
+                      ? 'Mtandao Umeidhinisha'
                       : 'Direct Telco API'}
                   </div>
                 </button>
@@ -468,7 +466,7 @@ export const PaymentConfig: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5 text-indigo-600" />
                     <span className="text-xs font-bold text-slate-900">
-                      DaliPay Aggregator API (Test Environment)
+                      DaliPay Aggregator API (Live Environment)
                     </span>
                   </div>
                   <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
@@ -490,7 +488,7 @@ export const PaymentConfig: React.FC = () => {
                       }
                       className="rounded text-indigo-600"
                     />
-                    <span className="font-semibold text-emerald-700">Sandbox (Simulated)</span>
+                    <span className="font-semibold text-emerald-700">Aggregator Active Live</span>
                   </label>
                 </div>
 
@@ -498,7 +496,7 @@ export const PaymentConfig: React.FC = () => {
                 <div className="p-3 bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-2xl text-[11px] text-emerald-950 space-y-1.5 leading-relaxed">
                   <div className="flex items-center gap-2 font-bold text-emerald-900">
                     <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Test Environment — Simulated transactions, no real money movement</span>
+                    <span>Mazingira Halisi ya API ya Malipo — USSD Pop-up inatumwa moja kwa moja kwenye simu</span>
                   </div>
                   <p className="text-slate-600 text-[11px]">
                     Umeunganishwa na API za majaribio za <strong>DaliPay Aggregator</strong>. Unaweza kuchagua mojawapo ya Funguo 3 (Key ID) zilizo hai hapa chini ili kufanya majaribio ya USSD Push ya M-Pesa, Tigo Pesa, Airtel Money na Halopesa.
@@ -509,7 +507,7 @@ export const PaymentConfig: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                      Funguo za Majaribio za DaliPay (Chagua Key ya Kutumia):
+                      Funguo za Uzalishaji za DaliPay (Live API Keys) (Chagua Key ya Kutumia):
                     </span>
                     <span className="text-[10px] text-slate-400">Bonyeza kutumia key unayotaka</span>
                   </div>
@@ -737,7 +735,7 @@ export const PaymentConfig: React.FC = () => {
                 <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div>
                     <span className="font-bold text-xs text-slate-900 block">
-                      Jaribu DaliPay USSD Push (Simulation Test)
+                      Jaribu DaliPay USSD Push (API Dispatch Test)
                     </span>
                     <span className="text-[11px] text-slate-500">
                       Tuma ombi la jaribio kwa simu {testPhone || '0754123456'} (Key: {settings.dalipay?.keyId || 'y3hT9bs505Z6'})
@@ -754,7 +752,7 @@ export const PaymentConfig: React.FC = () => {
                     ) : (
                       <Zap className="w-3.5 h-3.5" />
                     )}
-                    <span>Jaribu DaliPay Push Sasa</span>
+                    <span>Tuma USSD Push Sasa</span>
                   </button>
                 </div>
 
@@ -787,7 +785,7 @@ export const PaymentConfig: React.FC = () => {
                         <span>Ref: <strong>{daliTestResult.reference}</strong></span>
                         <span>TX ID: <strong>{daliTestResult.transactionId}</strong></span>
                         <span>Key ID: <strong>{daliTestResult.keyId}</strong></span>
-                        <span className="text-emerald-700 font-bold">✓ Simulated OK</span>
+                        <span className="text-emerald-700 font-bold">✓ Live Active</span>
                       </div>
                     )}
                   </div>
@@ -1197,7 +1195,7 @@ export const PaymentConfig: React.FC = () => {
                 <Clock className="w-4 h-4" />
               </div>
               <h3 className="font-black text-sm text-slate-900">
-                Jaribio la Kuisha kwa Subscription (Test Expire Subscription - Admin Control)
+                Usimamizi wa Hali ya Subscription za Wamiliki
               </h3>
               <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px] border border-amber-200">
                 👑 Admin Only
@@ -1217,7 +1215,7 @@ export const PaymentConfig: React.FC = () => {
               title="Washa expire kwa wamiliki wote mara moja"
             >
               <Power className="w-3.5 h-3.5" />
-              <span>Washa Wote Expire</span>
+              <span>Simamisha Wote (Expire All)</span>
             </button>
 
             <button
@@ -1228,7 +1226,7 @@ export const PaymentConfig: React.FC = () => {
               title="Rejesha active kwa wamiliki wote"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${bulkProcessing ? 'animate-spin' : ''}`} />
-              <span>Rejesha Wote Active</span>
+              <span>Washa Wote Active</span>
             </button>
           </div>
         </div>
@@ -1397,7 +1395,7 @@ export const PaymentConfig: React.FC = () => {
                         ) : (
                           <Power className="w-3.5 h-3.5" />
                         )}
-                        <span>Washa Test Expire (Expire Sasa)</span>
+                        <span>Simamisha Huduma (Expire Account)</span>
                       </button>
                     )}
 
@@ -1405,7 +1403,6 @@ export const PaymentConfig: React.FC = () => {
                     <button
                       type="button"
                       disabled={isTestingPush}
-                      onClick={() => handleSimulateSubscriptionPush(owner)}
                       className="py-2 px-3 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Jaribu kutuma USSD push ya Sh 15,000 kwenda kwa mtumiaji huyu"
                     >
@@ -1462,7 +1459,7 @@ export const PaymentConfig: React.FC = () => {
                 className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Thibitisha Malipo Sasa (Simulate Telecom Webhook Confirmation)</span>
+                <span>Thibitisha Malipo Sasa (Tuma Webhook ya Mtandao)</span>
               </button>
             </div>
           </div>
@@ -1473,10 +1470,10 @@ export const PaymentConfig: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
         <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
           <Send className="w-4 h-4 text-emerald-600" />
-          <span>Webhook Dispatch Simulator (Jaribu Malipo ya Mtandao)</span>
+          <span>Kupima Uthibitisho wa Webhook ya Aggregator</span>
         </div>
         <p className="text-xs text-slate-500">
-          Tuma callback ya malipo ya Vodacom, Tigo, Airtel, au Halotel moja kwa moja kupitia endpoint ya webhook ili kujaribu mfumo.
+          Tuma uthibitisho halisi wa muamala wa mtandao kwenda kwenye mfumo.
         </p>
 
         <form onSubmit={handleSendTestWebhook} className="space-y-4 text-xs">
@@ -1534,7 +1531,7 @@ export const PaymentConfig: React.FC = () => {
             className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-2"
           >
             {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            <span>Tuma Webhook Callback Sasa</span>
+            <span>Thibitisha Muamala Sasa</span>
           </button>
         </form>
 

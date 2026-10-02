@@ -1,0 +1,3186 @@
+{
+  "owners": [
+    {
+      "id": 1,
+      "name": "Kelvin Mrema (Vendor HQ)",
+      "business_name": "TZ-WiFi Cloud Vendor Platform",
+      "email": "vendor@tzwifi.co.tz",
+      "phone": "0754111222",
+      "password": "admin123",
+      "role": "VENDOR_ADMIN",
+      "status": "ACTIVE",
+      "assigned_router_ids": [
+        1,
+        2
+      ],
+      "commission_rate": 10,
+      "monthly_fee": 0,
+      "created_at": "2026-07-27T05:56:14.374Z",
+      "updated_at": "2026-10-01T14:42:11.805Z",
+      "subscription_fee": 0,
+      "subscription_status": "ACTIVE",
+      "palmpesa_user_id": "999",
+      "palmpesa_user_ref": "USR-TEST",
+      "palmpesa_api_token": "TOKEN_SAMPLE"
+    },
+    {
+      "id": 2,
+      "name": "Juma Shabani",
+      "business_name": "Kariakoo Cyber & WiFi Point",
+      "email": "juma@kariakoowifi.tz",
+      "phone": "0712345678",
+      "password": "123456",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "assigned_router_ids": [
+        1,
+        3,
+        4
+      ],
+      "commission_rate": 0,
+      "monthly_fee": 15000,
+      "created_at": "2026-08-26T05:56:14.374Z",
+      "updated_at": "2026-09-30T07:28:51.112Z",
+      "vendor_merchant_id": "PP-MERCHANT-10002",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0712345678",
+      "portal_theme": {
+        "themeId": "midnight",
+        "themeName": "Kijani Safi (Modern Emerald)",
+        "primaryColor": "#06b6d4",
+        "accentColor": "#10b981",
+        "backgroundColor": "#f8fafc",
+        "textColor": "#0f172a",
+        "cardStyle": "glassmorphism",
+        "cardRadius": "medium",
+        "cardBgColor": "rgba(15,23,42,0.85)",
+        "cardBorderColor": "#e2e8f0",
+        "cardBorderThickness": "medium",
+        "cardActiveBgColor": "#f0fdf4",
+        "cardActiveBorderColor": "#06b6d4",
+        "cardShadow": "md",
+        "cardTextColor": "#0f172a",
+        "priceTagColor": "#059669",
+        "brandName": "Kariakoo Fast Wi-Fi",
+        "tagline": "Mtandao wa Kasi ya Juu | Malipo ya Simu Papo Hapo",
+        "supportPhone": "+255 754 000 111",
+        "logoIcon": "wifi",
+        "badgeText": "HOTSPOT YA UHAKIKA",
+        "welcomeMessageSw": "Karibu kwenye Mtandao Wetu wa Hotspot! Chagua kifurushi hapa chini na ulipie kwa simu yako upate intaneti ya kasi ya haraka papo hapo.",
+        "welcomeMessageEn": "Welcome to our high-speed Hotspot! Select a package below and pay with mobile money for instant internet access.",
+        "showCarrierLogos": true,
+        "showSupportBadge": true,
+        "headerStyle": "standard"
+      },
+      "subscription_fee": 15000,
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-12-24T16:35:06.952Z"
+    },
+    {
+      "id": 3,
+      "name": "Neema Mwangi",
+      "business_name": "Clock Tower Arusha Lounge",
+      "email": "neema@arushalounge.tz",
+      "phone": "0765987654",
+      "password": "123456",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "assigned_router_ids": [
+        2
+      ],
+      "commission_rate": 0,
+      "monthly_fee": 15000,
+      "created_at": "2026-09-10T05:56:14.374Z",
+      "updated_at": "2026-09-27T16:35:25.431Z",
+      "vendor_merchant_id": "PP-MERCHANT-10003",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0765987654",
+      "subscription_fee": 15000,
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-10-27T16:35:25.431Z"
+    },
+    {
+      "id": 4,
+      "name": "Amani Baraka",
+      "business_name": "Amani Wi-Fi",
+      "email": "baraka@test.tz",
+      "phone": "0765999888",
+      "password": "password123",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "assigned_router_ids": [],
+      "commission_rate": 0,
+      "monthly_fee": 15000,
+      "palmpesa_user_id": "770",
+      "palmpesa_accept_stk": true,
+      "created_at": "2026-09-25T12:59:02.363Z",
+      "updated_at": "2026-09-25T12:59:02.363Z",
+      "vendor_merchant_id": "PP-MERCHANT-10004",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0765999888",
+      "subscription_fee": 15000,
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-10-25T16:35:06.952Z"
+    },
+    {
+      "id": 5,
+      "name": "Asha Mussa",
+      "business_name": "Sinza Fast WiFi",
+      "email": "0765111333@tzwifi.local",
+      "phone": "0765111333",
+      "password": "1234",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "assigned_router_ids": [],
+      "commission_rate": 0,
+      "monthly_fee": 15000,
+      "palmpesa_accept_stk": true,
+      "created_at": "2026-09-25T15:00:07.314Z",
+      "updated_at": "2026-09-25T15:00:07.314Z",
+      "vendor_merchant_id": "PP-MERCHANT-10005",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0765111333",
+      "subscription_fee": 15000,
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-10-25T16:35:06.952Z"
+    },
+    {
+      "id": 6,
+      "name": "Amina Bakari",
+      "business_name": "Amina Hotspot",
+      "email": "amina@gmail.com",
+      "phone": "0755998877",
+      "password": "mypassword123",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "assigned_router_ids": [],
+      "commission_rate": 0,
+      "monthly_fee": 15000,
+      "subscription_fee": 15000,
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-10-27T17:21:59.135Z",
+      "palmpesa_accept_stk": true,
+      "created_at": "2026-09-27T17:21:59.135Z",
+      "updated_at": "2026-09-27T17:21:59.135Z",
+      "vendor_merchant_id": "PP-MERCHANT-10006",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0755998877"
+    },
+    {
+      "id": 7,
+      "name": "Amina Kassim",
+      "business_name": "Kariakoo Cyber WiFi",
+      "email": "amina@kariakoowifi.tz",
+      "phone": "0755998877",
+      "password": "123456",
+      "role": "CASHIER",
+      "status": "ACTIVE",
+      "parent_owner_id": 2,
+      "staff_title": "Msimamizi wa Mauzo",
+      "privileges": {
+        "can_generate_vouchers": true,
+        "can_view_vouchers": true,
+        "can_print_vouchers": true,
+        "can_view_active_users": true
+      },
+      "assigned_router_ids": [],
+      "commission_rate": 0,
+      "monthly_fee": 15000,
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-10-30T12:30:48.292Z",
+      "subscription_fee": 15000,
+      "palmpesa_accept_stk": true,
+      "created_at": "2026-09-30T12:30:48.292Z",
+      "updated_at": "2026-09-30T12:30:55.179Z"
+    }
+  ],
+  "routers": [
+    {
+      "id": 1,
+      "name": "Mikrotik-Main-Dar",
+      "ip_address": "192.168.88.1",
+      "api_port": 8728,
+      "api_username": "billing_api",
+      "api_password_hash": "admin123",
+      "location": "Posta Mpya, Dar es Salaam",
+      "hotspot_server_name": "hotspot1",
+      "dns_name": "wifi.hotspot.lan",
+      "status": "OFFLINE",
+      "created_at": "2026-08-25T07:51:48.716Z",
+      "updated_at": "2026-09-29T06:15:07.435Z",
+      "last_seen_at": "2026-09-24T08:07:12.307Z",
+      "vpn_assigned_ip": "100.108.0.2",
+      "radius_secret": "radius_secret_2026",
+      "vendor_name": "PalmPesa",
+      "vendor_merchant_id": "PP-MERCHANT-10001",
+      "platform_commission_percent": 5,
+      "payout_channel": "PALMPESA",
+      "brand_name": "Kariakoo Cyber & WiFi Point",
+      "ssid": "KARIAKOO-CYBER---WIFI",
+      "portal_theme": {
+        "themeId": "midnight",
+        "themeName": "Kijani Safi (Modern Emerald)",
+        "primaryColor": "#06b6d4",
+        "accentColor": "#10b981",
+        "backgroundColor": "#f8fafc",
+        "textColor": "#0f172a",
+        "cardStyle": "glassmorphism",
+        "cardRadius": "medium",
+        "cardBgColor": "rgba(15,23,42,0.85)",
+        "cardBorderColor": "#e2e8f0",
+        "cardBorderThickness": "medium",
+        "cardActiveBgColor": "#f0fdf4",
+        "cardActiveBorderColor": "#06b6d4",
+        "cardShadow": "md",
+        "cardTextColor": "#0f172a",
+        "priceTagColor": "#059669",
+        "brandName": "Kariakoo Fast Wi-Fi",
+        "tagline": "Mtandao wa Kasi ya Juu | Malipo ya Simu Papo Hapo",
+        "supportPhone": "+255 754 000 111",
+        "logoIcon": "wifi",
+        "badgeText": "HOTSPOT YA UHAKIKA",
+        "welcomeMessageSw": "Karibu kwenye Mtandao Wetu wa Hotspot! Chagua kifurushi hapa chini na ulipie kwa simu yako upate intaneti ya kasi ya haraka papo hapo.",
+        "welcomeMessageEn": "Welcome to our high-speed Hotspot! Select a package below and pay with mobile money for instant internet access.",
+        "showCarrierLogos": true,
+        "showSupportBadge": true,
+        "headerStyle": "standard"
+      },
+      "anti_tethering": false
+    },
+    {
+      "id": 2,
+      "name": "Mikrotik-Branch-Arusha",
+      "ip_address": "10.5.50.1",
+      "api_port": 8728,
+      "api_username": "billing_api",
+      "api_password_hash": "admin123",
+      "location": "Clock Tower, Arusha",
+      "hotspot_server_name": "hotspot1",
+      "dns_name": "arusha.hotspot.lan",
+      "status": "ONLINE",
+      "created_at": "2026-09-09T07:51:48.716Z",
+      "updated_at": "2026-09-24T07:51:48.716Z",
+      "vpn_assigned_ip": "100.108.0.3",
+      "radius_secret": "radius_secret_2026",
+      "vendor_name": "PalmPesa",
+      "vendor_merchant_id": "PP-MERCHANT-10001",
+      "platform_commission_percent": 5,
+      "payout_channel": "PALMPESA",
+      "brand_name": "Clock Tower Arusha Lounge",
+      "ssid": "CLOCK-TOWER-ARUS-WIFI"
+    },
+    {
+      "id": 3,
+      "name": "Omada-EAP610-Kariakoo",
+      "device_type": "TPLINK_OMADA",
+      "model_name": "TP-Link Omada EAP610 (Wi-Fi 6 AX1800)",
+      "mac_address": "50:D4:F7:2B:8C:1A",
+      "ip_address": "192.168.0.254",
+      "api_port": 29810,
+      "api_username": "admin",
+      "api_password_hash": "admin123",
+      "ap_username": "admin",
+      "ap_password": "admin123",
+      "inform_url": "http://167.99.120.45:29810/inform",
+      "adoption_status": "ADOPTED",
+      "omada_firmware": "v5.0.12 Build 20260410",
+      "omada_channel_2g": 6,
+      "omada_channel_5g": 44,
+      "omada_clients_count": 4,
+      "last_adopted_at": "2026-09-29T10:15:00.000Z",
+      "last_seen_at": "2026-09-30T07:28:47.033Z",
+      "radius_secret": "radius_secret_2026",
+      "location": "Kariakoo, Dar es Salaam",
+      "hotspot_server_name": "omada-portal",
+      "dns_name": "wifi.hotspot.lan",
+      "status": "ONLINE",
+      "brand_name": "Kariakoo Cyber & WiFi Point",
+      "ssid": "KARIAKOO-FREE-WIFI",
+      "owner_id": 2,
+      "owner_name": "Juma Shabani (Kariakoo Cyber & WiFi Point)",
+      "created_at": "2026-09-29T10:15:00.000Z",
+      "updated_at": "2026-09-30T07:29:02.145Z",
+      "vpn_assigned_ip": "100.108.0.4",
+      "vendor_name": "PalmPesa",
+      "vendor_merchant_id": "PP-MERCHANT-10002",
+      "platform_commission_percent": 5,
+      "payout_channel": "PALMPESA"
+    }
+  ],
+  "plans": [
+    {
+      "id": 1,
+      "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+      "type": "TIME_BASED",
+      "limit_uptime": 7200,
+      "limit_bytes_total": null,
+      "rate_limit": "2M/4M",
+      "price": 500,
+      "validity_period": 7200,
+      "shared_users": 1,
+      "is_active": true,
+      "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+      "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+      "created_at": "2026-08-25T07:51:48.717Z",
+      "updated_at": "2026-09-27T17:29:04.538Z",
+      "badge": "HOT_DEAL",
+      "features": [
+        "Masaa 2 bila kikomo cha MB",
+        "Kasi ya 4 Mbps"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Masaa 6 - Standard (6 Hours)",
+      "type": "TIME_BASED",
+      "limit_uptime": 21600,
+      "limit_bytes_total": null,
+      "rate_limit": "3M/6M",
+      "price": 1000,
+      "validity_period": 21600,
+      "shared_users": 1,
+      "is_active": true,
+      "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+      "description_en": "6 Hours for remote work, streaming, and downloads",
+      "created_at": "2026-08-25T07:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z",
+      "badge": "NONE",
+      "features": [
+        "Masaa 6 ya kazi & masomo",
+        "Kasi ya 6 Mbps",
+        "YouTube & TikTok bila kukwama"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Masaa 24 (Siku 1) - Unlimited",
+      "type": "TIME_BASED",
+      "limit_uptime": 86400,
+      "limit_bytes_total": null,
+      "rate_limit": "3M/8M",
+      "price": 1500,
+      "validity_period": 86400,
+      "shared_users": 1,
+      "is_active": true,
+      "description_sw": "Siku 1 kamili (masaa 24) intaneti mfululizo bila kikomo",
+      "description_en": "Full 24-hour unlimited connection at high speed",
+      "created_at": "2026-08-25T07:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z",
+      "badge": "POPULAR",
+      "features": [
+        "Saa 24 (siku 1) mfululizo",
+        "Kasi ya 8 Mbps",
+        "Inafaa kwa kupakua na kupiga simu"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Siku 7 (Wiki 1) - Kasi Kubwa",
+      "type": "TIME_BASED",
+      "limit_uptime": 604800,
+      "limit_bytes_total": null,
+      "rate_limit": "4M/10M",
+      "price": 5000,
+      "validity_period": 604800,
+      "shared_users": 1,
+      "is_active": true,
+      "description_sw": "Wiki nzima (siku 7) intaneti kasi kubwa bila kukatika",
+      "description_en": "7 Days continuous broadband internet with prioritized QoS",
+      "created_at": "2026-08-25T07:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z",
+      "badge": "BEST_VALUE",
+      "features": [
+        "Siku 7 mfululizo bila kikomo",
+        "Kasi kubwa 10 Mbps",
+        "QoS prioritization kwa kazi"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Siku 30 (Mwezi 1) - Unlimited",
+      "type": "TIME_BASED",
+      "limit_uptime": 2592000,
+      "limit_bytes_total": null,
+      "rate_limit": "5M/15M",
+      "price": 18000,
+      "validity_period": 2592000,
+      "shared_users": 2,
+      "is_active": true,
+      "description_sw": "Mwezi mzima (siku 30) vifaa hadi 2 kwa wakati mmoja",
+      "description_en": "Monthly unlimited internet package up to 2 simultaneous devices",
+      "created_at": "2026-08-25T07:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z",
+      "badge": "NONE",
+      "features": [
+        "Intaneti ya kasi ya juu bila kikomo"
+      ]
+    }
+  ],
+  "transactions": [
+    {
+      "id": 1,
+      "phone_number": "255754123456",
+      "network_provider": "VODACOM",
+      "amount": 1500,
+      "external_reference": "TZWF-260924-A109",
+      "transaction_id": "MP260924.0812.K10921",
+      "status": "SUCCESS",
+      "plan_id": 3,
+      "router_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "gateway_provider": "AZAMPAY",
+      "created_at": "2026-09-24T06:51:48.717Z",
+      "updated_at": "2026-09-24T06:51:58.717Z"
+    },
+    {
+      "id": 2,
+      "phone_number": "255713994021",
+      "network_provider": "TIGO",
+      "amount": 500,
+      "external_reference": "TZWF-260924-B882",
+      "transaction_id": "TP260924.0920.L44910",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "router_id": 1,
+      "mac_address": "F0:18:98:5C:33:1B",
+      "gateway_provider": "AZAMPAY",
+      "created_at": "2026-09-24T05:51:48.717Z",
+      "updated_at": "2026-09-24T05:51:58.717Z"
+    },
+    {
+      "id": 3,
+      "phone_number": "255784112940",
+      "network_provider": "AIRTEL",
+      "amount": 5000,
+      "external_reference": "TZWF-260924-C901",
+      "transaction_id": "AM260924.0715.M78129",
+      "status": "SUCCESS",
+      "plan_id": 4,
+      "router_id": 2,
+      "mac_address": "44:65:0E:8F:A2:70",
+      "gateway_provider": "AZAMPAY",
+      "created_at": "2026-09-24T03:51:48.717Z",
+      "updated_at": "2026-09-24T03:52:08.717Z"
+    },
+    {
+      "id": 4,
+      "phone_number": "255620993812",
+      "network_provider": "HALOTEL",
+      "amount": 1000,
+      "external_reference": "TZWF-260924-D442",
+      "transaction_id": "HP260924.0610.N12345",
+      "status": "SUCCESS",
+      "plan_id": 2,
+      "router_id": 1,
+      "mac_address": "38:F9:D3:55:10:9A",
+      "gateway_provider": "AZAMPAY",
+      "created_at": "2026-09-24T02:51:48.717Z",
+      "updated_at": "2026-09-24T02:52:08.717Z"
+    },
+    {
+      "id": 5,
+      "phone_number": "255754123456",
+      "network_provider": "VODACOM",
+      "amount": 500,
+      "external_reference": "TZWF-260924-D9B87373",
+      "transaction_id": "VO1790236327113",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "router_id": 1,
+      "user_ip": "127.0.0.1",
+      "gateway_provider": "TEST_SANDBOX",
+      "created_at": "2026-09-24T07:52:00.330Z",
+      "updated_at": "2026-09-24T07:52:07.113Z"
+    },
+    {
+      "id": 6,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-260925-39755C52",
+      "transaction_id": null,
+      "status": "FAILED",
+      "plan_id": 1,
+      "router_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "TEST_SANDBOX",
+      "created_at": "2026-09-25T09:49:06.179Z",
+      "updated_at": "2026-09-25T09:49:37.020Z",
+      "failure_reason": "User cancelled USSD prompt"
+    },
+    {
+      "id": 7,
+      "phone_number": "255787825713",
+      "network_provider": "AIRTEL",
+      "amount": 1000,
+      "external_reference": "TZWF-260925-02C282CE",
+      "transaction_id": null,
+      "status": "PENDING",
+      "plan_id": 2,
+      "router_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "TEST_SANDBOX",
+      "created_at": "2026-09-25T09:50:10.954Z",
+      "updated_at": "2026-09-25T09:50:10.954Z"
+    },
+    {
+      "id": 8,
+      "phone_number": "255787825713",
+      "network_provider": "AIRTEL",
+      "amount": 1000,
+      "external_reference": "TZWF-260925-25ED9949",
+      "transaction_id": null,
+      "status": "PENDING",
+      "plan_id": 2,
+      "router_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "TEST_SANDBOX",
+      "created_at": "2026-09-25T09:50:23.061Z",
+      "updated_at": "2026-09-25T09:50:23.061Z"
+    },
+    {
+      "id": 9,
+      "phone_number": "255787825713",
+      "network_provider": "AIRTEL",
+      "amount": 5000,
+      "external_reference": "TZWF-260925-31A401E0",
+      "transaction_id": null,
+      "status": "PENDING",
+      "plan_id": 4,
+      "router_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "TEST_SANDBOX",
+      "created_at": "2026-09-25T09:50:32.676Z",
+      "updated_at": "2026-09-25T09:50:32.676Z"
+    },
+    {
+      "id": 10,
+      "phone_number": "255787825713",
+      "network_provider": "AIRTEL",
+      "amount": 1000,
+      "external_reference": "TZWF-260925-ADBEEEE2",
+      "transaction_id": "AI1790330146026",
+      "status": "SUCCESS",
+      "plan_id": 2,
+      "router_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "TEST_SANDBOX",
+      "created_at": "2026-09-25T09:55:30.563Z",
+      "updated_at": "2026-09-25T09:55:46.026Z"
+    },
+    {
+      "id": 11,
+      "phone_number": "0765987654",
+      "network_provider": "VODACOM",
+      "amount": 15000,
+      "external_reference": "SUB-3-1790526917286",
+      "transaction_id": "SUB-TX-1790526925433",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "owner_id": 3,
+      "gateway_provider": "PALMPESA",
+      "created_at": "2026-09-27T16:35:25.433Z",
+      "updated_at": "2026-09-27T16:35:25.433Z"
+    },
+    {
+      "id": 12,
+      "phone_number": "0712345678",
+      "network_provider": "TIGO",
+      "amount": 15000,
+      "external_reference": "SUB-2-1790527411957",
+      "transaction_id": "SUB-TX-1790527415155",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "owner_id": 2,
+      "vendor_merchant_id": "770",
+      "vendor_amount": 15000,
+      "platform_fee": 0,
+      "gateway_provider": "PalmPesa Vendor Master Aggregator (User ID: 770)",
+      "created_at": "2026-09-27T16:43:31.965Z",
+      "updated_at": "2026-09-27T16:43:35.155Z"
+    },
+    {
+      "id": 13,
+      "phone_number": "0712345678",
+      "network_provider": "TIGO",
+      "amount": 15000,
+      "external_reference": "SUB-2-1790527803761",
+      "transaction_id": "SUB-TX-1790527811047",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "owner_id": 2,
+      "vendor_merchant_id": "770",
+      "vendor_amount": 15000,
+      "platform_fee": 0,
+      "gateway_provider": "PalmPesa Vendor Master Aggregator (User ID: 770)",
+      "created_at": "2026-09-27T16:50:03.770Z",
+      "updated_at": "2026-09-27T16:50:11.047Z"
+    },
+    {
+      "id": 14,
+      "phone_number": "0754123456",
+      "network_provider": "VODACOM",
+      "amount": 1000,
+      "external_reference": "DALI-TEST-495684",
+      "transaction_id": "GW-TX-y3hT9bs505Z6-495684",
+      "status": "PENDING",
+      "plan_id": 1,
+      "gateway_provider": "DALIPAY (y3hT9bs505Z6)",
+      "created_at": "2026-09-30T08:21:35.684Z",
+      "updated_at": "2026-09-30T08:21:35.684Z"
+    }
+  ],
+  "vouchers": [
+    {
+      "id": 1,
+      "code": "TZ-74921",
+      "password": "admin",
+      "plan_id": 3,
+      "router_id": 1,
+      "transaction_id": 1,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "status": "ACTIVE",
+      "activated_at": "2026-09-24T06:51:58.717Z",
+      "expires_at": "2026-09-25T06:51:58.717Z",
+      "created_at": "2026-09-24T06:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z"
+    },
+    {
+      "id": 2,
+      "code": "TZ-88301",
+      "password": "admin",
+      "plan_id": 1,
+      "router_id": 1,
+      "transaction_id": 2,
+      "mac_address": "F0:18:98:5C:33:1B",
+      "status": "ACTIVE",
+      "activated_at": "2026-09-24T05:51:58.717Z",
+      "expires_at": "2026-09-24T07:51:58.717Z",
+      "created_at": "2026-09-24T05:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z"
+    },
+    {
+      "id": 3,
+      "code": "TZ-90124",
+      "password": "admin",
+      "plan_id": 1,
+      "router_id": 1,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-2026-09-A",
+      "created_at": "2026-09-23T07:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z"
+    },
+    {
+      "id": 4,
+      "code": "TZ-90125",
+      "password": "admin",
+      "plan_id": 2,
+      "router_id": 1,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-2026-09-A",
+      "created_at": "2026-09-23T07:51:48.717Z",
+      "updated_at": "2026-09-24T07:51:48.717Z"
+    },
+    {
+      "id": 5,
+      "code": "TZ-46402",
+      "password": "TZ-46402",
+      "plan_id": 1,
+      "router_id": 1,
+      "transaction_id": 5,
+      "status": "ACTIVE",
+      "activated_at": "2026-09-24T07:52:07.113Z",
+      "expires_at": "2026-09-24T09:52:07.113Z",
+      "created_at": "2026-09-24T07:52:07.113Z",
+      "updated_at": "2026-09-24T07:52:07.113Z"
+    },
+    {
+      "id": 1790324024144,
+      "code": "TZ-414436",
+      "password": "414436",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.144Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024146,
+      "code": "TZ-231384",
+      "password": "231384",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.145Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024148,
+      "code": "TZ-778013",
+      "password": "778013",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.146Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024149,
+      "code": "TZ-934220",
+      "password": "934220",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.146Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024150,
+      "code": "TZ-779557",
+      "password": "779557",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.146Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024151,
+      "code": "TZ-550886",
+      "password": "550886",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.146Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024153,
+      "code": "TZ-885458",
+      "password": "885458",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.147Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024154,
+      "code": "TZ-222274",
+      "password": "222274",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.147Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024155,
+      "code": "TZ-639973",
+      "password": "639973",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.147Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024157,
+      "code": "TZ-823745",
+      "password": "823745",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.148Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024158,
+      "code": "TZ-930894",
+      "password": "930894",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.148Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024160,
+      "code": "TZ-855675",
+      "password": "855675",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.149Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024162,
+      "code": "TZ-280450",
+      "password": "280450",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.150Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024163,
+      "code": "TZ-569280",
+      "password": "569280",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.150Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024165,
+      "code": "TZ-895646",
+      "password": "895646",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.151Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024166,
+      "code": "TZ-626224",
+      "password": "626224",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.151Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024168,
+      "code": "TZ-236576",
+      "password": "236576",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.152Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024169,
+      "code": "TZ-638153",
+      "password": "638153",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.152Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024171,
+      "code": "TZ-303514",
+      "password": "303514",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.153Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024172,
+      "code": "TZ-677338",
+      "password": "677338",
+      "plan_id": 1,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-260925-7E572E",
+      "expires_at": "2026-09-25T10:13:44.144Z",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "updated_at": "2026-09-25T08:13:44.153Z",
+      "plan": {
+        "id": 1,
+        "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 7200,
+        "limit_bytes_total": null,
+        "rate_limit": "2M/4M",
+        "price": 500,
+        "validity_period": 7200,
+        "shared_users": 1,
+        "is_active": true,
+        "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+        "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+        "created_at": "2026-08-25T07:51:48.717Z",
+        "updated_at": "2026-09-24T07:51:48.717Z"
+      }
+    },
+    {
+      "id": 1790324024173,
+      "code": "TZ-11503",
+      "password": "TZ-11503",
+      "plan_id": 2,
+      "router_id": 1,
+      "transaction_id": 10,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "status": "ACTIVE",
+      "activated_at": "2026-09-25T09:55:46.027Z",
+      "expires_at": "2026-09-25T15:55:46.027Z",
+      "created_at": "2026-09-25T09:55:46.027Z",
+      "updated_at": "2026-09-25T09:55:46.027Z"
+    },
+    {
+      "id": 1790324024174,
+      "code": "FREE-83268",
+      "password": "FREE-83268",
+      "plan_id": 1,
+      "router_id": 1,
+      "mac_address": "AA:BB:CC:11:22:33",
+      "status": "ACTIVE",
+      "batch_tag": "FREE_TRIAL_15MIN",
+      "activated_at": "2026-09-28T15:15:53.733Z",
+      "expires_at": "2026-09-28T15:30:53.733Z",
+      "created_at": "2026-09-28T15:15:53.733Z",
+      "updated_at": "2026-09-28T15:15:53.733Z"
+    }
+  ],
+  "voucherBatches": [
+    {
+      "id": 1790324024153,
+      "batch_id": "BATCH-260925-7E572E",
+      "plan_id": 1,
+      "plan_name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+      "price": 500,
+      "owner_id": 2,
+      "quantity": 20,
+      "prefix": "TZ",
+      "code_length": 6,
+      "print_format": "A4_GRID",
+      "created_at": "2026-09-25T08:13:44.144Z",
+      "vouchers": [
+        {
+          "id": 1790324024144,
+          "code": "TZ-414436",
+          "password": "414436",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.144Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024146,
+          "code": "TZ-231384",
+          "password": "231384",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.145Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024148,
+          "code": "TZ-778013",
+          "password": "778013",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.146Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024149,
+          "code": "TZ-934220",
+          "password": "934220",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.146Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024150,
+          "code": "TZ-779557",
+          "password": "779557",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.146Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024151,
+          "code": "TZ-550886",
+          "password": "550886",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.146Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024153,
+          "code": "TZ-885458",
+          "password": "885458",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.147Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024154,
+          "code": "TZ-222274",
+          "password": "222274",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.147Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024155,
+          "code": "TZ-639973",
+          "password": "639973",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.147Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024157,
+          "code": "TZ-823745",
+          "password": "823745",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.148Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024158,
+          "code": "TZ-930894",
+          "password": "930894",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.148Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024160,
+          "code": "TZ-855675",
+          "password": "855675",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.149Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024162,
+          "code": "TZ-280450",
+          "password": "280450",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.150Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024163,
+          "code": "TZ-569280",
+          "password": "569280",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.150Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024165,
+          "code": "TZ-895646",
+          "password": "895646",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.151Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024166,
+          "code": "TZ-626224",
+          "password": "626224",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.151Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024168,
+          "code": "TZ-236576",
+          "password": "236576",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.152Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024169,
+          "code": "TZ-638153",
+          "password": "638153",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.152Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024171,
+          "code": "TZ-303514",
+          "password": "303514",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.153Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        },
+        {
+          "id": 1790324024172,
+          "code": "TZ-677338",
+          "password": "677338",
+          "plan_id": 1,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-260925-7E572E",
+          "expires_at": "2026-09-25T10:13:44.144Z",
+          "created_at": "2026-09-25T08:13:44.144Z",
+          "updated_at": "2026-09-25T08:13:44.153Z",
+          "plan": {
+            "id": 1,
+            "name": "Masaa 2 - Kasi ya Juu (2 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 7200,
+            "limit_bytes_total": null,
+            "rate_limit": "2M/4M",
+            "price": 500,
+            "validity_period": 7200,
+            "shared_users": 1,
+            "is_active": true,
+            "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
+            "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
+            "created_at": "2026-08-25T07:51:48.717Z",
+            "updated_at": "2026-09-24T07:51:48.717Z"
+          }
+        }
+      ]
+    }
+  ],
+  "radcheck": [
+    {
+      "id": 1790324024941,
+      "username": "TZ-414436",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "414436"
+    },
+    {
+      "id": 1790324024679,
+      "username": "TZ-414436",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024973,
+      "username": "TZ-414436",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024501,
+      "username": "TZ-231384",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "231384"
+    },
+    {
+      "id": 1790324025001,
+      "username": "TZ-231384",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024239,
+      "username": "TZ-231384",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024592,
+      "username": "TZ-778013",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "778013"
+    },
+    {
+      "id": 1790324024810,
+      "username": "TZ-778013",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024205,
+      "username": "TZ-778013",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024586,
+      "username": "TZ-934220",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "934220"
+    },
+    {
+      "id": 1790324024935,
+      "username": "TZ-934220",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024660,
+      "username": "TZ-934220",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024723,
+      "username": "TZ-779557",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "779557"
+    },
+    {
+      "id": 1790324024401,
+      "username": "TZ-779557",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024602,
+      "username": "TZ-779557",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024712,
+      "username": "TZ-550886",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "550886"
+    },
+    {
+      "id": 1790324024929,
+      "username": "TZ-550886",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024569,
+      "username": "TZ-550886",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024738,
+      "username": "TZ-885458",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "885458"
+    },
+    {
+      "id": 1790324024815,
+      "username": "TZ-885458",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024717,
+      "username": "TZ-885458",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024498,
+      "username": "TZ-222274",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "222274"
+    },
+    {
+      "id": 1790324024189,
+      "username": "TZ-222274",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024255,
+      "username": "TZ-222274",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024185,
+      "username": "TZ-639973",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "639973"
+    },
+    {
+      "id": 1790324024784,
+      "username": "TZ-639973",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024555,
+      "username": "TZ-639973",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024402,
+      "username": "TZ-823745",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "823745"
+    },
+    {
+      "id": 1790324024164,
+      "username": "TZ-823745",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024567,
+      "username": "TZ-823745",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324025053,
+      "username": "TZ-930894",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "930894"
+    },
+    {
+      "id": 1790324024586,
+      "username": "TZ-930894",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024168,
+      "username": "TZ-930894",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024160,
+      "username": "TZ-855675",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "855675"
+    },
+    {
+      "id": 1790324024399,
+      "username": "TZ-855675",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024220,
+      "username": "TZ-855675",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024375,
+      "username": "TZ-280450",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "280450"
+    },
+    {
+      "id": 1790324024883,
+      "username": "TZ-280450",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024885,
+      "username": "TZ-280450",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024604,
+      "username": "TZ-569280",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "569280"
+    },
+    {
+      "id": 1790324024336,
+      "username": "TZ-569280",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024267,
+      "username": "TZ-569280",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024943,
+      "username": "TZ-895646",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "895646"
+    },
+    {
+      "id": 1790324024847,
+      "username": "TZ-895646",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324025110,
+      "username": "TZ-895646",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024789,
+      "username": "TZ-626224",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "626224"
+    },
+    {
+      "id": 1790324024483,
+      "username": "TZ-626224",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024860,
+      "username": "TZ-626224",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024165,
+      "username": "TZ-236576",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "236576"
+    },
+    {
+      "id": 1790324024467,
+      "username": "TZ-236576",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024716,
+      "username": "TZ-236576",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024172,
+      "username": "TZ-638153",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "638153"
+    },
+    {
+      "id": 1790324024615,
+      "username": "TZ-638153",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024506,
+      "username": "TZ-638153",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024660,
+      "username": "TZ-303514",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "303514"
+    },
+    {
+      "id": 1790324024874,
+      "username": "TZ-303514",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024860,
+      "username": "TZ-303514",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024362,
+      "username": "TZ-677338",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "677338"
+    },
+    {
+      "id": 1790324024675,
+      "username": "TZ-677338",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1790324024967,
+      "username": "TZ-677338",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "7200"
+    },
+    {
+      "id": 1790608553734,
+      "username": "FREE-83268",
+      "attribute": "Cleartext-Password",
+      "op": "==",
+      "value": "FREE-83268"
+    }
+  ],
+  "radreply": [
+    {
+      "id": 1790324025078,
+      "username": "TZ-414436",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024195,
+      "username": "TZ-414436",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024493,
+      "username": "TZ-231384",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024388,
+      "username": "TZ-231384",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324025011,
+      "username": "TZ-778013",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024352,
+      "username": "TZ-778013",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024721,
+      "username": "TZ-934220",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324025087,
+      "username": "TZ-934220",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024524,
+      "username": "TZ-779557",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024625,
+      "username": "TZ-779557",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024273,
+      "username": "TZ-550886",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024726,
+      "username": "TZ-550886",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024274,
+      "username": "TZ-885458",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024636,
+      "username": "TZ-885458",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024704,
+      "username": "TZ-222274",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024695,
+      "username": "TZ-222274",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024237,
+      "username": "TZ-639973",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024697,
+      "username": "TZ-639973",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324025066,
+      "username": "TZ-823745",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024836,
+      "username": "TZ-823745",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024500,
+      "username": "TZ-930894",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024753,
+      "username": "TZ-930894",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324025141,
+      "username": "TZ-855675",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024741,
+      "username": "TZ-855675",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024216,
+      "username": "TZ-280450",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024997,
+      "username": "TZ-280450",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024730,
+      "username": "TZ-569280",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024959,
+      "username": "TZ-569280",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024222,
+      "username": "TZ-895646",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024520,
+      "username": "TZ-895646",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324025087,
+      "username": "TZ-626224",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024613,
+      "username": "TZ-626224",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024638,
+      "username": "TZ-236576",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024713,
+      "username": "TZ-236576",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024858,
+      "username": "TZ-638153",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024871,
+      "username": "TZ-638153",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024319,
+      "username": "TZ-303514",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024559,
+      "username": "TZ-303514",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790324024443,
+      "username": "TZ-677338",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "2M/4M"
+    },
+    {
+      "id": 1790324024561,
+      "username": "TZ-677338",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "7200"
+    },
+    {
+      "id": 1790608553735,
+      "username": "FREE-83268",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "900"
+    },
+    {
+      "id": 1790608553736,
+      "username": "FREE-83268",
+      "attribute": "Max-All-Session",
+      "op": "=",
+      "value": "900"
+    },
+    {
+      "id": 1790608553737,
+      "username": "FREE-83268",
+      "attribute": "WISPr-Bandwidth-Max-Down",
+      "op": "=",
+      "value": "4194304"
+    },
+    {
+      "id": 1790608553738,
+      "username": "FREE-83268",
+      "attribute": "WISPr-Bandwidth-Max-Up",
+      "op": "=",
+      "value": "2097152"
+    }
+  ],
+  "nasList": [
+    {
+      "id": 1,
+      "nasname": "100.108.0.0/18",
+      "shortname": "vpn-fleet",
+      "type": "mikrotik",
+      "secret": "radius_secret_2026",
+      "description": "OpenVPN / SSTP MikroTik Fleet Subnet"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": 1790756495685,
+      "transaction_id": 14,
+      "external_reference": "DALI-TEST-495684",
+      "event_type": "DALIPAY_TEST_PUSH_DISPATCHED",
+      "payload_json": {
+        "keyId": "y3hT9bs505Z6",
+        "publicKey": "gw_pk_test_EoDvAZ",
+        "amount": 1000,
+        "phoneNumber": "0754123456",
+        "carrier": "VODACOM",
+        "environment": "Test environment (Simulated transactions, no real money movement)"
+      },
+      "created_at": "2026-09-30T08:21:35.685Z"
+    },
+    {
+      "id": 1790753342146,
+      "external_reference": "OMADA-SSID-3-1790753342146",
+      "event_type": "OMADA_SSID_PROVISIONED",
+      "payload_json": {
+        "routerId": 3,
+        "newSsid": "KARIAKOO-FREE-WIFI",
+        "macAddress": "50:D4:F7:2B:8C:1A"
+      },
+      "created_at": "2026-09-30T07:29:02.146Z"
+    },
+    {
+      "id": 1790753336933,
+      "external_reference": "OMADA-SSID-3-1790753336933",
+      "event_type": "OMADA_SSID_PROVISIONED",
+      "payload_json": {
+        "routerId": 3,
+        "newSsid": "KARIAKOO-SUPER-FAST-WIFI",
+        "macAddress": "50:D4:F7:2B:8C:1A"
+      },
+      "created_at": "2026-09-30T07:28:56.933Z"
+    },
+    {
+      "id": 1790753331113,
+      "external_reference": "OMADA-ADOPT-4-1790753331113",
+      "event_type": "OMADA_AP_ADOPTED_SUCCESS",
+      "payload_json": {
+        "routerId": 4,
+        "routerName": "Omada-EAP225-Lobby",
+        "macAddress": "B0:4E:26:88:19:AC",
+        "modelName": "TP-Link Omada EAP225 (AC1350 Dual-Band Gigabit)",
+        "ssid": "SAMAKI-LOUNGE-WIFI",
+        "informUrl": "http://167.99.120.45:29810/inform",
+        "apUsername": "admin",
+        "adoptedAt": "2026-09-30T07:28:51.111Z"
+      },
+      "created_at": "2026-09-30T07:28:51.111Z"
+    },
+    {
+      "id": 1790608553746,
+      "external_reference": "TRIAL-FREE-83268",
+      "event_type": "FREE_TRIAL_15MIN_ACTIVATED",
+      "payload_json": {
+        "mac": "AA:BB:CC:11:22:33",
+        "voucherCode": "FREE-83268",
+        "durationSeconds": 900,
+        "routerId": 1
+      },
+      "created_at": "2026-09-28T15:15:53.736Z"
+    },
+    {
+      "id": 1790530446555,
+      "external_reference": "OTP-juma@gmail.com",
+      "event_type": "EMAIL_OTP_DISPATCHED_SIMULATED",
+      "payload_json": {
+        "to": "juma@gmail.com",
+        "name": "Juma Ali",
+        "otp": "515414",
+        "provider": "RESEND",
+        "mode": "SIMULATION",
+        "note": "Email API key not yet set in Vendor Settings or set to Simulation. Code logged for seamless testing."
+      },
+      "created_at": "2026-09-27T17:34:06.555Z"
+    },
+    {
+      "id": 1790529726381,
+      "external_reference": "OTP-testadmin@tzwifi.co.tz",
+      "event_type": "EMAIL_OTP_DISPATCHED_SIMULATED",
+      "payload_json": {
+        "to": "testadmin@tzwifi.co.tz",
+        "name": "Msimamizi wa Mtandao (Admin Test)",
+        "otp": "694031",
+        "provider": "RESEND",
+        "mode": "SIMULATION",
+        "note": "Email API key not yet set in Vendor Settings or set to Simulation. Code logged for seamless testing."
+      },
+      "created_at": "2026-09-27T17:22:06.381Z"
+    },
+    {
+      "id": 1790529719136,
+      "external_reference": "REG-1790529714826-CXITT",
+      "event_type": "USER_REGISTERED_OTP_VERIFIED",
+      "payload_json": {
+        "ownerId": 6,
+        "email": "amina@gmail.com",
+        "phone": "0755998877",
+        "businessName": "Amina Hotspot"
+      },
+      "created_at": "2026-09-27T17:21:59.136Z"
+    },
+    {
+      "id": 1790529714827,
+      "external_reference": "OTP-amina@gmail.com",
+      "event_type": "EMAIL_OTP_DISPATCHED_SIMULATED",
+      "payload_json": {
+        "to": "amina@gmail.com",
+        "name": "Amina Bakari",
+        "otp": "493760",
+        "provider": "RESEND",
+        "mode": "SIMULATION",
+        "note": "Email API key not yet set in Vendor Settings or set to Simulation. Code logged for seamless testing."
+      },
+      "created_at": "2026-09-27T17:21:54.827Z"
+    },
+    {
+      "id": 1790527811047,
+      "external_reference": "SUB-2-1790527803761",
+      "event_type": "VENDOR_SUBSCRIPTION_CREDITED_TO_AGGREGATOR",
+      "payload_json": {
+        "ownerId": 2,
+        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
+        "amountPaid": 15000,
+        "creditedTo": "PalmPesa Vendor Master Aggregator (User ID: 770)",
+        "merchantId": "770",
+        "receivingAccount": "USR-B2510CD582DF",
+        "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)",
+        "newSubscriptionExpiresAt": "2026-12-24T16:35:06.952Z",
+        "status": "CONFIRMED_AND_UNLOCKED"
+      },
+      "created_at": "2026-09-27T16:50:11.047Z"
+    },
+    {
+      "id": 1790527803771,
+      "transaction_id": 13,
+      "external_reference": "SUB-2-1790527803761",
+      "event_type": "VENDOR_SUBSCRIPTION_INITIATED",
+      "payload_json": {
+        "ownerId": 2,
+        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
+        "amount": 15000,
+        "carrier": "TIGO",
+        "phoneNumber": "0712345678",
+        "vendorAggregator": {
+          "gateway": "PALMPESA",
+          "aggregatorName": "PalmPesa Vendor Master Aggregator (User ID: 770)",
+          "merchantId": "770",
+          "receivingAccount": "USR-B2510CD582DF",
+          "isConfigured": true,
+          "isSandbox": false,
+          "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
+        },
+        "destinationWallet": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
+      },
+      "created_at": "2026-09-27T16:50:03.771Z"
+    },
+    {
+      "id": 1790527415155,
+      "external_reference": "SUB-2-1790527411957",
+      "event_type": "VENDOR_SUBSCRIPTION_CREDITED_TO_AGGREGATOR",
+      "payload_json": {
+        "ownerId": 2,
+        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
+        "amountPaid": 15000,
+        "creditedTo": "PalmPesa Vendor Master Aggregator (User ID: 770)",
+        "merchantId": "770",
+        "receivingAccount": "USR-B2510CD582DF",
+        "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)",
+        "newSubscriptionExpiresAt": "2026-11-24T16:35:06.952Z",
+        "status": "CONFIRMED_AND_UNLOCKED"
+      },
+      "created_at": "2026-09-27T16:43:35.155Z"
+    },
+    {
+      "id": 1790527411966,
+      "transaction_id": 12,
+      "external_reference": "SUB-2-1790527411957",
+      "event_type": "VENDOR_SUBSCRIPTION_INITIATED",
+      "payload_json": {
+        "ownerId": 2,
+        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
+        "amount": 15000,
+        "carrier": "TIGO",
+        "phoneNumber": "0712345678",
+        "vendorAggregator": {
+          "gateway": "PALMPESA",
+          "aggregatorName": "PalmPesa Vendor Master Aggregator (User ID: 770)",
+          "merchantId": "770",
+          "receivingAccount": "USR-B2510CD582DF",
+          "isConfigured": true,
+          "isSandbox": false,
+          "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
+        },
+        "destinationWallet": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
+      },
+      "created_at": "2026-09-27T16:43:31.966Z"
+    },
+    {
+      "id": 1790330146029,
+      "transaction_id": 10,
+      "external_reference": "TZWF-260925-ADBEEEE2",
+      "event_type": "USER_PROVISIONED_ROUTEROS",
+      "payload_json": {
+        "voucherCode": "TZ-11503",
+        "router": "Mikrotik-Main-Dar",
+        "planName": "Masaa 6 - Standard (6 Hours)"
+      },
+      "created_at": "2026-09-25T09:55:46.028Z"
+    },
+    {
+      "id": 1790330146026,
+      "external_reference": "TZWF-260925-ADBEEEE2",
+      "event_type": "WEBHOOK_RECEIVED",
+      "payload_json": {
+        "externalReference": "TZWF-260925-ADBEEEE2",
+        "transactionId": "AI1790330146026",
+        "status": "SUCCESS",
+        "amount": 1000,
+        "currency": "TZS",
+        "phoneNumber": "255787825713",
+        "carrier": "AIRTEL",
+        "timestamp": "2026-09-25T09:55:46.026Z",
+        "message": "Payment approved by customer"
+      },
+      "created_at": "2026-09-25T09:55:46.026Z"
+    },
+    {
+      "id": 1790330130564,
+      "transaction_id": 10,
+      "external_reference": "TZWF-260925-ADBEEEE2",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255787825713",
+        "provider": "AIRTEL",
+        "amount": 1000,
+        "planName": "Masaa 6 - Standard (6 Hours)",
+        "gatewayMode": "SIMULATION"
+      },
+      "created_at": "2026-09-25T09:55:30.564Z"
+    },
+    {
+      "id": 1790329832678,
+      "transaction_id": 9,
+      "external_reference": "TZWF-260925-31A401E0",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255787825713",
+        "provider": "AIRTEL",
+        "amount": 5000,
+        "planName": "Siku 7 (Wiki 1) - Kasi Kubwa",
+        "gatewayMode": "SIMULATION"
+      },
+      "created_at": "2026-09-25T09:50:32.678Z"
+    },
+    {
+      "id": 1790329823061,
+      "transaction_id": 8,
+      "external_reference": "TZWF-260925-25ED9949",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255787825713",
+        "provider": "AIRTEL",
+        "amount": 1000,
+        "planName": "Masaa 6 - Standard (6 Hours)",
+        "gatewayMode": "SIMULATION"
+      },
+      "created_at": "2026-09-25T09:50:23.061Z"
+    },
+    {
+      "id": 1790329810954,
+      "transaction_id": 7,
+      "external_reference": "TZWF-260925-02C282CE",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255787825713",
+        "provider": "AIRTEL",
+        "amount": 1000,
+        "planName": "Masaa 6 - Standard (6 Hours)",
+        "gatewayMode": "SIMULATION"
+      },
+      "created_at": "2026-09-25T09:50:10.954Z"
+    },
+    {
+      "id": 1790329777019,
+      "external_reference": "TZWF-260925-39755C52",
+      "event_type": "WEBHOOK_RECEIVED",
+      "payload_json": {
+        "externalReference": "TZWF-260925-39755C52",
+        "transactionId": "HA1790329777019",
+        "status": "FAILED",
+        "amount": 500,
+        "currency": "TZS",
+        "phoneNumber": "255623887886",
+        "carrier": "HALOTEL",
+        "timestamp": "2026-09-25T09:49:37.019Z",
+        "message": "User cancelled USSD prompt"
+      },
+      "created_at": "2026-09-25T09:49:37.019Z"
+    },
+    {
+      "id": 1790329746180,
+      "transaction_id": 6,
+      "external_reference": "TZWF-260925-39755C52",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gatewayMode": "SIMULATION"
+      },
+      "created_at": "2026-09-25T09:49:06.180Z"
+    },
+    {
+      "id": 1790324024154,
+      "external_reference": "BATCH-260925-7E572E",
+      "event_type": "VOUCHER_BATCH_GENERATED",
+      "payload_json": {
+        "batchId": "BATCH-260925-7E572E",
+        "planId": 1,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "quantity": 20,
+        "prefix": "TZ"
+      },
+      "created_at": "2026-09-25T08:13:44.144Z"
+    },
+    {
+      "id": 1790236327115,
+      "transaction_id": 5,
+      "external_reference": "TZWF-260924-D9B87373",
+      "event_type": "USER_PROVISIONED_ROUTEROS",
+      "payload_json": {
+        "voucherCode": "TZ-46402",
+        "router": "Mikrotik-Main-Dar",
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)"
+      },
+      "created_at": "2026-09-24T07:52:07.114Z"
+    },
+    {
+      "id": 1790236327113,
+      "external_reference": "TZWF-260924-D9B87373",
+      "event_type": "WEBHOOK_RECEIVED",
+      "payload_json": {
+        "externalReference": "TZWF-260924-D9B87373",
+        "transactionId": "VO1790236327113",
+        "status": "SUCCESS",
+        "amount": 500,
+        "currency": "TZS",
+        "phoneNumber": "255754123456",
+        "carrier": "VODACOM",
+        "timestamp": "2026-09-24T07:52:07.113Z",
+        "message": "Payment approved by customer"
+      },
+      "created_at": "2026-09-24T07:52:07.113Z"
+    },
+    {
+      "id": 1790236320330,
+      "transaction_id": 5,
+      "external_reference": "TZWF-260924-D9B87373",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255754123456",
+        "provider": "VODACOM",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gatewayMode": "SIMULATION"
+      },
+      "created_at": "2026-09-24T07:52:00.330Z"
+    }
+  ],
+  "freeTrialClaims": [],
+  "freeTrialConfig": {
+    "enabled": true,
+    "name": "Majaribio ya Bure (Free Trial)",
+    "duration_minutes": 15,
+    "rate_limit": "2M/4M",
+    "quota_mb": 0,
+    "lock_policy": "LIFETIME",
+    "button_text": "⚡ Jiunge Bure Sasa",
+    "description_sw": "Jaribu intaneti yetu ya kasi ya juu bila malipo yoyote!",
+    "description_en": "Test our high-speed Wi-Fi free of charge!",
+    "shared_users": 1,
+    "updated_at": "2026-09-28T15:24:39.715Z"
+  },
+  "manualSubRequests": [],
+  "companyInfo": {
+    "company_name": "INFOTECH WiFi Tanzania",
+    "tagline_sw": "Mtandao wa Kisasa wa Hotspot Billing & MikroTik Cloud nchini Tanzania",
+    "tagline_en": "Next-Gen Hotspot Billing & MikroTik Cloud Platform in Tanzania",
+    "about_title_sw": "Kuhusu Sisi & Mfumo Wetu wa Hotspot",
+    "about_title_en": "About Us & Our Hotspot Platform",
+    "about_description_sw": "INFOTECH WiFi ni mfumo bunifu na wa kisasa uliotengenezwa mahsusi kuwawezesha wamiliki wa Hotspot, migahawa, hoteli, vyuo, na wafanyabiashara wa intaneti nchini Tanzania kuuza na kudhibiti intaneti ya WiFi kwa njia rahisi ya simu (M-Pesa, Tigo Pesa, Airtel Money, Halopesa) na vocha zilizochapishwa kupitia MikroTik, Ruijie, na TP-Link Omada.\n\nTunakupa uwezo wa kuunganisha router zako zote kwenye Cloud bila kuhitaji Static IP wala kusanidi VPN ngumu kwa mkono, huku ukikusanya mapato yako yote moja kwa moja kwenye namba yako ya simu au akaunti ya benki.",
+    "about_description_en": "INFOTECH WiFi is an innovative telecommunications and hotspot billing management platform empowering business owners, ISPs, cafes, hotels, and cyber cafes across Tanzania to automate mobile money billing (M-Pesa, Tigo Pesa, Airtel Money, Halopesa) and print vouchers seamlessly with MikroTik, Ruijie, and TP-Link Omada routers.\n\nWe provide seamless Cloud VPN and FreeRADIUS connectivity for all your routers without requiring expensive static IPs, allowing you to monitor and monetize your network anywhere in Tanzania.",
+    "mission_sw": "Kurahisisha uuzaji na usambazaji wa intaneti ya kasi ya juu kwa kila mfanyabiashara na mtumiaji nchini Tanzania kwa njia ya malipo ya kidijitali ya papo hapo bila usumbufu.",
+    "mission_en": "To democratize and streamline high-speed internet delivery and monetization for businesses across Tanzania through effortless instant mobile money payments.",
+    "vision_sw": "Kuwa jukwaa nambari moja na la kuaminika zaidi la Hotspot Billing na Usimamizi wa MikroTik katika ukanda mzima wa Afrika Mashariki.",
+    "vision_en": "To be the leading, most reliable Hotspot Billing and MikroTik Cloud automation platform across East Africa.",
+    "services": [
+      {
+        "id": "srv_1",
+        "title_sw": "Malipo ya Papo kwa Papo (USSD Push)",
+        "title_en": "Instant USSD Mobile Money Push",
+        "description_sw": "Wateja wanalipia kwa M-Pesa, Tigo Pesa, Airtel Money, na Halopesa ambapo simu inaleta pop-up ya PIN moja kwa moja chini ya sekunde 3.",
+        "description_en": "Instant USSD payment push directly prompting customers for PIN on Vodacom, Tigo, Airtel, and Halotel within 3 seconds."
+      },
+      {
+        "id": "srv_2",
+        "title_sw": "Usimamizi wa MikroTik & Fleet Cloud",
+        "title_en": "MikroTik & Router Fleet Cloud Control",
+        "description_sw": "Unganisha router nyingi (MikroTik, Ruijie, TP-Link) popote zilipo Tanzania kupitia FreeRADIUS na VPN bila Static IP.",
+        "description_en": "Connect and remotely manage MikroTik and multi-brand router fleets across Tanzania via FreeRADIUS & Cloud VPN without public static IP."
+      },
+      {
+        "id": "srv_3",
+        "title_sw": "Uchapishaji wa Vocha (Voucher Station)",
+        "title_en": "Thermal & Batch Voucher Printing",
+        "description_sw": "Tengeneza na chapisha kadi za vocha zenye QR Code kwa printa za kawaida (A4) au printa za risiti (Thermal POS 58mm/80mm).",
+        "description_en": "Batch-generate and print beautiful branded voucher tickets with QR codes on standard A4 paper or POS thermal rolls."
+      },
+      {
+        "id": "srv_4",
+        "title_sw": "Kugawa Bandwidth & Rate Limiting (QoS)",
+        "title_en": "Bandwidth QoS & Rate Limiting",
+        "description_sw": "Dhibiti kasi ya kila kifurushi na mtumiaji ili kuzuia wateja wachache kumaliza intaneti na kutoa huduma thabiti.",
+        "description_en": "Precise bandwidth control, queues, and fair-usage policies per user or ticket to ensure blazing speeds for all."
+      },
+      {
+        "id": "srv_5",
+        "title_sw": "Kuzuia Kushare Hotspot (Anti-Tethering)",
+        "title_en": "Anti-Tethering & TTL Protection",
+        "description_sw": "Mfumo unazuia wateja kusambaza WiFi kwa simu au laptop nyingine kupitia Bluetooth au Hotspot tethering.",
+        "description_en": "Automatic packet TTL control and firewall filters to prevent users from sharing hotspot via tethering."
+      },
+      {
+        "id": "srv_6",
+        "title_sw": "Majaribio ya Bure (Free Trial System)",
+        "title_en": "Automated Free Trial System",
+        "description_sw": "Wape wateja wapya intaneti ya majaribio ya dakika chache (mfano dakika 15) kwa kubonyeza kitufe kimoja tu.",
+        "description_en": "Allow new visitors to claim automated free trial access for a designated duration to test the speed."
+      }
+    ],
+    "stats": {
+      "active_hotspots": "1,450+",
+      "daily_users": "85,000+",
+      "coverage_regions": "15+ Mikoa",
+      "uptime_percentage": "99.98%"
+    },
+    "coverage_locations": [
+      "Dar es Salaam",
+      "Arusha",
+      "Mwanza",
+      "Dodoma",
+      "Mbeya",
+      "Morogoro",
+      "Zanzibar",
+      "Tanga",
+      "Kilimanjaro",
+      "Iringa",
+      "Tabora",
+      "Kigoma"
+    ],
+    "contact_phone_primary": "+255 754 000 111",
+    "contact_phone_secondary": "+255 784 999 222",
+    "contact_whatsapp": "+255 754 000 111",
+    "contact_email_primary": "info@tzwifi.co.tz",
+    "contact_email_support": "support@tzwifi.co.tz",
+    "office_address_sw": "Kariakoo Business Tower, Ghorofa ya 4, Mtaa wa Lumumba & Uhuru, Dar es Salaam, Tanzania",
+    "office_address_en": "Kariakoo Business Tower, 4th Floor, Lumumba & Uhuru St, Dar es Salaam, Tanzania",
+    "working_hours_sw": "Jumatatu - Jumamosi: Saa 2:00 Asubuhi - 12:00 Jioni | Msaada wa Kiufundi: Masaa 24/7",
+    "working_hours_en": "Monday - Saturday: 8:00 AM - 6:00 PM | Technical Support: 24/7 Non-stop",
+    "social_links": {
+      "whatsapp_group": "https://wa.me/255754000111",
+      "instagram": "https://instagram.com/infotechwifi_tz",
+      "facebook": "https://facebook.com/infotechwifitz",
+      "twitter": "https://twitter.com/infotechwifi_tz",
+      "telegram": "https://t.me/infotechwifi_support",
+      "website": "https://tzwifi.co.tz"
+    },
+    "support_note_sw": "Tuko tayari kukuhudumia wakati wowote. Wasiliana nasi kwa simu, WhatsApp, au fika ofisini kwetu kwa msaada wa kusanidi router yako!",
+    "support_note_en": "We are ready to assist you anytime. Contact us via phone, WhatsApp, or visit our office for router setup support!"
+  },
+  "settings": {
+    "activeGateway": "DALIPAY",
+    "webhookSecret": "tzwifi_secret_key_89230492",
+    "palmpesa": {
+      "userRef": "USR-B2510CD582DF",
+      "userId": "770",
+      "apiToken": "1NhdI6PhhHHY9kYmnSoUUszx7qm8nSYrnewbfxeDYyONiMzGGTdRhIJjj2Hq",
+      "acceptHotspotStk": true,
+      "isSandbox": false
+    },
+    "dalipay": {
+      "keyId": "y3hT9bs505Z6",
+      "publicKey": "gw_pk_test_EoDvAZ",
+      "secretKey": "gw_sk_test_IdufCg",
+      "apiEndpoint": "https://api.dalipay.com/v1",
+      "webhookSecret": "gw_wh_test_secret_dalipay",
+      "isSandbox": true,
+      "availableKeys": [
+        {
+          "keyId": "y3hT9bs505Z6",
+          "publicKey": "gw_pk_test_EoDvAZ",
+          "secretKey": "gw_sk_test_IdufCg",
+          "status": "Active",
+          "created": "29 Sept 2026 13:05",
+          "lastUsed": "Never"
+        },
+        {
+          "keyId": "d06TgZivMkzW",
+          "publicKey": "gw_pk_test_AAY0S5",
+          "secretKey": "gw_sk_test_tYAWZs",
+          "status": "Active",
+          "created": "29 Sept 2026 13:03",
+          "lastUsed": "Never"
+        },
+        {
+          "keyId": "56Jva2sXOfq",
+          "publicKey": "gw_pk_test_pd5CNG",
+          "secretKey": "gw_sk_test_gh_Xyw",
+          "status": "Active",
+          "created": "29 Sept 2026 13:01",
+          "lastUsed": "Never"
+        }
+      ]
+    },
+    "azampay": {
+      "appName": "TZ-WIFI-PORTAL",
+      "clientId": "",
+      "clientSecret": "",
+      "apiKey": "",
+      "accountNumber": "255754000111",
+      "isSandbox": true
+    },
+    "vodacom": {
+      "apiKey": "",
+      "publicKey": "",
+      "sessionToken": "",
+      "shortcode": "000000",
+      "isSandbox": true
+    },
+    "hotspotName": "TZ-WIFI-HOTSPOT",
+    "supportPhone": "+255 754 000 111",
+    "autoLoginEnabled": true,
+    "requireRegistrationOtp": true,
+    "emailGateway": {
+      "provider": "EMAILJS",
+      "fromEmail": "billing@tzwifi.co.tz",
+      "fromName": "INFOTECH WiFi",
+      "emailjsServiceId": "service_tzwifi",
+      "emailjsTemplateId": "template_otp",
+      "emailjsPublicKey": "pk_test_user_id",
+      "emailjsPrivateKey": "",
+      "resendApiKey": "",
+      "sendgridApiKey": "",
+      "mailgunApiKey": "",
+      "mailgunDomain": "",
+      "smtpHost": "smtp.gmail.com",
+      "smtpPort": 587,
+      "smtpUser": "",
+      "smtpPass": "",
+      "smtpSecure": false,
+      "enabled": true
+    }
+  }
+}

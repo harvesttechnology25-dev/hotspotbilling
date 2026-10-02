@@ -109,12 +109,17 @@ export interface HotspotOwner {
   subscription_expires_at?: string;
   subscription_fee?: number;
   vendor_merchant_id?: string;
-  payout_channel?: 'PALMPESA' | 'AZAMPAY_SUB' | 'VODACOM_DIRECT' | 'TIGO_DIRECT' | 'AIRTEL_DIRECT' | 'MANUAL';
+  payout_channel?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY_SUB' | 'VODACOM_DIRECT' | 'TIGO_DIRECT' | 'AIRTEL_DIRECT' | 'MANUAL';
   wallet_account_number?: string;
   // PalmPesa Client Account Credentials
   palmpesa_user_id?: string;
   palmpesa_user_ref?: string;
   palmpesa_api_token?: string;
+  dalipay_api_endpoint?: string;
+  dalipay_key_id?: string;
+  dalipay_public_key?: string;
+  dalipay_secret_key?: string;
+  dalipay_webhook_secret?: string;
   palmpesa_accept_stk?: boolean;
   portal_theme?: PortalThemeConfig;
   created_at: string;
@@ -148,11 +153,16 @@ export interface RouterRecord {
   vendor_api_key_encrypted?: string;
   platform_commission_percent?: number;
   wallet_account_number?: string;
-  payout_channel?: 'PALMPESA' | 'AZAMPAY_SUB' | 'VODACOM_DIRECT' | 'TIGO_DIRECT' | 'AIRTEL_DIRECT' | 'MANUAL';
+  payout_channel?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY_SUB' | 'VODACOM_DIRECT' | 'TIGO_DIRECT' | 'AIRTEL_DIRECT' | 'MANUAL';
   // Optional Router-Specific PalmPesa Override
   palmpesa_user_id?: string;
   palmpesa_user_ref?: string;
   palmpesa_api_token?: string;
+  dalipay_api_endpoint?: string;
+  dalipay_key_id?: string;
+  dalipay_public_key?: string;
+  dalipay_secret_key?: string;
+  dalipay_webhook_secret?: string;
   palmpesa_accept_stk?: boolean;
   portal_theme?: PortalThemeConfig;
   anti_tethering?: boolean;
@@ -424,7 +434,31 @@ export interface EmailGatewayConfig {
   enabled: boolean;
 }
 
+
+export type SmsMerchantProvider = 'BEEM' | 'NEXTSMS' | 'TWILIO' | 'CUSTOM_HTTP';
+
+export interface SmsGatewayConfig {
+  provider: SmsMerchantProvider;
+  senderId: string;
+  enabled: boolean;
+  // Beem Africa
+  beemApiKey?: string;
+  beemSecretKey?: string;
+  // NextSMS
+  nextsmsUsername?: string;
+  nextsmsPassword?: string;
+  // Twilio
+  twilioAccountSid?: string;
+  twilioAuthToken?: string;
+  twilioFromNumber?: string;
+  // Custom HTTP
+  customWebhookUrl?: string;
+  customApiKey?: string;
+}
+
 export interface GatewaySettings {
+  adminUsername?: string;
+  adminPassword?: string;
   activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX';
   subscriptionGateway?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'ACTIVE_DEFAULT';
   subscriptionAggregatorAccount?: string;
@@ -433,6 +467,7 @@ export interface GatewaySettings {
   dalipay?: DaliPayConfig;
   azampay: AzamPayConfig;
   vodacom: VodacomConfig;
+  smsGateway?: SmsGatewayConfig;
   emailGateway?: EmailGatewayConfig;
   hotspotName: string;
   supportPhone: string;

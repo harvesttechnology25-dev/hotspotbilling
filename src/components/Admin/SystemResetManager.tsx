@@ -50,9 +50,9 @@ export const SystemResetManager: React.FC<SystemResetManagerProps> = ({
   const [clearVouchers, setClearVouchers] = useState(true);
   const [clearFreeTrials, setClearFreeTrials] = useState(true);
   const [clearAuditLogs, setClearAuditLogs] = useState(true);
-  const [clearDemoOwners, setClearDemoOwners] = useState(false);
-  const [clearDemoRouters, setClearDemoRouters] = useState(false);
-  const [resetPlansToDefault, setResetPlansToDefault] = useState(false);
+  const [clearDemoOwners, setClearDemoOwners] = useState(true);
+  const [clearDemoRouters, setClearDemoRouters] = useState(true);
+  const [resetPlansToDefault, setResetPlansToDefault] = useState(true);
 
   // Security confirmation
   const [confirmationInput, setConfirmationInput] = useState('');
@@ -412,9 +412,9 @@ export const SystemResetManager: React.FC<SystemResetManagerProps> = ({
               className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
             />
             <div>
-              <strong className="text-slate-900 block font-bold">Futa Wamiliki wa Majaribio (Purge Demo Tenants)</strong>
+              <strong className="text-slate-900 block font-bold">Futa Watumiaji, Wafanyakazi & Wamiliki Wote (Purge All Users, Staff & Hotspot Owners)</strong>
               <span className="text-slate-500 text-[11px] block mt-0.5">
-                Huondoa wamiliki wa mifano (Juma Shabani, Neema Mwangi). Akaunti yako kuu ya Vendor Admin itabaki 100%.
+                Hufuta watumiaji wote, mameneja, wauza vocha na wamiliki wa hotspot kwenye database. <strong>Akaunti yako kuu ya Vendor Admin pekee ndiyo itakayobaki salama 100%!</strong>
               </span>
             </div>
           </label>

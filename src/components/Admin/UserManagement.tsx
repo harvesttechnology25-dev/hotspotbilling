@@ -448,6 +448,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   // Filter Users
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
+      // Hotspot Owners are managed in 'Hotspot Owners' module; staff/privileges only shows team & staff
+      if (u.role === 'HOTSPOT_OWNER' || u.role === 'VENDOR_ADMIN') {
+        return false;
+      }
+
       // Search
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
@@ -487,7 +492,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       phone: '',
       email: '',
       password: '123456',
-      role: isVendor ? 'HOTSPOT_OWNER' : 'CASHIER',
+      role: 'MANAGER',
       status: 'ACTIVE',
       assigned_router_ids: routers.map((r) => r.id),
       monthly_fee: isVendor ? 15000 : 0,

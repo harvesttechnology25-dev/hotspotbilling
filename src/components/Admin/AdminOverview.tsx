@@ -132,7 +132,29 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName
     );
   }
 
-  if (!metrics) return null;
+  if (!metrics) {
+    return (
+      <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center space-y-4 shadow-sm">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+          <TrendingUp className="w-7 h-7" />
+        </div>
+        <div className="max-w-md mx-auto space-y-1">
+          <h3 className="text-base font-bold text-slate-900">Hakuna Data ya Mapato Bado</h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Taarifa za miamala na mauzo ya vocha zitaonekana hapa pindi wateja wanapoanza kulipa au vocha zinapochapishwa.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => fetchMetrics(preset, startDate, endDate)}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Jaribu Kupakia Tena</span>
+        </button>
+      </div>
+    );
+  }
 
   // Percentages for comparison
   const totalGross = metrics.totalRevenue || 0;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Mail,
+  Smartphone,
   Key,
   Globe,
   ShieldCheck,
@@ -19,11 +20,19 @@ import {
   Server,
   Zap,
   Check,
+  MessageSquare,
 } from 'lucide-react';
-import { GatewaySettings, EmailGatewayConfig, EmailMerchantProvider } from '../../types/index.ts';
+import {
+  GatewaySettings,
+  EmailGatewayConfig,
+  EmailMerchantProvider,
+  SmsGatewayConfig,
+  SmsMerchantProvider,
+} from '../../types/index.ts';
 
 interface EmailConfigProps {
   lang?: 'sw' | 'en';
+  isVendor?: boolean;
 }
 
 const DEFAULT_EMAIL_CONFIG: EmailGatewayConfig = {
@@ -34,43 +43,106 @@ const DEFAULT_EMAIL_CONFIG: EmailGatewayConfig = {
   sendgridApiKey: '',
   mailgunApiKey: '',
   mailgunDomain: '',
-  smtpHost: 'smtp.gmail.com',
-  smtpPort: 587,
-  smtpUser: '',
-  smtpPass: '',
-  smtpSecure: false,
+  emailjsServiceId: '',
+  emailjsTemplateId: '',
+  emailjsPublicKey: '',
+  emailjsPrivateKey: '',
   enabled: true,
 };
 
-export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
+const DEFAULT_SMS_CONFIG: SmsGatewayConfig = {
+  provider: 'BEEM',
+  senderId: 'INFOTECH',
+  beemApiKey: '',
+  beemSecretKey: '',
+  nextsmsUsername: '',
+  nextsmsPassword: '',
+  twilioAccountSid: '',
+  twilioAuthToken: '',
+  twilioFromNumber: '',
+  customWebhookUrl: '',
+  customApiKey: '',
+  enabled: true,
+};
+
+export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw', isVendor = true }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'email' | 'sms'>('email');
+
   const [settings, setSettings] = useState<GatewaySettings | null>(null);
   const [emailConfig, setEmailConfig] = useState<EmailGatewayConfig>(DEFAULT_EMAIL_CONFIG);
+  const [smsConfig, setSmsConfig] = useState<SmsGatewayConfig>(DEFAULT_SMS_CONFIG);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
 
   // Password / Key Visibility toggles
-  const [showEmailJsKey, setShowEmailJsKey] = useState(false);
   const [showResendKey, setShowResendKey] = useState(false);
   const [showSendGridKey, setShowSendGridKey] = useState(false);
   const [showMailgunKey, setShowMailgunKey] = useState(false);
-  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [showEmailJsKey, setShowEmailJsKey] = useState(false);
+
+  // SMS Visibility toggles
+  const [showBeemSecret, setShowBeemSecret] = useState(false);
+  const [showNextSmsPass, setShowNextSmsPass] = useState(false);
+  const [showTwilioToken, setShowTwilioToken] = useState(false);
 
   // Test Email state
   const [testEmail, setTestEmail] = useState('');
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<{
     success: boolean;
     message: string;
-    simulated?: boolean;
-    provider?: string;
-    debugOtp?: string;
+    messageId?: string;
+    otp?: string;
+  } | null>(null);
+
+  // Test SMS state
+  const [testPhone, setTestPhone] = useState('');
+  const [testingSms, setTestingSms] = useState(false);
+  const [smsTestResult, setSmsTestResult] = useState<{
+    success: boolean;
+    message: string;
+    messageId?: string;
+    otp?: string;
   } | null>(null);
 
   const [requireRegistrationOtp, setRequireRegistrationOtp] = useState(true);
+  const [togglingOtp, setTogglingOtp] = useState(false);
 
-  const fetchSettings = async () => {
+    const handleToggleOtp = async () => {
+    const nextVal = !requireRegistrationOtp;
+    setTogglingOtp(true);
+    // Optimistic UI update
+    setRequireRegistrationOtp(nextVal);
+    try {
+      const res = await fetch('/api/v1/system/otp-policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requireRegistrationOtp: nextVal }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRequireRegistrationOtp(Boolean(data.requireRegistrationOtp));
+        // Also update local settings state so subsequent saves don't overwrite it
+        setSettings((prev) => prev ? { ...prev, requireRegistrationOtp: Boolean(data.requireRegistrationOtp) } : null);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        // Rollback on error
+        setRequireRegistrationOtp(!nextVal);
+        setSaveError('Hitilafu ya kubadili hali ya OTP.');
+      }
+    } catch (err: any) {
+      setRequireRegistrationOtp(!nextVal);
+      setSaveError(err.message || 'Hitilafu ya mtandao.');
+    } finally {
+      setTogglingOtp(false);
+    }
+  };
+
+const fetchSettings = async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/v1/settings');
@@ -84,6 +156,12 @@ export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
           setEmailConfig({
             ...DEFAULT_EMAIL_CONFIG,
             ...data.emailGateway,
+          });
+        }
+        if ((data as any).smsGateway) {
+          setSmsConfig({
+            ...DEFAULT_SMS_CONFIG,
+            ...(data as any).smsGateway,
           });
         }
       }
@@ -107,9 +185,10 @@ export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
     setSaveError('');
 
     try {
-      const updatedSettings: GatewaySettings = {
+      const updatedSettings = {
         ...settings,
         emailGateway: emailConfig,
+        smsGateway: smsConfig,
         requireRegistrationOtp,
       };
 
@@ -124,8 +203,6 @@ export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
         throw new Error(errData.error || 'Failed to save settings.');
       }
 
-      const savedData = await res.json();
-      setSettings(savedData.settings || updatedSettings);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3500);
     } catch (err: any) {
@@ -139,8 +216,8 @@ export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
     e.preventDefault();
     if (!testEmail.trim()) return;
 
-    setTesting(true);
-    setTestResult(null);
+    setTestingEmail(true);
+    setEmailTestResult(null);
 
     try {
       const res = await fetch('/api/v1/email/test', {
@@ -148,16 +225,40 @@ export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: testEmail }),
       });
-
       const data = await res.json();
-      setTestResult(data);
+      setEmailTestResult(data);
     } catch (err: any) {
-      setTestResult({
+      setEmailTestResult({
         success: false,
         message: err.message || 'Hitilafu ya kutuma barua pepe ya jaribio.',
       });
     } finally {
-      setTesting(false);
+      setTestingEmail(false);
+    }
+  };
+
+  const handleSendTestSms = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testPhone.trim()) return;
+
+    setTestingSms(true);
+    setSmsTestResult(null);
+
+    try {
+      const res = await fetch('/api/v1/sms/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: testPhone }),
+      });
+      const data = await res.json();
+      setSmsTestResult(data);
+    } catch (err: any) {
+      setSmsTestResult({
+        success: false,
+        message: err.message || 'Hitilafu ya kutuma SMS ya jaribio.',
+      });
+    } finally {
+      setTestingSms(false);
     }
   };
 
@@ -166,789 +267,840 @@ export const EmailConfig: React.FC<EmailConfigProps> = ({ lang = 'sw' }) => {
       <div className="py-16 flex flex-col justify-center items-center text-slate-400 gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-[#1b62b6]" />
         <span className="text-xs font-semibold">
-          {lang === 'sw' ? 'Inapakia mipangilio ya barua pepe...' : 'Loading email settings...'}
+          {lang === 'sw' ? 'Inapakia Mipangilio ya Mawasiliano...' : 'Loading Gateway Settings...'}
         </span>
       </div>
     );
   }
 
-  const isLiveConfigured =
-    emailConfig.enabled &&
-    ((emailConfig.provider === 'RESEND' && Boolean(emailConfig.resendApiKey?.trim())) ||
-      (emailConfig.provider === 'SENDGRID' && Boolean(emailConfig.sendgridApiKey?.trim())) ||
-      (emailConfig.provider === 'MAILGUN' && Boolean(emailConfig.mailgunApiKey?.trim())) ||
-      (emailConfig.provider === 'SMTP' && Boolean(emailConfig.smtpHost && emailConfig.smtpUser)));
-
   return (
     <div className="space-y-6">
-      {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-[#041528] to-[#07314a] p-6 rounded-3xl text-white border border-white/10 shadow-lg relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-64 h-64 bg-[#f8a30a]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 border border-white/15 text-[#f8a30a] text-xs font-bold uppercase tracking-wider">
-              <Mail className="w-3.5 h-3.5" />
-              <span>Vendor HQ Email APIs</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black font-['Sora',sans-serif]">
-              {lang === 'sw'
-                ? 'API za Barua Pepe (Email Merchant Gateway)'
-                : 'Email Merchant Gateway & OTP APIs'}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-              {lang === 'sw'
-                ? 'Weka API za watoa huduma wa barua pepe (Resend, SendGrid, Mailgun au SMTP). Kila mtumiaji mpya anayejisajili atapokea msimbo wa siri wa tarakimu 6 (OTP) kwenye barua pepe yake ili kuthibitisha akaunti yake.'
-                : 'Configure transactional email providers (Resend, SendGrid, Mailgun, or SMTP). Every new registering hotspot owner receives a 6-digit verification OTP on their email before their account is activated.'}
-            </p>
-          </div>
-
+      {/* Top Banner */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span
-              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border ${
-                isLiveConfigured
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                  : 'bg-[#f8a30a]/20 text-[#f8a30a] border-[#f8a30a]/40'
-              }`}
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isLiveConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-[#f8a30a]'
-                }`}
-              />
-              <span>{isLiveConfigured ? 'Live Provider Active' : 'Simulation / Dev Mode'}</span>
+            <span className="p-2 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700">
+              <Mail className="w-5 h-5" />
+            </span>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              {lang === 'sw' ? 'Email & SMS Merchant Gateways (Real Dispatch)' : 'Email & SMS Gateways'}
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              ✓ 100% Real Live Dispatch
             </span>
           </div>
+          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+            {lang === 'sw'
+              ? 'Tuma barua pepe halisi na ujumbe mfupi wa simu (SMS) nchini Tanzania kupitia Resend, SendGrid, Mailgun, Beem Africa au NextSMS kwa ajili ya msimbo wa OTP na taarifa za mfumo.'
+              : 'Dispatch real emails and Tanzania SMS via Resend, SendGrid, Mailgun, Beem Africa, and NextSMS for 6-digit registration OTP verification.'}
+          </p>
+        </div>
+
+        {/* Sub-Tabs Switcher */}
+        <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200 self-start md:self-center">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('email')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeSubTab === 'email'
+                ? 'bg-white text-indigo-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Mail className="w-4 h-4 text-indigo-600" />
+            <span>Email Gateway</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('sms')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              activeSubTab === 'sms'
+                ? 'bg-white text-emerald-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Smartphone className="w-4 h-4 text-emerald-600" />
+            <span>SMS Gateway (Tanzania)</span>
+          </button>
         </div>
       </div>
 
-      {/* Save Success / Error Alerts */}
+      {/* Global OTP Policy Bar (Vendor Only) */}
+      {isVendor && (
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 rounded-3xl p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+            <ShieldCheck className="w-6 h-6 text-indigo-300" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black tracking-wide">
+                {lang === 'sw' ? 'Sera ya Uthibitisho wa OTP (Registration OTP)' : 'Registration OTP Verification'}
+              </h3>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  requireRegistrationOtp ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-slate-900'
+                }`}
+              >
+                {requireRegistrationOtp ? 'IMEWASHWA (LIVE ON)' : 'IMEZIMWA (BYPASS)'}
+              </span>
+            </div>
+            <p className="text-xs text-indigo-200 mt-0.5">
+              {requireRegistrationOtp
+                ? lang === 'sw'
+                  ? 'Kila mteja mpya anayejisajili atatumiwa msimbo wa tarakimu 6 (OTP) kwenye Barua Pepe / SMS kabla ya kufunguliwa akaunti.'
+                  : 'New clients will receive a 6-digit OTP code to verify their identity.'
+                : lang === 'sw'
+                ? 'Usajili wa haraka umewashwa! Akaunti zinafunguliwa papo hapo bila kusubiri OTP.'
+                : 'Instant 1-click registration without waiting for OTP code.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setRequireRegistrationOtp(!requireRegistrationOtp)}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer border shrink-0 ${
+            requireRegistrationOtp
+              ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border-rose-400/40'
+              : 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-400'
+          }`}
+        >
+          {requireRegistrationOtp
+            ? lang === 'sw'
+              ? 'Zima OTP (Instant Bypass)'
+              : 'Disable OTP (Instant)'
+            : lang === 'sw'
+            ? 'Washa OTP (Enable Security)'
+            : 'Enable OTP (Secure)'}
+        </button>
+      </div>
+      )}
+
       {saveSuccess && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold rounded-2xl flex items-center gap-2.5 animate-in fade-in shadow-xs">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 text-emerald-800 text-xs font-bold animate-in fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>
-            {lang === 'sw'
-              ? 'Mipangilio ya API za barua pepe imehifadhiwa kikamilifu kwenye database!'
-              : 'Email API credentials saved successfully to persistent database!'}
-          </span>
+          <span>✓ Mipangilio yote ya Gateway imehifadhiwa kikamilifu kwenye seva!</span>
         </div>
       )}
 
       {saveError && (
-        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-900 text-xs font-bold rounded-2xl flex items-center gap-2.5 animate-in fade-in shadow-xs">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold animate-in fade-in">
           <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
           <span>{saveError}</span>
         </div>
       )}
 
-      {/* Main Form */}
-      <form onSubmit={handleSave} className="space-y-6">
-        {/* Step 1: Choose Email Merchant Provider */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
-              <Sliders className="w-4 h-4 text-[#1b62b6]" />
-              <span>
-                {lang === 'sw'
-                  ? '1. Chagua Mtoa Huduma wa Barua Pepe (Email Provider)'
-                  : '1. Select Email Merchant Provider'}
-              </span>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
-              <input
-                type="checkbox"
-                checked={emailConfig.enabled}
-                onChange={(e) => setEmailConfig({ ...emailConfig, enabled: e.target.checked })}
-                className="rounded text-[#1b62b6] focus:ring-[#1b62b6]"
-              />
-              <span>{lang === 'sw' ? 'Washa Utumaji wa Barua Pepe' : 'Enable Email Gateway'}</span>
-            </label>
-          </div>
+      {/* ======================================================== */}
+      {/* SUBTAB 1: EMAIL GATEWAY (100% REAL DISPATCH)             */}
+      {/* ======================================================== */}
+      {activeSubTab === 'email' && (
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Provider Selection */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Mail className="w-4 h-4 text-indigo-600" />
+              <span>Chagua Mtoa Huduma wa Barua Pepe (Email Provider)</span>
+            </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            {/* Provider 0: EmailJS */}
-            <button
-              type="button"
-              onClick={() => setEmailConfig({ ...emailConfig, provider: 'EMAILJS' })}
-              className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
-                emailConfig.provider === 'EMAILJS'
-                  ? 'border-[#1b62b6] bg-blue-50/50 text-[#005ea9] ring-2 ring-[#1b62b6]/30'
-                  : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-sm flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  <span>EmailJS</span>
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#f8a30a]/20 text-[#a36803]">
-                  Rahisi
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                Gmail & Outlook moja kwa moja bila kusanidi seva ya SMTP.
-              </p>
-            </button>
-
-            {/* Provider 1: Resend */}
-            <button
-              type="button"
-              onClick={() => setEmailConfig({ ...emailConfig, provider: 'RESEND' })}
-              className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
-                emailConfig.provider === 'RESEND'
-                  ? 'border-[#1b62b6] bg-blue-50/50 text-[#005ea9] ring-2 ring-[#1b62b6]/30'
-                  : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-sm">Resend</span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700">
-                  Cloud API
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                Rahisi zaidi, API ya haraka na uwezo mkubwa wa kufika inbox.
-              </p>
-            </button>
-
-            {/* Provider 2: SendGrid */}
-            <button
-              type="button"
-              onClick={() => setEmailConfig({ ...emailConfig, provider: 'SENDGRID' })}
-              className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
-                emailConfig.provider === 'SENDGRID'
-                  ? 'border-[#1b62b6] bg-blue-50/50 text-[#005ea9] ring-2 ring-[#1b62b6]/30'
-                  : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-              }`}
-            >
-              <span className="font-bold text-sm block">SendGrid</span>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                Twilio SendGrid transactional email API.
-              </p>
-            </button>
-
-            {/* Provider 3: Mailgun */}
-            <button
-              type="button"
-              onClick={() => setEmailConfig({ ...emailConfig, provider: 'MAILGUN' })}
-              className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
-                emailConfig.provider === 'MAILGUN'
-                  ? 'border-[#1b62b6] bg-blue-50/50 text-[#005ea9] ring-2 ring-[#1b62b6]/30'
-                  : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-              }`}
-            >
-              <span className="font-bold text-sm block">Mailgun</span>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                Sinch Mailgun domain API na ufuatiliaji wa taarifa.
-              </p>
-            </button>
-
-            {/* Provider 4: Custom SMTP */}
-            <button
-              type="button"
-              onClick={() => setEmailConfig({ ...emailConfig, provider: 'SMTP' })}
-              className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
-                emailConfig.provider === 'SMTP'
-                  ? 'border-[#1b62b6] bg-blue-50/50 text-[#005ea9] ring-2 ring-[#1b62b6]/30'
-                  : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-              }`}
-            >
-              <span className="font-bold text-sm block">Custom SMTP</span>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                Seva ya kawaida ya SMTP (Gmail, CPanel, au Seva yako).
-              </p>
-            </button>
-
-            {/* Provider 5: Simulation */}
-            <button
-              type="button"
-              onClick={() => setEmailConfig({ ...emailConfig, provider: 'SIMULATION' })}
-              className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
-                emailConfig.provider === 'SIMULATION'
-                  ? 'border-[#f8a30a] bg-amber-50/60 text-[#a36803] ring-2 ring-[#f8a30a]/30'
-                  : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-              }`}
-            >
-              <span className="font-bold text-sm block">Simulation / Dev</span>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                Majaribio bila API Key (Msimbo wa OTP unatokea kwenye skrini).
-              </p>
-            </button>
-          </div>
-        </div>
-
-        {/* Step 2: Sender Identity (From Name & Email) */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 font-bold text-sm text-slate-900 border-b border-slate-100 pb-3">
-            <Mail className="w-4 h-4 text-[#1b62b6]" />
-            <span>
-              {lang === 'sw'
-                ? '2. Taarifa za Mtumaji (Sender Profile)'
-                : '2. Sender Identity (From Name & Email)'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">
-                {lang === 'sw' ? 'Jina la Mtumaji (From Name)' : 'From Name'}
-              </label>
-              <input
-                type="text"
-                value={emailConfig.fromName}
-                onChange={(e) => setEmailConfig({ ...emailConfig, fromName: e.target.value })}
-                placeholder="INFOTECH WiFi"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm font-medium outline-none"
-              />
-              <span className="text-[10px] text-slate-400 block">
-                Jina litakaloonekana kwenye inbox ya mtumiaji kama mtumaji wa barua pepe.
-              </span>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">
-                {lang === 'sw' ? 'Barua Pepe ya Mtumaji (From Email)' : 'From Email Address'}
-              </label>
-              <input
-                type="email"
-                value={emailConfig.fromEmail}
-                onChange={(e) => setEmailConfig({ ...emailConfig, fromEmail: e.target.value })}
-                placeholder="billing@infotechwifi.co.tz au onboarding@resend.dev"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm font-medium outline-none"
-              />
-              <span className="text-[10px] text-slate-400 block">
-                Kwa Resend/SendGrid, hakikisha barua pepe hii imethibitishwa (Verified Domain au Verified Sender).
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 3: Provider-Specific API Credentials */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
-              <Key className="w-4 h-4 text-[#1b62b6]" />
-              <span>
-                {lang === 'sw'
-                  ? `3. Funguo za API (${emailConfig.provider})`
-                  : `3. API Credentials (${emailConfig.provider})`}
-              </span>
-            </div>
-            {emailConfig.provider === 'EMAILJS' && (
-              <a
-                href="https://dashboard.emailjs.com/admin/account"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-bold text-[#1b62b6] hover:underline flex items-center gap-1"
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* 1. Resend */}
+              <button
+                type="button"
+                onClick={() => setEmailConfig({ ...emailConfig, provider: 'RESEND' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  emailConfig.provider === 'RESEND'
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-950 ring-2 ring-indigo-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
               >
-                <span>Fungua EmailJS Dashboard</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            {emailConfig.provider === 'RESEND' && (
-              <a
-                href="https://resend.com/api-keys"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-bold text-[#1b62b6] hover:underline flex items-center gap-1"
-              >
-                <span>Pata Resend API Key</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            {emailConfig.provider === 'SENDGRID' && (
-              <a
-                href="https://app.sendgrid.com/settings/api_keys"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-bold text-[#1b62b6] hover:underline flex items-center gap-1"
-              >
-                <span>Pata SendGrid API Key</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            {emailConfig.provider === 'MAILGUN' && (
-              <a
-                href="https://app.mailgun.com/settings/api_security/api_keys"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-bold text-[#1b62b6] hover:underline flex items-center gap-1"
-              >
-                <span>Pata Mailgun API Key</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-          </div>
-
-          {/* Conditional provider fields */}
-          {emailConfig.provider === 'EMAILJS' && (
-            <div className="space-y-4">
-              <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <span className="font-bold text-slate-900 block">
-                    ⚡ EmailJS: Utumaji wa Barua Pepe Kupitia Akaunti Yako (Gmail, Outlook au SMTP binafsi)
-                  </span>
-                  <span className="text-[11px] text-slate-600 leading-relaxed block">
-                    Kwenye akaunti yako ya EmailJS (<a href="https://dashboard.emailjs.com" target="_blank" rel="noreferrer" className="underline font-bold text-amber-800">emailjs.com</a>):
-                    1) Unganisha <strong>Email Service</strong> (Gmail/Outlook), 2) Unda <strong>Email Template</strong> yenye vigezo vya <code>{"{{to_name}}"}</code>, <code>{"{{to_email}}"}</code> na <code>{"{{otp}}"}</code>, 3) Weka <strong>Service ID</strong>, <strong>Template ID</strong> na <strong>Public Key</strong> hapa chini:
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">Resend API</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-800">
+                    Inapendekezwa
                   </span>
                 </div>
-              </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  api.resend.com — Ufanisi wa haraka zaidi, haina ucheleweshaji wa OTP.
+                </p>
+              </button>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    EmailJS Service ID <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={emailConfig.emailjsServiceId || ''}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, emailjsServiceId: e.target.value })
-                    }
-                    placeholder="service_xxxxxx"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 block">Inapatikana kwenye Email Services tab.</span>
+              {/* 2. SendGrid */}
+              <button
+                type="button"
+                onClick={() => setEmailConfig({ ...emailConfig, provider: 'SENDGRID' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  emailConfig.provider === 'SENDGRID'
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-950 ring-2 ring-indigo-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">Twilio SendGrid</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-700">
+                    Enterprise
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  SendGrid v3 API rasmi kwa ajili ya mamilioni ya barua pepe na OTP.
+                </p>
+              </button>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    EmailJS Template ID <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={emailConfig.emailjsTemplateId || ''}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, emailjsTemplateId: e.target.value })
-                    }
-                    placeholder="template_xxxxxx"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 block">Inapatikana kwenye Email Templates tab.</span>
+              {/* 3. Mailgun */}
+              <button
+                type="button"
+                onClick={() => setEmailConfig({ ...emailConfig, provider: 'MAILGUN' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  emailConfig.provider === 'MAILGUN'
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-950 ring-2 ring-indigo-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">Mailgun API</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-700">
+                    Reliable
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Mailgun REST API yenye uthibitisho wa DKIM, SPF na DMARC.
+                </p>
+              </button>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    EmailJS Public Key (User ID) <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative flex items-center">
-                    <input
-                      type={showEmailJsKey ? 'text' : 'password'}
-                      value={emailConfig.emailjsPublicKey || ''}
-                      onChange={(e) =>
-                        setEmailConfig({ ...emailConfig, emailjsPublicKey: e.target.value })
-                      }
-                      placeholder="pk_xxxxxxx au User ID"
-                      className="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowEmailJsKey(!showEmailJsKey)}
-                      className="absolute right-3 text-slate-400 hover:text-slate-700 cursor-pointer"
-                    >
-                      {showEmailJsKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <span className="text-[10px] text-slate-400 block">Kwenye Account Settings &rarr; API Keys.</span>
+              {/* 4. EmailJS */}
+              <button
+                type="button"
+                onClick={() => setEmailConfig({ ...emailConfig, provider: 'EMAILJS' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  emailConfig.provider === 'EMAILJS'
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-950 ring-2 ring-indigo-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">EmailJS REST</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-700">
+                    Custom
+                  </span>
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    EmailJS Private Key / Access Token (Hiari)
-                  </label>
-                  <input
-                    type="password"
-                    value={emailConfig.emailjsPrivateKey || ''}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, emailjsPrivateKey: e.target.value })
-                    }
-                    placeholder="Inatumika kama umewasha Strict Origin"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 block">Hiari: Inahitajika tu kama umewasha API Secret Key.</span>
-                </div>
-              </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Inaunganishwa moja kwa moja na Gmail au Outlook kupitia templates za EmailJS.
+                </p>
+              </button>
             </div>
-          )}
+          </div>
 
-          {emailConfig.provider === 'RESEND' && (
-            <div className="space-y-3">
-              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-xs text-blue-900 flex items-start gap-2">
-                <Info className="w-4 h-4 text-[#1b62b6] shrink-0 mt-0.5" />
-                <span>
-                  Resend ni huduma ya kisasa na ya haraka sana. Ili kuanza kutuma bure, unaweza kutumia API Key
-                  ya Resend na barua pepe ya majaribio kama vile <code>onboarding@resend.dev</code> au domain yako mwenyewe.
-                </span>
-              </div>
+          {/* Sender Identity & Credentials */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-5">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Key className="w-4 h-4 text-indigo-600" />
+              <span>Taarifa za Kutuma na API Keys za {emailConfig.provider}</span>
+            </h3>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Resend API Key (re_...)
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Jina la Mtumaji (From Name)
                 </label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-3.5 text-slate-400">
-                    <Key className="w-4 h-4" />
-                  </span>
+                <input
+                  type="text"
+                  value={emailConfig.fromName}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, fromName: e.target.value })}
+                  placeholder="INFOTECH WiFi"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Barua Pepe ya Mtumaji (From Email)
+                </label>
+                <input
+                  type="email"
+                  value={emailConfig.fromEmail}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, fromEmail: e.target.value })}
+                  placeholder="noreply@domain-yako.co.tz"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Provider-Specific Keys */}
+            {emailConfig.provider === 'RESEND' && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">Resend API Key</label>
+                  <a
+                    href="https://resend.com/api-keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-indigo-600 hover:underline inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>Pata Resend API Key</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative">
                   <input
                     type={showResendKey ? 'text' : 'password'}
                     value={emailConfig.resendApiKey || ''}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, resendApiKey: e.target.value })
-                    }
-                    placeholder="re_123456789_abcdefghijklmnopqrstuvwxyz"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
+                    onChange={(e) => setEmailConfig({ ...emailConfig, resendApiKey: e.target.value })}
+                    placeholder="re_123456789abcdef..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowResendKey(!showResendKey)}
-                    className="absolute right-3 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                   >
                     {showResendKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {emailConfig.provider === 'SENDGRID' && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  SendGrid API Key (SG....)
-                </label>
-                <div className="relative flex items-center">
-                  <span className="absolute left-3.5 text-slate-400">
-                    <Key className="w-4 h-4" />
-                  </span>
+            {emailConfig.provider === 'SENDGRID' && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">SendGrid API Key</label>
+                  <a
+                    href="https://app.sendgrid.com/settings/api_keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-indigo-600 hover:underline inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>Pata SendGrid Key</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative">
                   <input
                     type={showSendGridKey ? 'text' : 'password'}
                     value={emailConfig.sendgridApiKey || ''}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, sendgridApiKey: e.target.value })
-                    }
-                    placeholder="SG.xxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
+                    onChange={(e) => setEmailConfig({ ...emailConfig, sendgridApiKey: e.target.value })}
+                    placeholder="SG.xxxxxxxx..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowSendGridKey(!showSendGridKey)}
-                    className="absolute right-3 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                   >
                     {showSendGridKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {emailConfig.provider === 'MAILGUN' && (
-            <div className="space-y-3">
+            {emailConfig.provider === 'MAILGUN' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Mailgun Domain
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Mailgun Domain Name
                   </label>
                   <input
                     type="text"
                     value={emailConfig.mailgunDomain || ''}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, mailgunDomain: e.target.value })
-                    }
-                    placeholder="mg.yourdomain.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm outline-none"
+                    onChange={(e) => setEmailConfig({ ...emailConfig, mailgunDomain: e.target.value })}
+                    placeholder="mg.domain-yako.co.tz"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Mailgun Private API Key (key-...)
-                  </label>
-                  <div className="relative flex items-center">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">Mailgun Private API Key</label>
+                  </div>
+                  <div className="relative">
                     <input
                       type={showMailgunKey ? 'text' : 'password'}
                       value={emailConfig.mailgunApiKey || ''}
-                      onChange={(e) =>
-                        setEmailConfig({ ...emailConfig, mailgunApiKey: e.target.value })
-                      }
-                      placeholder="key-xxxxxxxxxxxxxxxxxxxx"
-                      className="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 font-mono text-xs sm:text-sm outline-none"
+                      onChange={(e) => setEmailConfig({ ...emailConfig, mailgunApiKey: e.target.value })}
+                      placeholder="key-xxxxxxxx..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none pr-10"
                     />
                     <button
                       type="button"
                       onClick={() => setShowMailgunKey(!showMailgunKey)}
-                      className="absolute right-3 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                     >
                       {showMailgunKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {emailConfig.provider === 'SMTP' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">SMTP Host</label>
+            {emailConfig.provider === 'EMAILJS' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Service ID</label>
                   <input
                     type="text"
-                    value={emailConfig.smtpHost || ''}
-                    onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })}
-                    placeholder="smtp.gmail.com au mail.yourserver.tz"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm outline-none"
+                    value={emailConfig.emailjsServiceId || ''}
+                    onChange={(e) => setEmailConfig({ ...emailConfig, emailjsServiceId: e.target.value })}
+                    placeholder="service_xxx"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">SMTP Port</label>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Template ID</label>
                   <input
-                    type="number"
-                    value={emailConfig.smtpPort || 587}
-                    onChange={(e) =>
-                      setEmailConfig({ ...emailConfig, smtpPort: Number(e.target.value) })
-                    }
-                    placeholder="587 au 465"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm outline-none"
+                    type="text"
+                    value={emailConfig.emailjsTemplateId || ''}
+                    onChange={(e) => setEmailConfig({ ...emailConfig, emailjsTemplateId: e.target.value })}
+                    placeholder="template_xxx"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">Usalama (SSL/TLS)</label>
-                  <div className="pt-2">
-                    <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(emailConfig.smtpSecure)}
-                        onChange={(e) =>
-                          setEmailConfig({ ...emailConfig, smtpSecure: e.target.checked })
-                        }
-                        className="rounded text-[#1b62b6] focus:ring-[#1b62b6]"
-                      />
-                      <span>Tumia SSL/TLS (Port 465)</span>
-                    </label>
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Public Key</label>
+                  <input
+                    type="text"
+                    value={emailConfig.emailjsPublicKey || ''}
+                    onChange={(e) => setEmailConfig({ ...emailConfig, emailjsPublicKey: e.target.value })}
+                    placeholder="user_xxx"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
+                  />
                 </div>
               </div>
+            )}
 
+            {/* Action Bar */}
+            <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Hifadhi Mipangilio ya Email</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Test Real Email Dispatch */}
+          <div className="bg-slate-50/80 rounded-3xl p-5 sm:p-6 border border-slate-200 space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-sm font-black text-slate-900">
+                Pima Utumaji wa Barua Pepe Halisi (Live Real Dispatch Test)
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500">
+              Ingiza barua pepe yako halisi hapa chini ili seva yetu itume barua pepe yenye msimbo wa OTP papo hapo kupitia API ya {emailConfig.provider}.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="Weka barua pepe yako (mfano: juma@gmail.com)"
+                className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <button
+                type="button"
+                onClick={handleSendTestEmail}
+                disabled={testingEmail || !testEmail.trim()}
+                className="w-full sm:w-auto px-5 py-2.5 bg-indigo-900 hover:bg-black text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {testingEmail ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-300" />
+                ) : (
+                  <Send className="w-4 h-4 text-indigo-300" />
+                )}
+                <span>Tuma Barua Pepe Halisi</span>
+              </button>
+            </div>
+
+            {emailTestResult && (
+              <div
+                className={`p-4 rounded-2xl border text-xs font-medium space-y-1 ${
+                  emailTestResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold">
+                  {emailTestResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{emailTestResult.message}</span>
+                </div>
+                {emailTestResult.otp && (
+                  <div className="text-[11px] text-slate-600 pl-6">
+                    Msimbo wa jaribio uliotumwa: <strong className="font-mono text-indigo-700">{emailTestResult.otp}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </form>
+      )}
+
+      {/* ======================================================== */}
+      {/* SUBTAB 2: SMS GATEWAY (TANZANIA BEEM, NEXTSMS, TWILIO)    */}
+      {/* ======================================================== */}
+      {activeSubTab === 'sms' && (
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* SMS Provider Selection */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-emerald-600" />
+              <span>Chagua Mtoa Huduma wa SMS (SMS Gateway Provider)</span>
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* 1. Beem Africa */}
+              <button
+                type="button"
+                onClick={() => setSmsConfig({ ...smsConfig, provider: 'BEEM' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  smsConfig.provider === 'BEEM'
+                    ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 ring-2 ring-emerald-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">Beem Africa</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                    Tanzania #1
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  api.beem.africa — Inatuma moja kwa moja Vodacom, Tigo, Airtel & Halotel.
+                </p>
+              </button>
+
+              {/* 2. NextSMS */}
+              <button
+                type="button"
+                onClick={() => setSmsConfig({ ...smsConfig, provider: 'NEXTSMS' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  smsConfig.provider === 'NEXTSMS'
+                    ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 ring-2 ring-emerald-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">NextSMS</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-700">
+                    Local TZ
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  messaging-service.co.tz — Mtoa huduma wa ndani ya Tanzania mwenye usajili wa TCRA.
+                </p>
+              </button>
+
+              {/* 3. Twilio SMS */}
+              <button
+                type="button"
+                onClick={() => setSmsConfig({ ...smsConfig, provider: 'TWILIO' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  smsConfig.provider === 'TWILIO'
+                    ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 ring-2 ring-emerald-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">Twilio SMS</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-700">
+                    Global
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Twilio REST API — Tuma SMS kimataifa na Tanzania kupitia namba ya Twilio.
+                </p>
+              </button>
+
+              {/* 4. Custom HTTP Webhook */}
+              <button
+                type="button"
+                onClick={() => setSmsConfig({ ...smsConfig, provider: 'CUSTOM_HTTP' })}
+                className={`p-4 rounded-2xl border text-left transition cursor-pointer relative ${
+                  smsConfig.provider === 'CUSTOM_HTTP'
+                    ? 'border-emerald-600 bg-emerald-50/60 text-emerald-950 ring-2 ring-emerald-600/30'
+                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-black text-sm">Custom Gateway</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-700">
+                    HTTP/JSON
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Unganisha SMS Modem, Rasberry Pi au API ya kampuni yako kwa HTTP POST.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* SMS Sender ID & Credentials */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-5">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Key className="w-4 h-4 text-emerald-600" />
+              <span>Taarifa za Usajili na API Keys za {smsConfig.provider}</span>
+            </h3>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Jina la Mtumaji / Sender ID (Kama lilivyosajiliwa TCRA)
+              </label>
+              <input
+                type="text"
+                value={smsConfig.senderId}
+                onChange={(e) => setSmsConfig({ ...smsConfig, senderId: e.target.value })}
+                placeholder="INFOTECH au WIFI-TZ"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
+                required
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Kulingana na taratibu za TCRA Tanzania, Sender ID isizidi herufi 11 bila alama maalum.
+              </p>
+            </div>
+
+            {/* Beem Africa Configuration */}
+            {smsConfig.provider === 'BEEM' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">SMTP Username</label>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">Beem Africa API Key</label>
+                    <a
+                      href="https://beem.africa"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 font-semibold"
+                    >
+                      <span>Akaunti ya Beem</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                   <input
                     type="text"
-                    value={emailConfig.smtpUser || ''}
-                    onChange={(e) => setEmailConfig({ ...emailConfig, smtpUser: e.target.value })}
-                    placeholder="info@yourdomain.co.tz"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm outline-none"
+                    value={smsConfig.beemApiKey || ''}
+                    onChange={(e) => setSmsConfig({ ...smsConfig, beemApiKey: e.target.value })}
+                    placeholder="xxxxxxxxxxxxxxxx"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500/20 outline-none"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">SMTP Password</label>
-                  <div className="relative flex items-center">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">Beem Secret Key</label>
+                  </div>
+                  <div className="relative">
                     <input
-                      type={showSmtpPass ? 'text' : 'password'}
-                      value={emailConfig.smtpPass || ''}
-                      onChange={(e) => setEmailConfig({ ...emailConfig, smtpPass: e.target.value })}
-                      placeholder="••••••••••••"
-                      className="w-full px-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm outline-none"
+                      type={showBeemSecret ? 'text' : 'password'}
+                      value={smsConfig.beemSecretKey || ''}
+                      onChange={(e) => setSmsConfig({ ...smsConfig, beemSecretKey: e.target.value })}
+                      placeholder="xxxxxxxxxxxxxxxx"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500/20 outline-none pr-10"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowSmtpPass(!showSmtpPass)}
-                      className="absolute right-3 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      onClick={() => setShowBeemSecret(!showBeemSecret)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                     >
-                      {showSmtpPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showBeemSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {emailConfig.provider === 'SIMULATION' && (
-            <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1.5">
-              <strong className="block font-bold">Hali ya Majaribio (Simulation Mode):</strong>
-              <p>
-                Katika hali hii, mfumo unazalisha msimbo halisi wa OTP wa tarakimu 6 na kuurekodi kwenye logi za seva
-                bila kutuma kwenda kwenye API ya nje. Ni bora kwa ajili ya kufanya majaribio ya haraka bila kutumia
-                mikopo au kuweka API Key.
-              </p>
-            </div>
-          )}
-        </div>
+            {/* NextSMS Configuration */}
+            {smsConfig.provider === 'NEXTSMS' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    NextSMS Username
+                  </label>
+                  <input
+                    type="text"
+                    value={smsConfig.nextsmsUsername || ''}
+                    onChange={(e) => setSmsConfig({ ...smsConfig, nextsmsUsername: e.target.value })}
+                    placeholder="username_yako"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    NextSMS Password / Secret
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNextSmsPass ? 'text' : 'password'}
+                      value={smsConfig.nextsmsPassword || ''}
+                      onChange={(e) => setSmsConfig({ ...smsConfig, nextsmsPassword: e.target.value })}
+                      placeholder="••••••••••••"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNextSmsPass(!showNextSmsPass)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      {showNextSmsPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-        {/* Step 4: Registration OTP Verification Policy Toggle */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
-              <ShieldCheck className="w-4 h-4 text-[#1b62b6]" />
-              <span>
-                {lang === 'sw'
-                  ? '4. Sera ya Uthibitisho wa OTP (Registration OTP Policy)'
-                  : '4. Registration OTP Verification Policy'}
-              </span>
+            {/* Twilio SMS Configuration */}
+            {smsConfig.provider === 'TWILIO' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Account SID</label>
+                  <input
+                    type="text"
+                    value={smsConfig.twilioAccountSid || ''}
+                    onChange={(e) => setSmsConfig({ ...smsConfig, twilioAccountSid: e.target.value })}
+                    placeholder="ACxxxxxxxx..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Auth Token</label>
+                  <div className="relative">
+                    <input
+                      type={showTwilioToken ? 'text' : 'password'}
+                      value={smsConfig.twilioAuthToken || ''}
+                      onChange={(e) => setSmsConfig({ ...smsConfig, twilioAuthToken: e.target.value })}
+                      placeholder="••••••••••••"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTwilioToken(!showTwilioToken)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      {showTwilioToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">From Number</label>
+                  <input
+                    type="text"
+                    value={smsConfig.twilioFromNumber || ''}
+                    onChange={(e) => setSmsConfig({ ...smsConfig, twilioFromNumber: e.target.value })}
+                    placeholder="+1234567890"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Custom Webhook Configuration */}
+            {smsConfig.provider === 'CUSTOM_HTTP' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    HTTP POST Webhook Endpoint URL
+                  </label>
+                  <input
+                    type="url"
+                    value={smsConfig.customWebhookUrl || ''}
+                    onChange={(e) => setSmsConfig({ ...smsConfig, customWebhookUrl: e.target.value })}
+                    placeholder="https://api.sms-yako.tz/v1/send"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    API Authorization Key (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={smsConfig.customApiKey || ''}
+                    onChange={(e) => setSmsConfig({ ...smsConfig, customApiKey: e.target.value })}
+                    placeholder="Bearer token au secret"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Action Bar */}
+            <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Hifadhi Mipangilio ya SMS</span>
+              </button>
             </div>
-            <span
-              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                requireRegistrationOtp
-                  ? 'bg-blue-100 text-[#005ea9] border border-blue-200'
-                  : 'bg-amber-100 text-amber-800 border border-amber-200'
-              }`}
-            >
-              {requireRegistrationOtp
-                ? lang === 'sw'
-                  ? '🟢 OTP Imewashwa (ON)'
-                  : '🟢 OTP Enabled (ON)'
-                : lang === 'sw'
-                ? '⚡ OTP Imezimwa (Bypass OFF)'
-                : '⚡ OTP Disabled (OFF)'}
-            </span>
           </div>
 
-          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="text-xs font-bold text-slate-900">
-                {lang === 'sw'
-                  ? 'Washa / Zima Uthibitisho wa OTP Wakati wa Kujisajili'
-                  : 'Enable / Disable Email OTP Verification During Registration'}
-              </div>
-              <p className="text-xs text-slate-500 max-w-xl">
-                {requireRegistrationOtp
-                  ? (lang === 'sw'
-                      ? 'Kila mteja / mmiliki mpya anayejisajili atatumiwa msimbo wa tarakimu 6 (OTP) kwenye barua pepe yake ili kuthibitisha utambulisho kabla ya kufunguliwa akaunti.'
-                      : 'Every newly registering hotspot owner receives a 6-digit OTP code to verify their identity before account creation.')
-                  : (lang === 'sw'
-                      ? 'Watumiaji wapya watafungua akaunti papo hapo bila kuhitaji kuthibitisha barua pepe kwa OTP (Usajili wa Haraka / Instant 1-Click Activation).'
-                      : 'New users will create accounts instantly without waiting for OTP verification.')}
-              </p>
+          {/* Test Real SMS Dispatch */}
+          <div className="bg-slate-50/80 rounded-3xl p-5 sm:p-6 border border-slate-200 space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-sm font-black text-slate-900">
+                Pima Utumaji wa SMS Halisi ya Majaribio (Live SMS Test)
+              </h3>
             </div>
+            <p className="text-xs text-slate-500">
+              Weka namba ya simu ya Tanzania (Vodacom, Tigo, Airtel, au Halotel) ili seva itume ujumbe wa SMS moja kwa moja kupitia {smsConfig.provider}.
+            </p>
 
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <div className="flex flex-col sm:flex-row items-center gap-2">
               <input
-                type="checkbox"
-                checked={requireRegistrationOtp}
-                onChange={(e) => setRequireRegistrationOtp(e.target.checked)}
-                className="sr-only peer"
+                type="tel"
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                placeholder="0754111222 au 255712345678"
+                className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs bg-white outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
-              <div className="w-12 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1b62b6]" />
-            </label>
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <div className="flex items-center justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className={`px-6 py-3.5 rounded-2xl font-black text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
-              saveSuccess
-                ? 'bg-emerald-600 text-white shadow-emerald-600/30'
-                : 'bg-gradient-to-r from-[#1b62b6] to-[#005ea9] hover:brightness-110 active:scale-98 text-white shadow-blue-600/30'
-            }`}
-          >
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{lang === 'sw' ? 'Inahifadhi...' : 'Saving...'}</span>
-              </>
-            ) : saveSuccess ? (
-              <>
-                <Check className="w-4 h-4 text-white" />
-                <span>
-                  {lang === 'sw'
-                    ? '✓ Saved! (Mipangilio Imehifadhiwa & Updated)'
-                    : '✓ Saved! (Email Settings Updated)'}
-                </span>
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                <span>
-                  {lang === 'sw'
-                    ? 'Hifadhi Mipangilio ya Barua Pepe (Save Settings)'
-                    : 'Save Email Gateway Settings'}
-                </span>
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      {/* Step 4: Live Test Email Tool */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 font-bold text-sm text-slate-900 border-b border-slate-100 pb-3">
-          <Send className="w-4 h-4 text-emerald-600" />
-          <span>
-            {lang === 'sw'
-              ? '4. Kijaribu Barua Pepe cha Moja kwa Moja (Live Email Tester)'
-              : '4. Live Email Dispatch Tester'}
-          </span>
-        </div>
-
-        <p className="text-xs text-slate-500">
-          Weka barua pepe yako halisi hapa chini na ubonyeze kitufe ili kuthibitisha kuwa mtoa huduma uliyemweka
-          anatuma nambari ya OTP na kufika kwenye inbox.
-        </p>
-
-        <form onSubmit={handleSendTestEmail} className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="email"
-            value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
-            placeholder="Weka barua pepe yako (k.m. juma@gmail.com)"
-            required
-            className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-[#1b62b6] focus:ring-2 focus:ring-[#1b62b6]/20 text-xs sm:text-sm outline-none"
-          />
-          <button
-            type="submit"
-            disabled={testing || !testEmail.trim()}
-            className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {testing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-[#f8a30a]" />
-                <span>Inatuma jaribio...</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4 text-[#f8a30a]" />
-                <span>Tuma Barua Pepe ya Jaribio</span>
-              </>
-            )}
-          </button>
-        </form>
-
-        {testResult && (
-          <div
-            className={`p-4 rounded-2xl text-xs border font-medium space-y-1.5 animate-in fade-in ${
-              testResult.success
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-rose-50 border-rose-200 text-rose-900'
-            }`}
-          >
-            <div className="flex items-center gap-2 font-bold">
-              {testResult.success ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600" />
-              )}
-              <span>{testResult.message}</span>
+              <button
+                type="button"
+                onClick={handleSendTestSms}
+                disabled={testingSms || !testPhone.trim()}
+                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-800 hover:bg-black text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {testingSms ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                ) : (
+                  <Send className="w-4 h-4 text-emerald-300" />
+                )}
+                <span>Tuma SMS Halisi ya Majaribio</span>
+              </button>
             </div>
-            {testResult.debugOtp && (
-              <div className="pt-1 text-[11px] font-mono text-slate-700">
-                Msimbo wa Jaribio (Test OTP):{' '}
-                <strong className="text-slate-950 px-2 py-0.5 bg-white rounded border">
-                  {testResult.debugOtp}
-                </strong>
+
+            {smsTestResult && (
+              <div
+                className={`p-4 rounded-2xl border text-xs font-medium space-y-1 ${
+                  smsTestResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold">
+                  {smsTestResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{smsTestResult.message}</span>
+                </div>
+                {smsTestResult.otp && (
+                  <div className="text-[11px] text-slate-600 pl-6">
+                    Msimbo wa SMS uliozalishwa: <strong className="font-mono text-emerald-700">{smsTestResult.otp}</strong>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
+        </form>
+      )}
     </div>
   );
 };

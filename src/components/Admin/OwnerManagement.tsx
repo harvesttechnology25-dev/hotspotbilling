@@ -39,9 +39,10 @@ import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 
 interface OwnerManagementProps {
   onSwitchToOwner?: (owner: HotspotOwner) => void;
+  onOwnersUpdated?: () => void;
 }
 
-export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwner }) => {
+export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwner, onOwnersUpdated }) => {
   const [owners, setOwners] = useState<HotspotOwner[]>([]);
   const [routers, setRouters] = useState<RouterItem[]>([]);
   const [manualRequests, setManualRequests] = useState<ManualSubscriptionRequest[]>([]);
@@ -154,8 +155,10 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
     }
   };
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (isBackground = false) => {
+    if (!isBackground) {
+      setIsLoading(true);
+    }
     try {
       const [ownersRes, routersRes, reqsRes] = await Promise.all([
         fetch('/api/v1/owners'),
@@ -172,14 +175,16 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
     } catch (err) {
       console.error('Failed to load owners data:', err);
     } finally {
-      setIsLoading(false);
+      if (!isBackground) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchData();
-    // Poll for new manual requests every 10 seconds
-    const interval = setInterval(fetchData, 10000);
+    fetchData(false);
+    // Silent background poll every 30s without flicking the UI / cards
+    const interval = setInterval(() => fetchData(true), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -446,6 +451,8 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
   };
 
   const filteredOwners = owners.filter((o) => {
+    // Only show Hotspot Owners in this module (exclude staff and vendor admin)
+    if (o.role !== 'HOTSPOT_OWNER') return false;
     const q = searchQuery.toLowerCase();
     return (
       o.name.toLowerCase().includes(q) ||
@@ -491,7 +498,7 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={fetchData}
+            onClick={() => fetchData(false)}
             className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
             title="Sasisha Orodha"
           >
@@ -837,8 +844,8 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
       {/* Quick Stats Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase">Wamiliki Wote</span>
-          <div className="text-xl font-black text-slate-900 mt-1">{owners.length}</div>
+          <span className="text-[11px] font-bold text-slate-400 uppercase">Wamiliki Halisi (Tenants)</span>
+          <div className="text-xl font-black text-indigo-600 mt-1">{owners.filter((o) => o.role === 'HOTSPOT_OWNER').length}</div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
@@ -1122,7 +1129,7 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                         <div>
                           <span className="text-[11px] text-slate-500 font-medium">PalmPesa Payout: </span>
                           <span className="font-mono font-bold text-slate-800 text-[11px]">
-                            {owner.palmpesa_user_id ? `ID: ${owner.palmpesa_user_id}` : 'Admin Default (770)'}
+                            {owner.palmpesa_user_id ? `ID: ${owner.palmpesa_user_id}` : 'Haijawekwa'}
                           </span>
                         </div>
                       </div>
@@ -1603,7 +1610,7 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                       onChange={(e) =>
                         setFormState({ ...formState, palmpesa_user_id: e.target.value })
                       }
-                      placeholder="mfano: 770 au ID yake"
+                      placeholder="Ingiza User ID..."
                       className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
                     />
                   </div>
@@ -1618,7 +1625,7 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                       onChange={(e) =>
                         setFormState({ ...formState, palmpesa_user_ref: e.target.value })
                       }
-                      placeholder="mfano: USR-B2510CD582DF"
+                      placeholder="Ingiza Public User Ref..."
                       className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
                     />
                   </div>

@@ -413,7 +413,7 @@ export const PaymentConfig: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              {(['DALIPAY', 'PALMPESA', 'AZAMPAY', 'VODACOM_OPENAPI', 'SELCOM', 'LIVE_SANDBOX'] as const).map((gw) => (
+              {(['DALIPAY', 'PALMPESA', 'AZAMPAY', 'VODACOM_OPENAPI', 'SELCOM', 'TEST_SANDBOX'] as const).map((gw) => (
                 <button
                   key={gw}
                   type="button"
@@ -451,7 +451,7 @@ export const PaymentConfig: React.FC = () => {
                       ? 'M-Pesa, Tigo, Airtel, Halo'
                       : gw === 'AZAMPAY'
                       ? 'M-Pesa, Tigo, Airtel, Halo'
-                      : gw === 'LIVE_SANDBOX'
+                      : gw === 'TEST_SANDBOX'
                       ? 'Mtandao Umeidhinisha'
                       : 'Direct Telco API'}
                   </div>
@@ -552,7 +552,7 @@ export const PaymentConfig: React.FC = () => {
                                 publicKey: kItem.publicKey,
                                 secretKey: kItem.secretKey,
                                 isSandbox: true,
-                                apiEndpoint: settings.dalipay?.apiEndpoint || 'https://api.dalipay.com/v1',
+                                apiEndpoint: settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz/api/v1',
                                 webhookSecret: settings.dalipay?.webhookSecret || 'gw_wh_test_secret_dalipay',
                               },
                             })
@@ -684,7 +684,7 @@ export const PaymentConfig: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={settings.dalipay?.apiEndpoint || 'https://api.dalipay.com/v1'}
+                      value={settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz/api/v1'}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -699,7 +699,7 @@ export const PaymentConfig: React.FC = () => {
                           },
                         })
                       }
-                      placeholder="https://api.dalipay.com/v1"
+                      placeholder="https://app.dalipay.co.tz/api/v1"
                       className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-indigo-600 focus:outline-hidden bg-white"
                     />
                   </div>

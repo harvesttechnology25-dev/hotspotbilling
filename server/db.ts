@@ -31,9 +31,9 @@ const DEFAULT_SETTINGS: GatewaySettings = {
   activeGateway: 'PALMPESA',
   webhookSecret: process.env.AZAMPAY_WEBHOOK_SECRET || 'tzwifi_secret_key_89230492',
   palmpesa: {
-    userRef: process.env.PALMPESA_USER_REF || 'USR-B2510CD582DF',
-    userId: process.env.PALMPESA_USER_ID || '770',
-    apiToken: process.env.PALMPESA_API_TOKEN || '1NhdI6PhhHHY9kYmnSoUUszx7qm8nSYrnewbfxeDYyONiMzGGTdRhIJjj2Hq',
+    userRef: process.env.PALMPESA_USER_REF || '',
+    userId: process.env.PALMPESA_USER_ID || '',
+    apiToken: process.env.PALMPESA_API_TOKEN || '',
     acceptHotspotStk: true,
     isSandbox: false,
   },
@@ -90,6 +90,20 @@ const DEFAULT_SETTINGS: GatewaySettings = {
   supportPhone: '+255 754 000 111',
   autoLoginEnabled: true,
   requireRegistrationOtp: true,
+  smsGateway: {
+    provider: 'BEEM',
+    senderId: 'INFOTECH',
+    enabled: true,
+    beemApiKey: process.env.BEEM_API_KEY || '',
+    beemSecretKey: process.env.BEEM_SECRET_KEY || '',
+    nextsmsUsername: process.env.NEXTSMS_USERNAME || '',
+    nextsmsPassword: process.env.NEXTSMS_PASSWORD || '',
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
+    twilioFromNumber: process.env.TWILIO_FROM_NUMBER || '',
+    customWebhookUrl: process.env.SMS_WEBHOOK_URL || '',
+    customApiKey: process.env.SMS_WEBHOOK_KEY || '',
+  },
   emailGateway: {
     provider: 'EMAILJS',
     fromEmail: process.env.EMAIL_FROM || 'billing@tzwifi.co.tz',
@@ -334,46 +348,12 @@ class PersistentDatabase {
         password: '1234',
         role: 'VENDOR_ADMIN',
         status: 'ACTIVE',
-        assigned_router_ids: [1, 2],
-        commission_rate: 10,
+        assigned_router_ids: [],
+        commission_rate: 0,
         monthly_fee: 0,
-        created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 2,
-        name: 'Juma Shabani',
-        business_name: 'Kariakoo Cyber & WiFi Point',
-        email: 'juma@kariakoowifi.tz',
-        phone: '0712345678',
-        password: '1234',
-        role: 'HOTSPOT_OWNER',
-        status: 'ACTIVE',
-        assigned_router_ids: [1],
-        commission_rate: 0,
-        monthly_fee: 15000,
-        subscription_fee: 15000,
+        subscription_fee: 0,
         subscription_status: 'ACTIVE',
-        subscription_expires_at: new Date(Date.now() + 28 * 86400000).toISOString(),
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 3,
-        name: 'Neema Mwangi',
-        business_name: 'Clock Tower Arusha Lounge',
-        email: 'neema@arushalounge.tz',
-        phone: '0765987654',
-        password: '1234',
-        role: 'HOTSPOT_OWNER',
-        status: 'ACTIVE',
-        assigned_router_ids: [2],
-        commission_rate: 0,
-        monthly_fee: 15000,
-        subscription_fee: 15000,
-        subscription_status: 'EXPIRED',
-        subscription_expires_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-        created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
     ];
@@ -381,46 +361,7 @@ class PersistentDatabase {
 
   private seedDefaults() {
     this.seedOwners();
-
-    this.routers = [
-      {
-        id: 1,
-        name: 'Mikrotik-Main-Dar',
-        brand_name: 'Kariakoo Cyber & WiFi Point',
-        ssid: 'KARIAKOO-FREE-WIFI',
-        ip_address: '192.168.88.1',
-        api_port: 8728,
-        api_username: 'billing_api',
-        api_password_hash: 'admin123',
-        location: 'Posta Mpya, Dar es Salaam',
-        hotspot_server_name: 'hotspot1',
-        dns_name: 'wifi.hotspot.lan',
-        status: 'ONLINE',
-        owner_id: 2,
-        owner_name: 'Juma Shabani (Kariakoo Cyber)',
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 2,
-        name: 'Mikrotik-Branch-Arusha',
-        brand_name: 'Clock Tower Arusha Lounge',
-        ssid: 'ARUSHA-LOUNGE-WIFI',
-        ip_address: '10.5.50.1',
-        api_port: 8728,
-        api_username: 'billing_api',
-        api_password_hash: 'admin123',
-        location: 'Clock Tower, Arusha',
-        hotspot_server_name: 'hotspot1',
-        dns_name: 'arusha.hotspot.lan',
-        status: 'ONLINE',
-        owner_id: 3,
-        owner_name: 'Neema Mwangi (Arusha Lounge)',
-        created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-
+    this.routers = [];
     this.plans = [
       {
         id: 1,
@@ -686,7 +627,19 @@ class PersistentDatabase {
     };
 
     const currentEmail = this.settings.emailGateway || DEFAULT_SETTINGS.emailGateway!;
-    const mergedEmail: EmailGatewayConfig = {
+        const currentSms = this.settings.smsGateway || (DEFAULT_SETTINGS as any).smsGateway || {
+      provider: 'BEEM',
+      senderId: 'INFOTECH',
+      enabled: true,
+    };
+    const mergedSms: any = {
+      ...currentSms,
+      ...(newSettings.smsGateway || {}),
+      provider: newSettings.smsGateway?.provider || currentSms.provider,
+      senderId: newSettings.smsGateway?.senderId || currentSms.senderId,
+      enabled: newSettings.smsGateway?.enabled ?? currentSms.enabled,
+    };
+const mergedEmail: EmailGatewayConfig = {
       ...currentEmail,
       ...(newSettings.emailGateway || {}),
       provider: newSettings.emailGateway?.provider || currentEmail.provider,
@@ -698,11 +651,13 @@ class PersistentDatabase {
     this.settings = {
       ...this.settings,
       ...newSettings,
+      requireRegistrationOtp: newSettings.requireRegistrationOtp !== undefined ? Boolean(newSettings.requireRegistrationOtp) : this.settings.requireRegistrationOtp,
       palmpesa: mergedPalmpesa,
       dalipay: mergedDalipay,
       azampay: { ...this.settings.azampay, ...(newSettings.azampay || {}) },
       vodacom: { ...this.settings.vodacom, ...(newSettings.vodacom || {}) },
       emailGateway: mergedEmail,
+      smsGateway: mergedSms,
     };
     this.saveToDisk();
     return this.settings;
@@ -1586,26 +1541,29 @@ class PersistentDatabase {
       this.auditLogs = [];
     }
 
-    // 5. Purge Demo Hotspot Owners (Preserving only Vendor Admin)
+    // 5. Purge ALL Owners, Staff, Managers, Cashiers, Technicians (Preserving ONLY Vendor Admin)
     if (options.clearDemoOwners) {
-      clearedOwners = this.owners.filter((o) => o.role === 'HOTSPOT_OWNER').length;
-      const vendorAdmin = this.owners.find((o) => o.role === 'VENDOR_ADMIN') || {
-        id: 1,
-        name: 'Kelvin Mrema (Vendor HQ)',
-        business_name: 'INFOTECH WiFi Cloud Platform',
-        email: 'vendor@tzwifi.co.tz',
-        phone: '0754111222',
-        password: '1234',
-        role: 'VENDOR_ADMIN' as const,
-        status: 'ACTIVE' as const,
-        assigned_router_ids: [],
-        commission_rate: 0,
-        monthly_fee: 0,
-        subscription_fee: 0,
-        subscription_status: 'ACTIVE' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      clearedOwners = this.owners.filter((o) => o.role !== 'VENDOR_ADMIN').length;
+      let vendorAdmin = this.owners.find((o) => o.role === 'VENDOR_ADMIN');
+      if (!vendorAdmin) {
+        vendorAdmin = {
+          id: 1,
+          name: 'Kelvin Mrema (Vendor HQ)',
+          business_name: 'INFOTECH WiFi Cloud Platform',
+          email: 'vendor@tzwifi.co.tz',
+          phone: '0754111222',
+          password: '1234',
+          role: 'VENDOR_ADMIN' as const,
+          status: 'ACTIVE' as const,
+          assigned_router_ids: [],
+          commission_rate: 0,
+          monthly_fee: 0,
+          subscription_fee: 0,
+          subscription_status: 'ACTIVE' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
       vendorAdmin.assigned_router_ids = [];
       this.owners = [vendorAdmin];
     }
@@ -1793,6 +1751,111 @@ class PersistentDatabase {
     this.saveToDisk();
     return this.getCompanyInfo();
   }
+
+
+  getDatabaseHealthInfo() {
+    let fileSizeKb = 0;
+    let lastModified = new Date().toISOString();
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const stats = fs.statSync(DB_FILE);
+        fileSizeKb = Math.round((stats.size / 1024) * 10) / 10;
+        lastModified = stats.mtime.toISOString();
+      }
+    } catch (e) {
+      console.error('Error reading DB_FILE stats:', e);
+    }
+
+    return {
+      status: 'CONNECTED',
+      engine: 'Persistent Storage Engine & FreeRADIUS Engine (MySQL Compatible)',
+      storagePath: DB_FILE,
+      schemaFile: 'schema.sql',
+      fileSizeKb,
+      lastModified,
+      uptimeSeconds: Math.floor(process.uptime()),
+      tables: {
+        hotspot_owners: {
+          count: this.owners.length,
+          description: 'Wamiliki wa Hotspot & Msimamizi Mkuu (Tenants)',
+          schemaTable: 'hotspot_owners',
+          lastRecordTime: this.owners[this.owners.length - 1]?.created_at || null,
+        },
+        routers: {
+          count: this.routers.length,
+          description: 'Vifaa vya Wi-Fi (MikroTik, Ruijie, Omada, OpenWrt, UniFi)',
+          schemaTable: 'routers',
+          lastRecordTime: this.routers[this.routers.length - 1]?.created_at || null,
+        },
+        billing_plans: {
+          count: this.plans.length,
+          description: 'Vifurushi vya Muda na Data (Time, Data, Unlimited)',
+          schemaTable: 'billing_plans',
+          lastRecordTime: this.plans[this.plans.length - 1]?.created_at || null,
+        },
+        transactions: {
+          count: this.transactions.length,
+          description: 'Miamala ya Malipo ya Wateja (PalmPesa, AzamPay, Vodacom)',
+          schemaTable: 'transactions',
+          lastRecordTime: this.transactions[this.transactions.length - 1]?.created_at || null,
+        },
+        vouchers: {
+          count: this.vouchers.length,
+          description: 'Vocha za Wi-Fi zilizozalishwa & Hali zake',
+          schemaTable: 'vouchers',
+          lastRecordTime: this.vouchers[this.vouchers.length - 1]?.created_at || null,
+        },
+        voucher_batches: {
+          count: this.voucherBatches.length,
+          description: 'Makundi ya Vocha za Kuchapisha (Voucher Batches)',
+          schemaTable: 'voucher_batches',
+          lastRecordTime: this.voucherBatches[this.voucherBatches.length - 1]?.created_at || null,
+        },
+        radcheck: {
+          count: this.radcheck.length,
+          description: 'FreeRADIUS AAA Auth Records (radcheck table)',
+          schemaTable: 'radcheck',
+          lastRecordTime: null,
+        },
+        radreply: {
+          count: this.radreply.length,
+          description: 'FreeRADIUS Attributes & Rate Limits (radreply table)',
+          schemaTable: 'radreply',
+          lastRecordTime: null,
+        },
+        nas: {
+          count: this.nasList.length,
+          description: 'FreeRADIUS Network Access Servers (nas table)',
+          schemaTable: 'nas',
+          lastRecordTime: null,
+        },
+        transaction_audit_logs: {
+          count: this.auditLogs.length,
+          description: 'Kumbukumbu za Ulinzi na Miamala (Audit Logs)',
+          schemaTable: 'transaction_audit_logs',
+          lastRecordTime: this.auditLogs[0]?.created_at || null,
+        },
+        free_trial_claims: {
+          count: this.freeTrialClaims.length,
+          description: 'Watumiaji waliotumia Jaribio la Bure (MAC & Phone Claims)',
+          schemaTable: 'free_trial_claims',
+          lastRecordTime: this.freeTrialClaims[this.freeTrialClaims.length - 1]?.claimed_at || null,
+        },
+        manual_sub_requests: {
+          count: this.manualSubRequests.length,
+          description: 'Maombi ya Uhakiki wa Usajili wa Wamiliki (Subscriptions)',
+          schemaTable: 'manual_sub_requests',
+          lastRecordTime: this.manualSubRequests[this.manualSubRequests.length - 1]?.created_at || null,
+        },
+      },
+      env: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        dataDir: DATA_DIR,
+      },
+    };
+  }
+
 }
 
 export const db = new PersistentDatabase();

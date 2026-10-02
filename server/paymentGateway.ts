@@ -1,3 +1,13 @@
+
+function mapCarrierToDaliPayProvider(carrier: string): string {
+  const c = (carrier || '').toUpperCase();
+  if (c.includes('TIGO')) return 'Tigo';
+  if (c.includes('AIRTEL')) return 'Airtel';
+  if (c.includes('HALO')) return 'Halopesa';
+  if (c.includes('AZAM')) return 'Azampesa';
+  return 'Mpesa';
+}
+
 import crypto from 'crypto';
 import {
   NetworkProvider,
@@ -503,7 +513,17 @@ export class PaymentGatewayService {
     voucher?: VoucherRecord;
     alreadyProcessed?: boolean;
   }> {
-    const { externalReference, transactionId, status, amount } = payload;
+    // Standardize DaliPay webhook format or direct format
+    let externalReference = payload.externalReference || (payload as any).data?.external_id || (payload as any).external_id;
+    let transactionId = payload.transactionId || (payload as any).data?.uuid || (payload as any).data?.reference || (payload as any).uuid;
+    let status = payload.status;
+    let amount = payload.amount || (payload as any).data?.amount;
+
+    if ((payload as any).event === 'collection.success' || (payload as any).data?.status === 'success') {
+      status = 'SUCCESS';
+    } else if ((payload as any).event === 'collection.failed' || (payload as any).data?.status === 'failed') {
+      status = 'FAILED';
+    }
 
     db.saveAuditLog({
       id: Date.now(),

@@ -168,16 +168,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         if (
           cleanUser === 'admin' ||
           cleanUser === 'superadmin' ||
+          cleanUser === 'vendor' ||
+          cleanUser === 'vendor@tzwifi.co.tz' ||
           cleanUser.includes('harvesttechnology25') ||
           cleanPass === 'admin123' ||
           cleanPass === 'admin'
         ) {
           loggedInUser = {
             id: 1,
-            name: 'Super Admin',
-            username: 'admin',
-            email: 'admin@infotechwifi.com',
-            role: 'SUPER_ADMIN' as const,
+            name: 'Kelvin Mrema (Vendor HQ)',
+            business_name: 'TZ-WiFi Cloud Vendor Platform',
+            username: 'vendor',
+            email: 'vendor@tzwifi.co.tz',
+            phone: '0754111222',
+            role: 'VENDOR_ADMIN' as const,
+            status: 'ACTIVE' as const,
+            assigned_router_ids: [1, 2],
           };
         } else if (cleanUser === '0623887886' || cleanUser.includes('mmasa')) {
           loggedInUser = {

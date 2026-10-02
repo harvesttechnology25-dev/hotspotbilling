@@ -6,13 +6,13 @@ import { TransactionLedger } from './TransactionLedger.tsx';
 import { VoucherStation } from './VoucherStation.tsx';
 import { RouterManagement } from './RouterManagement.tsx';
 import { MySQLSchemaViewer } from './MySQLSchemaViewer.tsx';
-import { PaymentConfig } from './PaymentConfig.tsx';
 import { OwnerManagement } from './OwnerManagement.tsx';
 import { VpsDevopsManager } from './VpsDevopsManager.tsx';
 import { OwnerMerchantSettings } from './OwnerMerchantSettings.tsx';
 import { CaptivePortalCustomizer } from './CaptivePortalCustomizer.tsx';
 import { EmailConfig } from './EmailConfig.tsx';
 import { SystemResetManager } from './SystemResetManager.tsx';
+import { SettingsModule, SettingsSubTab } from './SettingsModule.tsx';
 import { UserManagement } from './UserManagement.tsx';
 import { CompanyInfoSettings } from './CompanyInfoSettings.tsx';
 import { AboutUsModal } from '../Modals/AboutUsModal.tsx';
@@ -45,6 +45,7 @@ import {
   Building2,
   Sparkles,
   LogOut,
+  Settings,
   Terminal,
   Palette,
   Clock,
@@ -78,6 +79,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [showPreviewAbout, setShowPreviewAbout] = useState(false);
   const [showPreviewContact, setShowPreviewContact] = useState(false);
 
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('payment_gateway');
   const [activeTab, setActiveTab] = useState<
     | 'overview'
     | 'owners'
@@ -89,12 +91,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | 'vouchers'
     | 'routers'
     | 'schema'
-    | 'payment_config'
-    | 'merchant_settings'
+        | 'merchant_settings'
     | 'vps_devops'
     | 'portal_customizer'
     | 'email_config'
     | 'system_reset'
+    | 'settings'
   >('active_users');
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -168,13 +170,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               icon: Users,
               badge: `${owners.filter((o) => o.role === 'HOTSPOT_OWNER').length}`,
             },
-            {
-              id: 'company_info',
-              label: lang === 'sw' ? 'Taarifa za Mfumo (About & Contacts)' : 'System Info (About & Contacts)',
-              subLabel: lang === 'sw' ? 'Kuhusu sisi, simu, WhatsApp, ofisi' : 'About us, phones, WhatsApp, office',
-              icon: Building2,
-              badge: 'Homepage',
-            },
+
             {
               id: 'user_management',
               label: lang === 'sw' ? 'Wafanyakazi & Privileges (Users)' : 'Staff & Privileges (Users)',
@@ -221,7 +217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ],
         },
         {
-          title: lang === 'sw' ? 'FEDHA & SERVER SYSTEM' : 'FINANCE & SERVER SYSTEM',
+          title: lang === 'sw' ? 'FEDHA ZA MFUMO' : 'NETWORK FINANCES',
           items: [
             {
               id: 'transactions',
@@ -229,43 +225,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               subLabel: lang === 'sw' ? 'M-Pesa, Tigo, Airtel, Halopesa' : 'M-Pesa, Tigo, Airtel, Halopesa records',
               icon: Receipt,
             },
+          ],
+        },
+        {
+          title: lang === 'sw' ? 'MIPANGILIO YA MFUMO (SETTINGS)' : 'SYSTEM SETTINGS',
+          items: [
             {
-              id: 'vps_devops',
-              label: lang === 'sw' ? 'Cloud VPS & FreeRADIUS DevOps' : 'Cloud VPS & FreeRADIUS DevOps',
-              subLabel: lang === 'sw' ? 'Ubuntu 22.04, VPN & CoA 3799' : 'Ubuntu 22.04, VPN & CoA 3799',
-              icon: Terminal,
-            },
-            {
-              id: 'payment_config',
-              label: lang === 'sw' ? 'Mageti ya Malipo (APIs)' : 'Payment Gateways & APIs',
-              subLabel: lang === 'sw' ? 'AzamPay & Vodacom Master' : 'AzamPay & Vodacom Direct APIs',
-              icon: CreditCard,
-            },
-            {
-              id: 'merchant_settings',
-              label: lang === 'sw' ? 'Geti la Malipo (PalmPay / Merchant)' : 'Payment Gateway (Merchant Options)',
-              subLabel: lang === 'sw' ? 'Badilisha au ongeza Merchant / PalmPay' : 'Change or add Merchant / PalmPay',
-              icon: Sliders,
-              badge: currentOwner?.palmpesa_user_id ? 'Active' : undefined,
-            },
-            {
-              id: 'email_config',
-              label: lang === 'sw' ? 'API za Barua Pepe (Email Gateway)' : 'Email Merchant Gateway APIs',
-              subLabel: lang === 'sw' ? 'Resend, SendGrid, Mailgun & OTP' : 'Resend, SendGrid, Mailgun & OTP',
-              icon: Mail,
-            },
-            {
-              id: 'schema',
-              label: lang === 'sw' ? 'Database Schema & MySQL' : 'Database Schema & MySQL',
-              subLabel: lang === 'sw' ? 'Muundo wa Database' : 'Relational schema & SQL DDL',
-              icon: Database,
-            },
-            {
-              id: 'system_reset',
-              label: lang === 'sw' ? 'Weka Mfumo Mpya (Live Reset)' : 'Factory Reset (Live Launch)',
-              subLabel: lang === 'sw' ? 'Safi data za majaribio uanze live' : 'Purge test data for production',
-              icon: RotateCcw,
-              badge: 'Live',
+              id: 'settings',
+              label: lang === 'sw' ? 'Mipangilio Mikuu (Settings)' : 'System Settings',
+              subLabel: lang === 'sw' ? 'VPS, Payment, Email, Schema & Factory Reset' : 'VPS, Gateways, Database & Reset',
+              icon: Settings,
+              badge: '6 Tools',
             },
           ],
         },
@@ -340,11 +310,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               subLabel: lang === 'sw' ? 'M-Pesa, Tigo, Airtel zangu' : 'M-Pesa, Tigo, Airtel records',
               icon: Receipt,
             },
+          ],
+        },
+        {
+          title: lang === 'sw' ? 'MIPANGILIO (SETTINGS)' : 'SETTINGS',
+          items: [
             {
-              id: 'merchant_settings',
-              label: lang === 'sw' ? 'Geti Langu la Malipo (Merchant)' : 'My Payment Gateway (Merchant)',
-              subLabel: lang === 'sw' ? 'Badilisha au ongeza Merchant / PalmPay' : 'Change or add Merchant / PalmPay',
-              icon: CreditCard,
+              id: 'settings',
+              label: lang === 'sw' ? 'Mipangilio (Settings)' : 'Settings',
+              subLabel: lang === 'sw' ? 'Script ya MikroTik, Malipo & SMS/Email' : 'MikroTik Script, Payments & SMS/Email',
+              icon: Settings,
               badge: currentOwner?.palmpesa_user_id ? 'Configured' : 'Setup',
             },
           ],
@@ -365,7 +340,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onSwitchUser(owner);
     }
     // If switched to owner and tab is not allowed, switch to active_users
-    if (owner.role === 'HOTSPOT_OWNER' && ['owners', 'schema', 'payment_config', 'vps_devops'].includes(activeTab)) {
+    if (owner.role === 'HOTSPOT_OWNER' && ['owners', 'company_info', 'vps_devops', 'schema', 'system_reset'].includes(activeTab)) {
       setActiveTab('active_users');
     }
   };
@@ -511,11 +486,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-left">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs bg-emerald-600 text-white">
-                      {currentOwner?.name?.charAt(0) || 'M'}
+                      {((currentOwner?.name && currentOwner.name !== 'Mteja Mpya' ? currentOwner.name : currentOwner?.business_name) || 'M').charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-white truncate">
-                        {currentOwner?.name || (lang === 'sw' ? 'Mmiliki wa Hotspot' : 'Hotspot Owner')}
+                        {(currentOwner?.name && currentOwner.name !== 'Mteja Mpya') ? currentOwner.name : (currentOwner?.business_name || (lang === 'sw' ? 'Mmiliki wa Hotspot' : 'Hotspot Owner'))}
                       </div>
                       <div className="text-[10px] text-emerald-400 truncate font-semibold">
                         {currentOwner?.business_name || 'Biashara ya Wi-Fi'}
@@ -880,12 +855,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 handleSelectAccount(owner);
                 setActiveTab('active_users');
               }}
+              onOwnersUpdated={fetchOwners}
             />
           )}
 
-          {activeTab === 'company_info' && (
-            <CompanyInfoSettings
+          {activeTab === 'company_info' && isVendor && (
+            <SettingsModule
+              currentUser={currentOwner}
               lang={lang}
+              defaultSubTab="company_info"
+              onResetCompleted={() => {
+                fetchOwners();
+                fetchRouters();
+              }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
               onPreviewAbout={() => setShowPreviewAbout(true)}
               onPreviewContact={() => setShowPreviewContact(true)}
             />
@@ -919,21 +905,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
 
-          {activeTab === 'schema' && <MySQLSchemaViewer />}
-
-          {activeTab === 'payment_config' && <PaymentConfig />}
-
-          {activeTab === 'merchant_settings' && (
-            <OwnerMerchantSettings
-              owner={currentOwner}
-              onUpdated={(updatedOwner) => {
-                setCurrentOwner(updatedOwner);
-                fetchOwners();
-              }}
-              lang={lang}
-            />
-          )}
-
           {activeTab === 'portal_customizer' && (
             <CaptivePortalCustomizer
               currentOwner={currentOwner || undefined}
@@ -942,15 +913,98 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
 
-          {activeTab === 'vps_devops' && <VpsDevopsManager />}
-          {activeTab === 'email_config' && <EmailConfig lang={lang} />}
-          {activeTab === 'system_reset' && (
-            <SystemResetManager
+          {activeTab === 'settings' && (
+            <SettingsModule
+              currentUser={currentOwner}
+              lang={lang}
+              defaultSubTab={settingsSubTab}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
               }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
+              onPreviewAbout={() => setShowPreviewAbout(true)}
+              onPreviewContact={() => setShowPreviewContact(true)}
+            />
+          )}
+
+          {/* Backward compatibility redirects to SettingsModule subtabs */}
+          {activeTab === 'merchant_settings' && (
+            <SettingsModule
+              currentUser={currentOwner}
               lang={lang}
+              defaultSubTab='payment_gateway'
+              onResetCompleted={() => {
+                fetchOwners();
+                fetchRouters();
+              }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
+            />
+          )}
+          {activeTab === 'vps_devops' && isVendor && (
+            <SettingsModule
+              currentUser={currentOwner}
+              lang={lang}
+              defaultSubTab='vps_devops'
+              onResetCompleted={() => {
+                fetchOwners();
+                fetchRouters();
+              }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
+            />
+          )}
+          {activeTab === 'email_config' && (
+            <SettingsModule
+              currentUser={currentOwner}
+              lang={lang}
+              defaultSubTab='email_gateway'
+              onResetCompleted={() => {
+                fetchOwners();
+                fetchRouters();
+              }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
+            />
+          )}
+          {activeTab === 'schema' && isVendor && (
+            <SettingsModule
+              currentUser={currentOwner}
+              lang={lang}
+              defaultSubTab='database_schema'
+              onResetCompleted={() => {
+                fetchOwners();
+                fetchRouters();
+              }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
+            />
+          )}
+          {activeTab === 'system_reset' && isVendor && (
+            <SettingsModule
+              currentUser={currentOwner}
+              lang={lang}
+              defaultSubTab='factory_reset'
+              onResetCompleted={() => {
+                fetchOwners();
+                fetchRouters();
+              }}
+              onOwnerUpdated={(updatedOwner: HotspotOwner) => {
+                setCurrentOwner(updatedOwner);
+                fetchOwners();
+              }}
             />
           )}
         </main>
@@ -1010,20 +1064,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span className="text-[10px] truncate max-w-[64px]">DevOps</span>
               </button>
 
-              {/* Vendor Tab 4: Payments / APIs */}
+              {/* Vendor Tab 4: Settings */}
               <button
                 type="button"
                 onClick={() => {
-                  setActiveTab('payment_config');
+                  setActiveTab('settings');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className={`flex flex-col items-center justify-center gap-1 h-full cursor-pointer transition ${
-                  activeTab === 'payment_config' ? 'text-[#1b62b6] font-bold' : 'text-slate-500 hover:text-slate-900'
+                  activeTab === 'settings' ? 'text-[#1b62b6] font-bold' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                <CreditCard className={`w-5 h-5 ${activeTab === 'payment_config' ? 'stroke-[2.5]' : ''}`} />
+                <Settings className={`w-5 h-5 ${activeTab === 'settings' ? 'stroke-[2.5]' : ''}`} />
                 <span className="text-[10px] truncate max-w-[64px]">
-                  {lang === 'sw' ? 'Malipo' : 'Payments'}
+                  {lang === 'sw' ? 'Mipangilio' : 'Settings'}
                 </span>
               </button>
             </>
@@ -1094,6 +1148,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <Package className={`w-5 h-5 ${activeTab === 'plans' ? 'stroke-[2.5]' : ''}`} />
                 <span className="text-[10px] truncate max-w-[64px]">
                   {lang === 'sw' ? 'Vifurushi' : 'Plans'}
+                </span>
+              </button>
+              {/* Hotspot Owner Tab 5: Settings */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('settings');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`flex flex-col items-center justify-center gap-1 h-full cursor-pointer transition ${
+                  activeTab === 'settings' ? 'text-[#1b62b6] font-bold' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <Settings className={`w-5 h-5 ${activeTab === 'settings' ? 'stroke-[2.5]' : ''}`} />
+                <span className="text-[10px] truncate max-w-[64px]">
+                  {lang === 'sw' ? 'Mipangilio' : 'Settings'}
                 </span>
               </button>
             </>

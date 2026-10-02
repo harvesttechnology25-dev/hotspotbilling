@@ -19,6 +19,9 @@ import {
   ArrowRight,
   PlusCircle,
   HelpCircle,
+  Globe,
+  Terminal,
+  Lock,
 } from 'lucide-react';
 import { HotspotOwner, NetworkProvider } from '../../types/index.ts';
 
@@ -29,17 +32,40 @@ interface OwnerMerchantSettingsProps {
 }
 
 export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
-  owner,
+  owner: propOwner,
   onUpdated,
   lang = 'sw',
 }) => {
+  const [localOwner, setLocalOwner] = useState<HotspotOwner | null>(propOwner || null);
+
+  useEffect(() => {
+    if (propOwner) {
+      setLocalOwner(propOwner);
+    } else {
+      // Fetch default vendor owner if null
+      fetch('/api/v1/owners')
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setLocalOwner(data[0]);
+          }
+        })
+        .catch(e => console.error(e));
+    }
+  }, [propOwner]);
+
+  const owner = localOwner;
   const [selectedGateway, setSelectedGateway] = useState<
-    'palmpay' | 'azampay' | 'vodacom_mpesa' | 'tigopesa' | 'airtel_money' | 'manual_wallet'
+    'dalipay' | 'palmpay' | 'azampay' | 'vodacom_mpesa' | 'tigopesa' | 'airtel_money' | 'manual_wallet'
   >('palmpay');
 
   const [userId, setUserId] = useState(owner?.palmpesa_user_id || '');
   const [userRef, setUserRef] = useState(owner?.palmpesa_user_ref || '');
   const [apiToken, setApiToken] = useState(owner?.palmpesa_api_token || '');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [apiEndpoint, setApiEndpoint] = useState('https://app.dalipay.co.tz/api/v1');
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const webhookUrl = typeof window !== 'undefined' ? (window.location.origin + '/api/v1/payments/webhook') : '/api/v1/payments/webhook';
   const [acceptStk, setAcceptStk] = useState(owner?.palmpesa_accept_stk !== false);
   const [accountNumber, setAccountNumber] = useState(owner?.wallet_account_number || owner?.phone || '');
   const [merchantName, setMerchantName] = useState(owner?.business_name || '');
@@ -67,6 +93,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
       setAcceptStk(owner.palmpesa_accept_stk !== false);
       setAccountNumber(owner.wallet_account_number || owner.phone || '');
       setMerchantName(owner.business_name || '');
+      if (owner.dalipay_api_endpoint) setApiEndpoint(owner.dalipay_api_endpoint);
     }
   }, [owner]);
 
@@ -105,6 +132,11 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
             ? 'AIRTEL_DIRECT'
             : 'MANUAL',
         wallet_account_number: accountNumber.trim(),
+        dalipay_api_endpoint: apiEndpoint.trim(),
+        dalipay_key_id: userId.trim(),
+        dalipay_public_key: userRef.trim(),
+        dalipay_secret_key: apiToken.trim(),
+        dalipay_webhook_secret: webhookSecret.trim(),
       };
 
       const res = await fetch(`/api/v1/owners/${owner.id}`, {
@@ -113,7 +145,9 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) { data = await res.json(); }
       if (!res.ok) throw new Error(data.error || 'Imeshindikana kusasisha geti la malipo');
 
       setSaveStatus('saved');
@@ -280,14 +314,14 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
             <div className="p-3 bg-white rounded-xl border border-slate-200">
               <span className="text-[10px] font-bold text-slate-400 block uppercase">USER ID</span>
               <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block">
-                {userId || '770 (Admin Default)'}
+                {userId || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
               </span>
             </div>
 
             <div className="p-3 bg-white rounded-xl border border-slate-200">
               <span className="text-[10px] font-bold text-slate-400 block uppercase">PUBLIC USER REF</span>
               <span className="font-mono font-bold text-slate-700 text-xs mt-0.5 block truncate">
-                {userRef || 'USR-B2510CD582DF'}
+                {userRef || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
               </span>
             </div>
 
@@ -319,7 +353,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                   ? showToken
                     ? apiToken
                     : `${apiToken.slice(0, 8)}••••••••••••••••••••${apiToken.slice(-4)}`
-                  : '1NhdI6Ph••••••••••••••••••••jj2Hq (Admin Default)'}
+                  : (lang === 'sw' ? 'Hakuna API Token iliyowekwa' : 'No API Token configured')}
               </span>
             </div>
           </div>
@@ -385,61 +419,139 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
 
                     {/* DALIPAY SPECIFIC FORM */}
           {selectedGateway === 'dalipay' && (
-            <div className="p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Taarifa za DaliPay / DaliPesa Merchant API</span>
+            <div className="p-5 bg-gradient-to-br from-indigo-50/70 to-slate-50 border border-indigo-200/80 rounded-2xl space-y-4 animate-in fade-in shadow-xs">
+              <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+                <span className="text-xs font-black text-indigo-950 flex items-center gap-2">
+                  <Key className="w-4 h-4 text-indigo-600" />
+                  <span>Taarifa za DaliPay / DaliPesa Merchant API (Live & Sandbox)</span>
                 </span>
-                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-                  Live Aggregator
+                <span className="text-[10px] font-black text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Aggregator (M-Pesa, Tigo, Airtel, Halo)
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {/* Base Endpoint & Webhook Endpoint Callout Box */}
+              <div className="space-y-3">
+                <div className="p-3.5 bg-white rounded-xl border border-indigo-200 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                      <Terminal className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>1. DaliPay Checkout Push Endpoint (Unaweza Kubadilisha)</span>
+                    </span>
+                    <span className="text-[10px] text-indigo-700 bg-indigo-100 font-mono px-2 py-0.5 rounded-full font-bold">
+                      Inabadilishika (Editable)
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={apiEndpoint}
+                    onChange={(e) => setApiEndpoint(e.target.value)}
+                    placeholder="Mfano: https://app.dalipay.co.tz/api/v1 au https://app.dalipay.co.tz/api/v1/collections"
+                    className="w-full p-2.5 bg-slate-900 text-emerald-400 font-mono text-xs rounded-lg border border-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    💡 Unaweza kuandika au kubadilisha endpoint hapa wakati wowote. Chaguo-msingi rasmi ni <code>https://app.dalipay.co.tz/api/v1</code>.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-white rounded-xl border border-indigo-200 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>2. Webhook Callback URL (Iweke kwenye DaliPay Dashboard)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(webhookUrl);
+                        setCopiedWebhook(true);
+                        setTimeout(() => setCopiedWebhook(false), 2000);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition border border-indigo-200 cursor-pointer"
+                    >
+                      {copiedWebhook ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedWebhook ? "Imenakiliwa!" : "Nakili Webhook URL"}</span>
+                    </button>
+                  </div>
+                  <div className="p-2.5 bg-slate-900 text-emerald-400 font-mono text-xs rounded-lg break-all select-all flex items-center justify-between">
+                    <span>{webhookUrl}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    📌 <strong>Maelekezo:</strong> Ingia kwenye Dashboard ya DaliPay &rarr; Nenda <strong>Webhooks / API Settings</strong> &rarr; Bandika (Paste) URL hii hapo juu ili mfumo upokee majibu ya malipo ya wateja papo hapo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-800 mb-1">
                     DaliPay Key ID *
                   </label>
                   <input
                     type="text"
                     value={userId}
                     onChange={(e) => setUserId(e.target.value)}
-                    placeholder="Mfano: y3hT9bs505Z6"
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    placeholder="Weka Key ID (Mfano: y3hT9bs505Z6)"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Key ID inayopatikana kwenye ukurasa wa Keys wa DaliPay.</span>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-800 mb-1">
                     Public Key (gw_pk_...) *
                   </label>
                   <input
                     type="text"
                     value={userRef}
                     onChange={(e) => setUserRef(e.target.value)}
-                    placeholder="Mfano: gw_pk_test_EoDvAZ..."
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    placeholder="Weka Public Key (gw_pk_...)"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Public API Key inayotumika kuanzisha miamala.</span>
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-slate-700 mb-1">
-                    Secret Key (gw_sk_...) *
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1 flex items-center justify-between">
+                    <span>Secret Key (gw_sk_...) *</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                    >
+                      {showToken ? "Ficha" : "Onyesha"}
+                    </button>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showToken ? "text" : "password"}
+                      value={apiToken}
+                      onChange={(e) => setApiToken(e.target.value)}
+                      placeholder="Weka Secret Key (gw_sk_...)"
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Secret Key kwa ajili ya usalama wa STK Push.</span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-800 mb-1 flex items-center justify-between">
+                    <span>Callback Secret / Webhook Secret Key</span>
+                    <span className="text-[10px] text-indigo-600 font-bold">HMAC Signature</span>
                   </label>
                   <input
-                    type="password"
-                    value={apiToken}
-                    onChange={(e) => setApiToken(e.target.value)}
-                    placeholder="Weka Secret Key ya DaliPay hapa..."
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    type="text"
+                    value={webhookSecret}
+                    onChange={(e) => setWebhookSecret(e.target.value)}
+                    placeholder="Weka Webhook Callback Secret (gw_wh_...)"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Ufunguo wa kuthibitisha uhalisi wa callback inayotoka DaliPay.</span>
                 </div>
               </div>
             </div>
           )}
-
-{/* PALMPAY SPECIFIC FORM */}
+          {/* PALMPAY SPECIFIC FORM */}
           {selectedGateway === 'palmpay' && (
             <div className="p-5 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-4 animate-in fade-in">
               <div className="flex items-center justify-between">
@@ -462,7 +574,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                     required
                     value={userId}
                     onChange={(e) => setUserId(e.target.value)}
-                    placeholder="mfano: 770 au 852"
+                    placeholder="Ingiza Merchant User ID yako..."
                     className="w-full p-2.5 text-xs font-mono font-bold rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">
@@ -478,7 +590,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                     type="text"
                     value={userRef}
                     onChange={(e) => setUserRef(e.target.value)}
-                    placeholder="mfano: USR-B2510CD582DF"
+                    placeholder="Ingiza Public User Reference..."
                     className="w-full p-2.5 text-xs font-mono rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">
@@ -497,7 +609,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                     required
                     value={apiToken}
                     onChange={(e) => setApiToken(e.target.value)}
-                    placeholder="1NhdI6PhhHHY9kYmnSoUUszx7qm8nSYrnewbfxeDYyONiMzGGTdRhIJjj2Hq"
+                    placeholder="Weka API Token yako hapa..."
                     className="w-full p-2.5 pr-10 text-xs font-mono rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
                   <button

@@ -577,8 +577,8 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
+                    value={daliKeyId}
+                    onChange={(e) => setDaliKeyId(e.target.value)}
                     placeholder="Weka Key ID (Mfano: y3hT9bs505Z6)"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
@@ -591,8 +591,8 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={userRef}
-                    onChange={(e) => setUserRef(e.target.value)}
+                    value={daliPublicKey}
+                    onChange={(e) => setDaliPublicKey(e.target.value)}
                     placeholder="Weka Public Key (gw_pk_...)"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
@@ -604,17 +604,17 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                     <span>Secret Key (gw_sk_...) *</span>
                     <button
                       type="button"
-                      onClick={() => setShowToken(!showToken)}
+                      onClick={() => setShowDaliSecret(!showDaliSecret)}
                       className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
                     >
-                      {showToken ? "Ficha" : "Onyesha"}
+                      {showDaliSecret ? "Ficha" : "Onyesha"}
                     </button>
                   </label>
                   <div className="relative">
                     <input
-                      type={showToken ? "text" : "password"}
-                      value={apiToken}
-                      onChange={(e) => setApiToken(e.target.value)}
+                      type={showDaliSecret ? "text" : "password"}
+                      value={daliSecretKey}
+                      onChange={(e) => setDaliSecretKey(e.target.value)}
                       placeholder="Weka Secret Key (gw_sk_...)"
                       className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                     />
@@ -629,8 +629,8 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={webhookSecret}
-                    onChange={(e) => setWebhookSecret(e.target.value)}
+                    value={daliWebhookSecret}
+                    onChange={(e) => setDaliWebhookSecret(e.target.value)}
                     placeholder="Weka Webhook Callback Secret (gw_wh_...)"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />

@@ -1108,7 +1108,7 @@ export const PaymentConfig: React.FC = () => {
                     Chagua Aggregator Inayopokea Subscription:
                   </label>
                   <select
-                    value={settings.subscriptionGateway || 'PALMPESA'}
+                    value={settings.subscriptionGateway || settings.activeGateway || 'DALIPAY'}
                     onChange={(e) =>
                       setSettings({
                         ...settings,

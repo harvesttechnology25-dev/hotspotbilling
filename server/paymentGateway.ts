@@ -111,13 +111,16 @@ export class PaymentGatewayService {
     let gatewayMode: 'LIVE' | 'SANDBOX' = 'LIVE';
     let externalTransactionId: string | null = null;
     
-    // Gateway resolution: prioritize owner/router preference, then system default
-    const activeGateway =
-      router?.payout_channel === 'DALIPAY' || owner?.payout_channel === 'DALIPAY'
-        ? 'DALIPAY'
-        : router?.payout_channel === 'PALMPESA' || owner?.payout_channel === 'PALMPESA'
-        ? 'PALMPESA'
-        : settings.activeGateway || 'DALIPAY';
+    // Gateway resolution: prioritize Admin global settings for VENDOR_ADMIN,
+    // otherwise use router/owner preference, then fall back to platform default.
+    const isVendor = owner?.role === 'VENDOR_ADMIN';
+    const activeGateway = isVendor
+      ? settings.activeGateway || 'DALIPAY'
+      : router?.payout_channel === 'DALIPAY' || owner?.payout_channel === 'DALIPAY'
+      ? 'DALIPAY'
+      : router?.payout_channel === 'PALMPESA' || owner?.payout_channel === 'PALMPESA'
+      ? 'PALMPESA'
+      : settings.activeGateway || 'DALIPAY';
 
     if (activeGateway === 'DALIPAY') {
       // Resolve DaliPay credentials hierarchy:
@@ -437,10 +440,11 @@ export class PaymentGatewayService {
     let externalTransactionId: string | null = null;
 
     if (gateway === 'DALIPAY') {
+      // FORCE USE OF ADMIN SETTINGS FOR SUBSCRIPTION PAYMENTS
       const dalipayConfig = settings.dalipay;
       if (!dalipayConfig || (!dalipayConfig.publicKey && !dalipayConfig.secretKey)) {
         throw new Error(
-          'Mipangilio ya DaliPay API haijakamilika kwenye mfumo. Tafadhali sanidi DaliPay credentials kwanza.'
+          'Mipangilio ya DaliPay API ya Admin haijakamilika. Tafadhali sanidi DaliPay credentials za Admin kwanza.'
         );
       }
 

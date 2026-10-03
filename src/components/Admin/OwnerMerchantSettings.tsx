@@ -532,8 +532,8 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                   </div>
                   <input
                     type="text"
-                    value={apiEndpoint}
-                    onChange={(e) => setApiEndpoint(e.target.value)}
+                    value={daliEndpoint}
+                    onChange={(e) => setDaliEndpoint(e.target.value)}
                     placeholder="Mfano: https://app.dalipay.co.tz/api/v1 au https://app.dalipay.co.tz/api/v1/collections"
                     className="w-full p-2.5 bg-slate-900 text-emerald-400 font-mono text-xs rounded-lg border border-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />

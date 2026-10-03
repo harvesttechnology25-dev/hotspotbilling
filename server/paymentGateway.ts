@@ -76,6 +76,7 @@ export class PaymentGatewayService {
     networkProvider?: NetworkProvider;
     planId: number;
     routerId?: number;
+    ownerId?: number;
     macAddress?: string;
     userIp?: string;
   }): Promise<PaymentInitiationResult> {

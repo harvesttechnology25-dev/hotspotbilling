@@ -620,9 +620,11 @@ class PersistentDatabase {
     const mergedDalipay: DaliPayConfig = {
       ...currentDalipay,
       ...(newSettings.dalipay || {}),
-      keyId: newSettings.dalipay?.keyId || currentDalipay.keyId,
-      publicKey: newSettings.dalipay?.publicKey || currentDalipay.publicKey,
-      secretKey: newSettings.dalipay?.secretKey || currentDalipay.secretKey,
+      keyId: newSettings.dalipay?.keyId ?? currentDalipay.keyId,
+      publicKey: newSettings.dalipay?.publicKey ?? currentDalipay.publicKey,
+      secretKey: newSettings.dalipay?.secretKey ?? currentDalipay.secretKey,
+      apiEndpoint: newSettings.dalipay?.apiEndpoint ?? currentDalipay.apiEndpoint,
+      webhookSecret: newSettings.dalipay?.webhookSecret ?? currentDalipay.webhookSecret,
       isSandbox: newSettings.dalipay?.isSandbox ?? currentDalipay.isSandbox,
     };
 

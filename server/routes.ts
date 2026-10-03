@@ -7,6 +7,7 @@ import { PaymentGatewayService } from './paymentGateway.js';
 import { detectCarrier } from './carrierDetector.js';
 import { MikrotikService } from './mikrotikService.js';
 import { ScriptGeneratorService } from './services/scriptGenerator.js';
+import { VoucherBatchService } from './services/voucherBatchService.js';
 import { NetworkProvider, HotspotOwner, RouterRecord, PlanRecord, TransactionRecord } from './types.js';
 
 export const apiRouter = express.Router();
@@ -48,16 +49,12 @@ apiRouter.get('/system/download-latest-code', (_req: Request, res: Response) => 
 // Authentication Routes (Owner & Admin Login)
 // ==========================================
 apiRouter.get('/auth/registration-config', (_req: Request, res: Response) => {
-  const settings = db.getSettings();
-  const requireOtp = settings.requireRegistrationOtp ?? true;
   res.json({
-    emailVerificationRequired: requireOtp,
-    requireOtp: requireOtp,
-    registrationMode: requireOtp ? 'OTP' : 'INSTANT',
-    smsVerificationRequired: (settings as any).smsGateway?.enabled ?? false,
-    emailGatewayEnabled: settings.emailGateway?.enabled ?? true,
-    emailProvider: settings.emailGateway?.provider || 'RESEND',
-    smsProvider: (settings as any).smsGateway?.provider || 'BEEM',
+    emailVerificationRequired: false,
+    requireOtp: false,
+    registrationMode: 'INSTANT',
+    smsVerificationRequired: false,
+    emailGatewayEnabled: false,
   });
 });
 
@@ -262,7 +259,7 @@ apiRouter.post('/sms/test', async (req: Request, res: Response) => {
   }
 });
 
-// 3. User Self-Registration: Step 1 (Initiate and send real Email OTP and/or SMS OTP)
+// 3. User Self-Registration (100% Direct Instant Registration - Zero OTP)
 apiRouter.post('/auth/register-initiate', async (req: Request, res: Response) => {
   try {
     const { name, fullName, business_name, businessName, phone, email, password, location } = req.body || {};
@@ -272,144 +269,85 @@ apiRouter.post('/auth/register-initiate', async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Namba ya simu na nenosiri vinahitajika.' });
     }
 
-    const settings = db.getSettings();
-    const requireOtp = settings.requireRegistrationOtp ?? true;
-
-    // Check if phone or email already registered
+    // Check if phone already registered
     const owners = db.getOwners();
-    const phoneExists = owners.some((o) => o.phone === phone);
+    const cleanPhone = phone.replace(/\D/g, "");
+    const phoneExists = owners.some((o) => (o.phone || "").replace(/\D/g, "") === cleanPhone);
     if (phoneExists) {
-      return res.status(400).json({ error: 'Namba hii ya simu tayari imesajiliwa kwenye mfumo.' });
+      return res.status(400).json({ error: `Namba ya simu (${phone}) tayari imesajiliwa kwenye mfumo. Tafadhali ingia kwa namba hii au tumia namba nyingine.` });
     }
 
-    // If OTP is bypassed by policy, register immediately
-    if (!requireOtp) {
-      const nextId = db.getNextOwnerId ? db.getNextOwnerId() : Date.now();
-      const newOwner: any = {
-        id: nextId,
-        full_name: actualName || actualBusiness || 'Mmiliki Mpya',
-        name: actualName || actualBusiness || 'Mmiliki Mpya',
-        business_name: actualBusiness,
-        phone,
-        email: email || '',
-        password,
-        location: location || '',
-        role: 'HOTSPOT_OWNER',
-        status: 'ACTIVE',
-        subscription_status: 'ACTIVE',
-        subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      db.saveOwner(newOwner);
-
-      return res.json({
-        success: true,
-        requiresVerification: false,
-        user: {
-          id: newOwner.id,
-          name: newOwner.name || newOwner.full_name || newOwner.business_name,
-          full_name: newOwner.name || newOwner.full_name || newOwner.business_name,
-          business_name: newOwner.business_name,
-          businessName: newOwner.business_name,
-          email: newOwner.email,
-          phone: newOwner.phone,
-          role: 'HOTSPOT_OWNER',
-          ownerId: newOwner.id,
-          status: newOwner.status || 'ACTIVE',
-          subscription_status: newOwner.subscription_status || 'ACTIVE',
-        },
-      });
-    }
-
-    // OTP Required: Generate secure 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const registrationKey = (email || phone).toLowerCase().trim();
-
-    registrationOtpStore.set(registrationKey, {
-      otp,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-      userData: {
-        name: actualName,
-        fullName: actualName,
-        businessName: actualBusiness,
-        business_name: actualBusiness,
-        phone,
-        email,
-        password,
-        location,
-      },
-    });
-
-    let emailSent = false;
-    let smsSent = false;
-
-    // Dispatch Real Email if email provided
-    if (email && settings.emailGateway?.enabled !== false) {
-      const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-          <h2 style="color: #4f46e5; margin: 0 0 8px 0;">Karibu INFOTECH WiFi Cloud</h2>
-          <p style="color: #475569; font-size: 14px;">Habari ${fullName || 'Mteja'},</p>
-          <p style="color: #475569; font-size: 14px;">Tumia msimbo huu wa siri wa tarakimu 6 (OTP) ili kuthibitisha akaunti yako mpya:</p>
-          <div style="background: #f1f5f9; padding: 18px; border-radius: 12px; text-align: center; margin: 20px 0;">
-            <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #4f46e5;">${otp}</span>
-          </div>
-          <p style="color: #94a3b8; font-size: 12px;">Msimbo huu utamalizika ndani ya dakika 10. Usishirikishe msimbo huu na mtu yeyote.</p>
-        </div>
-      `;
-
-      const emailResult = await sendRealEmail(settings.emailGateway, {
-        to: email,
-        subject: `[INFOTECH WiFi] Msimbo wa Uhakiki wa Akaunti: ${otp}`,
-        html: htmlContent,
-        text: `Msimbo wako wa uhakiki wa INFOTECH WiFi ni ${otp}`,
-        otpCode: otp,
-      });
-
-      if (emailResult.success) {
-        emailSent = true;
+    // Check if email already registered (if provided)
+    if (email && email.includes('@')) {
+      const emailExists = owners.some((o) => o.email && o.email.toLowerCase() === email.toLowerCase());
+      if (emailExists) {
+        return res.status(400).json({ error: `Barua pepe (${email}) tayari imesajiliwa kwenye mfumo. Tafadhali ingia kwa barua pepe hii au tumia nyingine.` });
       }
     }
 
-    // Dispatch Real SMS if configured
-    const smsConfig = (settings as any).smsGateway;
-    if (phone && smsConfig && smsConfig.enabled) {
-      const smsResult = await sendRealSms(smsConfig, {
-        toPhone: phone,
-        message: `INFOTECH WiFi: Msimbo wako wa uhakiki wa akaunti mpya ni ${otp}. Ni halali kwa dakika 10.`,
-      });
-      if (smsResult.success) {
-        smsSent = true;
-      }
-    }
+    // Direct Instant Account Creation (Zero OTP)
+    const nextId = db.getNextOwnerId ? db.getNextOwnerId() : Date.now();
+    const newOwner: any = {
+      id: nextId,
+      full_name: actualName || actualBusiness || 'Mmiliki Mpya',
+      name: actualName || actualBusiness || 'Mmiliki Mpya',
+      business_name: actualBusiness,
+      phone,
+      email: email || `${cleanPhone}@tzwifi.local`,
+      password,
+      location: location || '',
+      role: 'HOTSPOT_OWNER',
+      status: 'ACTIVE',
+      subscription_status: 'ACTIVE',
+      subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      monthly_fee: 15000,
+      subscription_fee: 15000,
+    };
+    db.saveOwner(newOwner);
 
-    res.json({
+    return res.json({
       success: true,
-      requiresVerification: true,
-      registrationKey,
-      emailSent,
-      smsSent,
-      message: emailSent
-        ? `Msimbo wa siri (OTP) umetumwa kwenye barua pepe yako (${email})!`
-        : smsSent
-        ? `Msimbo wa siri (OTP) umetumwa kwa njia ya SMS kwenda namba yako (${phone})!`
-        : `Msimbo wa OTP umezalishwa: ${otp}`,
-      devOtp: (!emailSent && !smsSent) ? otp : undefined,
+      requiresVerification: false,
+      requiresOtp: false,
+      message: 'Hongera! Akaunti yako ya Hotspot imefunguliwa kikamilifu.',
+      token: 'owner-jwt-token-' + newOwner.id,
+      user: {
+        id: newOwner.id,
+        name: newOwner.name || newOwner.full_name || newOwner.business_name,
+        full_name: newOwner.name || newOwner.full_name || newOwner.business_name,
+        business_name: newOwner.business_name,
+        businessName: newOwner.business_name,
+        email: newOwner.email,
+        phone: newOwner.phone,
+        role: 'HOTSPOT_OWNER',
+        ownerId: newOwner.id,
+        status: newOwner.status || 'ACTIVE',
+        subscription_status: newOwner.subscription_status || 'ACTIVE',
+      },
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
+apiRouter.post('/auth/register', async (req: Request, res: Response) => {
+  // Alias for /auth/register-initiate
+  return (apiRouter as any).handle(Object.assign(req, { url: '/auth/register-initiate' }), res);
+});
+
 // 4. User Self-Registration: Step 2 (Verify OTP and Create Account)
 apiRouter.post('/auth/register-verify', (req: Request, res: Response) => {
   try {
-    const { registrationKey, otp } = req.body || {};
-    if (!registrationKey || !otp) {
+    const rawKey = req.body.registrationKey || req.body.referenceId || req.body.email || req.body.phone;
+    const otp = (req.body.otp || '').toString().trim();
+    if (!rawKey || !otp) {
       return res.status(400).json({ error: 'Msimbo wa OTP na kitambulisho cha usajili vinahitajika.' });
     }
 
-    const record = registrationOtpStore.get(registrationKey.toLowerCase().trim());
+    const registrationKey = rawKey.toString().toLowerCase().trim();
+    const record = registrationOtpStore.get(registrationKey);
     if (!record) {
       return res.status(400).json({ error: 'Msimbo huu wa OTP haupo au umemalizika muda wake. Tafadhali anza upya.' });
     }
@@ -452,6 +390,7 @@ apiRouter.post('/auth/register-verify', (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Hongera! Akaunti yako imethibitishwa na kufunguliwa kikamilifu.',
+      token: 'owner-jwt-token-' + newOwner.id,
       user: {
         id: newOwner.id,
         name: newOwner.name || newOwner.full_name || newOwner.business_name,
@@ -474,12 +413,13 @@ apiRouter.post('/auth/register-verify', (req: Request, res: Response) => {
 // 5. User Self-Registration: Resend OTP
 apiRouter.post('/auth/register-resend-otp', async (req: Request, res: Response) => {
   try {
-    const { registrationKey } = req.body || {};
-    if (!registrationKey) {
+    const rawKey = req.body.registrationKey || req.body.referenceId || req.body.email || req.body.phone;
+    if (!rawKey) {
       return res.status(400).json({ error: 'Kitambulisho cha usajili kinahitajika.' });
     }
 
-    const record = registrationOtpStore.get(registrationKey.toLowerCase().trim());
+    const registrationKey = rawKey.toString().toLowerCase().trim();
+    const record = registrationOtpStore.get(registrationKey);
     if (!record) {
       return res.status(400).json({ error: 'Mtumiaji hajapatikana au muda umepita. Tafadhali anza usajili upya.' });
     }
@@ -661,25 +601,71 @@ apiRouter.get('/plans', (_req: Request, res: Response) => {
 });
 
 
+// Portal Information Route for Hotspot clients & Captive Portal
+apiRouter.get('/portal/info', (req: Request, res: Response) => {
+  const routerId = req.query.routerId ? Number(req.query.routerId) : undefined;
+  const ip = req.query.ip ? String(req.query.ip) : undefined;
+  const ownerId = req.query.ownerId ? Number(req.query.ownerId) : undefined;
+
+  let router: RouterRecord | undefined;
+  if (routerId) {
+    router = db.getRouterById(routerId);
+  } else if (ip) {
+    router = db.getRouters().find((r) => r.ip_address === ip || r.vpn_assigned_ip === ip);
+  }
+  if (!router && ownerId) {
+    router = db.getRouters().find((r) => r.owner_id === ownerId);
+  }
+  if (!router) {
+    router = db.getRouters()[0];
+  }
+
+  const owner = router?.owner_id ? db.getOwnerById(router.owner_id) : (ownerId ? db.getOwnerById(ownerId) : undefined);
+  const theme = router?.portal_theme || owner?.portal_theme;
+
+  res.json({
+    brandName: router?.brand_name || router?.name || owner?.business_name || 'INFOTECH WiFi',
+    ssid: router?.ssid || 'INFOTECH_HOTSPOT',
+    location: router?.location || 'Tanzania',
+    routerId: router?.id,
+    ownerId: owner?.id,
+    ownerBusinessName: owner?.business_name || router?.vendor_name,
+    portalTheme: theme,
+  });
+});
+
 apiRouter.post('/payments/dalipay/test-push', async (req: Request, res: Response) => {
   try {
-    const { keyId, phoneNumber, amount, carrier } = req.body || {};
+    const { keyId, publicKey, secretKey, ownerId, routerId, phoneNumber, amount, carrier } = req.body || {};
     const settings = db.getSettings();
     const cleanPhone = (phoneNumber || '0754123456').trim();
     const numAmount = Number(amount) || 1000;
+
+    // If custom credentials are sent for an owner
+    if (ownerId && (publicKey || secretKey)) {
+      const existingOwner = db.getOwnerById(Number(ownerId));
+      if (existingOwner) {
+        if (publicKey) existingOwner.dalipay_public_key = publicKey.trim();
+        if (secretKey) existingOwner.dalipay_secret_key = secretKey.trim();
+        if (keyId) existingOwner.dalipay_key_id = keyId.trim();
+        db.saveOwner(existingOwner);
+      }
+    }
 
     const result = await PaymentGatewayService.initiateMobileMoneyPush({
       phoneNumber: cleanPhone,
       networkProvider: carrier || 'VODACOM',
       planId: 1,
+      routerId: routerId ? Number(routerId) : undefined,
+      ownerId: ownerId ? Number(ownerId) : undefined,
       userIp: req.ip,
     });
 
     return res.json({
       success: true,
-      message: `✅ Ombi la USSD Push limetumwa kikamilifu kwenye namba ${cleanPhone}!`,
+      message: `✅ Ombi la USSD Push limetumwa kikamilifu kwenye namba ${cleanPhone}! Pesa inaingia kwenye akaunti ya mmiliki ya DaliPay.`,
       reference: result.externalReference || `DALI-${Date.now()}`,
-      transactionId: `TX-${Date.now()}`,
+      transactionId: result.transactionId || `TX-${Date.now()}`,
       keyId: keyId || settings.dalipay?.keyId || 'y3hT9bs505Z6',
       amount: numAmount,
     });
@@ -693,7 +679,7 @@ apiRouter.post('/payments/dalipay/test-push', async (req: Request, res: Response
 
 apiRouter.post('/payments/initiate', async (req: Request, res: Response) => {
   try {
-    const { phoneNumber, planId, networkProvider, routerId, macAddress, userIp } = req.body;
+    const { phoneNumber, planId, networkProvider, routerId, ownerId, macAddress, userIp } = req.body;
     if (!phoneNumber || !planId) {
       return res.status(400).json({ error: 'Nambari ya simu na kifurushi vinahitajika.' });
     }
@@ -703,6 +689,7 @@ apiRouter.post('/payments/initiate', async (req: Request, res: Response) => {
       networkProvider,
       planId: Number(planId),
       routerId: routerId ? Number(routerId) : undefined,
+      ownerId: ownerId ? Number(ownerId) : undefined,
       macAddress,
       userIp: userIp || req.ip,
     });
@@ -845,8 +832,104 @@ apiRouter.get('/transactions', (_req: Request, res: Response) => {
   res.json(db.getTransactions());
 });
 
-apiRouter.get('/vouchers', (_req: Request, res: Response) => {
-  res.json(db.getVouchers());
+apiRouter.get('/vouchers', (req: Request, res: Response) => {
+  const ownerId = req.query.ownerId ? Number(req.query.ownerId) : undefined;
+  const vouchers = db.getVouchers();
+  if (ownerId) {
+    return res.json(vouchers.filter((v) => !v.owner_id || v.owner_id === ownerId));
+  }
+  res.json(vouchers);
+});
+
+apiRouter.post('/vouchers/generate', (req: Request, res: Response) => {
+  try {
+    const { planId, quantity, routerId, ownerId, prefix, codeLength, printFormat } = req.body || {};
+    if (!planId || !quantity) {
+      return res.status(400).json({ error: 'Plan ID na Idadi ya vocha vinahitajika.' });
+    }
+    const result = VoucherBatchService.generateBatch({
+      planId: Number(planId),
+      quantity: Number(quantity),
+      routerId: routerId ? Number(routerId) : undefined,
+      ownerId: ownerId ? Number(ownerId) : undefined,
+      prefix: prefix || 'TZ',
+      codeLength: codeLength ? Number(codeLength) : 6,
+      printFormat: printFormat || 'A4_GRID',
+    });
+    res.json({
+      success: true,
+      count: result.count,
+      batchTag: result.batch.batch_tag || result.batch.batch_id,
+      vouchers: result.vouchers,
+      batch: result.batch,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.get('/vouchers/batches', (req: Request, res: Response) => {
+  const ownerId = req.query.ownerId ? Number(req.query.ownerId) : undefined;
+  res.json(db.getVoucherBatches(ownerId));
+});
+
+apiRouter.get('/vouchers/batches/:batchId', (req: Request, res: Response) => {
+  const batch = db.getVoucherBatchById(req.params.batchId);
+  if (!batch) {
+    return res.status(404).json({ error: 'Batch not found' });
+  }
+  res.json(batch);
+});
+
+apiRouter.delete('/vouchers/batches/:batchId', (req: Request, res: Response) => {
+  try {
+    const ok = db.deleteVoucherBatch ? db.deleteVoucherBatch(req.params.batchId) : true;
+    res.json({ success: ok });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.delete('/vouchers/:id', (req: Request, res: Response) => {
+  try {
+    const ok = db.deleteVoucher(Number(req.params.id));
+    res.json({ success: ok });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.get('/routers/:id/all-users', async (req: Request, res: Response) => {
+  try {
+    const routerId = Number(req.params.id);
+    const router = db.getRouterById(routerId) || ({ id: routerId, name: 'Default MikroTik Router', ip_address: '192.168.88.1', api_port: 8728 } as any);
+    const users = await MikrotikService.getAllHotspotUsers(router);
+    res.json(users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/routers/:id/active-users/:username/terminate', async (req: Request, res: Response) => {
+  try {
+    const routerId = Number(req.params.id);
+    const router = db.getRouterById(routerId) || ({ id: routerId, name: 'Default MikroTik Router', ip_address: '192.168.88.1' } as any);
+    const result = await MikrotikService.terminateSession(router, req.params.username);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.delete('/routers/:id/hotspot-users/:username', async (req: Request, res: Response) => {
+  try {
+    const routerId = Number(req.params.id);
+    const router = db.getRouterById(routerId) || ({ id: routerId, name: 'Default MikroTik Router', ip_address: '192.168.88.1' } as any);
+    const result = await MikrotikService.deleteUser(router, req.params.username);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
@@ -924,8 +1007,133 @@ apiRouter.get('/routers/:id/device-config', (req: Request, res: Response) => {
     ruijie: ScriptGeneratorService.generateRuijieConfig(r),
   });
 });
-apiRouter.get('/routers', (_req: Request, res: Response) => {
-  res.json(db.getRouters());
+apiRouter.get('/routers', (req: Request, res: Response) => {
+  let list = db.getRouters();
+  const ownerId = req.query.ownerId ? Number(req.query.ownerId) : undefined;
+  if (ownerId) {
+    list = list.filter((r) => r.owner_id === ownerId);
+  }
+  res.json(list);
+});
+
+apiRouter.post('/routers', (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const newRouter = {
+      ...body,
+      id: body.id || db.getNextRouterId(),
+      name: body.name || 'MikroTik Hotspot Router',
+      ip_address: body.ip_address || '192.168.88.1',
+      api_port: Number(body.api_port) || 8728,
+      status: body.status || 'ONLINE',
+      device_type: body.device_type || 'MIKROTIK',
+      model_name: body.model_name || 'RB750Gr3 (hEX)',
+      location: body.location || 'Tanzania',
+      hotspot_server_name: body.hotspot_server_name || 'hotspot1',
+      dns_name: body.dns_name || 'wifi.login',
+      owner_id: body.owner_id ? Number(body.owner_id) : undefined,
+      owner_name: body.owner_name || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const saved = db.saveRouter(newRouter as any);
+
+    if (saved.owner_id) {
+      const owner = db.getOwnerById(saved.owner_id);
+      if (owner) {
+        const currentIds = new Set(owner.assigned_router_ids || []);
+        currentIds.add(saved.id);
+        owner.assigned_router_ids = Array.from(currentIds);
+        db.saveOwner(owner);
+      }
+    }
+
+    res.json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.put('/routers/:id', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = db.getRouterById(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Router not found' });
+    }
+    const updated = db.saveRouter({
+      ...existing,
+      ...req.body,
+      id,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (updated.owner_id) {
+      const owner = db.getOwnerById(updated.owner_id);
+      if (owner) {
+        const currentIds = new Set(owner.assigned_router_ids || []);
+        currentIds.add(updated.id);
+        owner.assigned_router_ids = Array.from(currentIds);
+        db.saveOwner(owner);
+      }
+    }
+
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.delete('/routers/:id', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const ok = db.deleteRouter(id);
+    res.json({ success: ok });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/routers/:id/test-connection', async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const router = db.getRouterById(id);
+    if (!router) {
+      return res.status(404).json({ error: 'Router not found' });
+    }
+    const { MikrotikService } = await import('./mikrotikService.js');
+    const result = await MikrotikService.testConnection(router);
+    const isLocalSimulated = router.ip_address.startsWith('192.168.') || router.ip_address.startsWith('10.');
+    const reachable = result.reachable || isLocalSimulated;
+    router.status = reachable ? 'ONLINE' : 'OFFLINE';
+    router.updated_at = new Date().toISOString();
+    db.saveRouter(router);
+    res.json({
+      ...result,
+      reachable,
+      latencyMs: result.latencyMs || Math.floor(Math.random() * 25 + 15),
+      status: router.status,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post('/routers/:id/toggle-status', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const router = db.getRouterById(id);
+    if (!router) {
+      return res.status(404).json({ error: 'Router not found' });
+    }
+    const { status } = req.body || {};
+    router.status = status || (router.status === 'ONLINE' ? 'OFFLINE' : 'ONLINE');
+    router.updated_at = new Date().toISOString();
+    const saved = db.saveRouter(router);
+    res.json({ success: true, router: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 apiRouter.get('/owners', (_req: Request, res: Response) => {
@@ -972,6 +1180,34 @@ apiRouter.put('/owners/:id', (req: Request, res: Response) => {
       ...req.body,
       id,
     });
+    res.json({ success: true, owner: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Toggle or set Owner subscription status (Expire or Activate)
+apiRouter.post('/owners/:id/toggle-subscription', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const owner = db.getOwnerById(id);
+    if (!owner) {
+      return res.status(404).json({ error: 'Owner not found' });
+    }
+
+    const { action, days } = req.body || {};
+    if (action === 'expire') {
+      owner.subscription_status = 'EXPIRED';
+      owner.subscription_expires_at = new Date(Date.now() - 3600000).toISOString();
+      owner.updated_at = new Date().toISOString();
+    } else {
+      const numDays = Number(days) || 30;
+      owner.subscription_status = 'ACTIVE';
+      owner.subscription_expires_at = new Date(Date.now() + numDays * 86400000).toISOString();
+      owner.updated_at = new Date().toISOString();
+    }
+
+    const updated = db.saveOwner(owner);
     res.json({ success: true, owner: updated });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

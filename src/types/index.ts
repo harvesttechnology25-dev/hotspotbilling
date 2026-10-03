@@ -214,6 +214,7 @@ export interface RouterItem {
   hotspot_server_name: string;
   dns_name: string;
   status: 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
+  active_users_count?: number;
   owner_id?: number;
   owner_name?: string;
   vendor_name?: string;

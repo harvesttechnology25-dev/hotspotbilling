@@ -65,21 +65,86 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
     };
   }, [isOpen, vouchers, portalUrl]);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('printing-vouchers');
+    } else {
+      document.body.classList.remove('printing-vouchers');
+    }
+    return () => {
+      document.body.classList.remove('printing-vouchers');
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleTriggerPrint = () => {
+    try {
+      const printableElement = document.getElementById('voucher-printable-area');
+      if (printableElement) {
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.opacity = '0';
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentWindow?.document;
+        if (iframeDoc) {
+          const contentHtml = printableElement.innerHTML;
+          iframeDoc.open();
+          iframeDoc.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Vouchers - ${hotspotName}</title>
+  <meta charset="utf-8" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @page { margin: 4mm; size: auto; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #ffffff; color: #000000; margin: 0; padding: 4px; }
+    .tear-card { break-inside: avoid; page-break-inside: avoid; }
+    .voucher-page { margin: 0 auto; }
+  </style>
+</head>
+<body class="bg-white">
+  ${contentHtml}
+</body>
+</html>`);
+          iframeDoc.close();
+
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              try {
+                document.body.removeChild(iframe);
+              } catch (e) {
+                // ignore
+              }
+            }, 1000);
+          }, 350);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Iframe print fallback to window.print', e);
+    }
     window.print();
   };
 
   const voucherPlan = plan || vouchers[0]?.plan;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static print:z-auto print:backdrop-blur-none">
+    <div id="voucher-print-modal" className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-white print:static print:z-auto print:backdrop-blur-none">
       {/* Container Card */}
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none">
+      <div id="voucher-print-dialog" className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none">
         
         {/* Top Control Bar (Hidden during actual print) */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-4 print:hidden">
+        <div id="voucher-print-controls" className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-4 print:hidden">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
               <Printer className="w-5 h-5" />
@@ -170,7 +235,7 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
         </div>
 
         {/* Printable Area with CSS @media print */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/60 print:bg-white print:p-0 print:overflow-visible">
+        <div id="voucher-printable-area" className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/60 print:bg-white print:p-0 print:overflow-visible">
           {/* Inject Dedicated Print Style Sheet */}
           <style dangerouslySetInnerHTML={{ __html: `
             @media print {

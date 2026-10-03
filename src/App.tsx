@@ -42,6 +42,13 @@ export default function App() {
     }
   };
 
+  // Guard portal view: only authenticated users can access the portal preview
+  useEffect(() => {
+    if (!currentUser && viewMode === 'portal') {
+      setViewMode('welcome');
+    }
+  }, [currentUser, viewMode]);
+
   // Restore session from localStorage if present
   useEffect(() => {
     try {
@@ -110,7 +117,7 @@ export default function App() {
             onOpenContact={() => setIsContactModalOpen(true)}
             lang={lang}
           />
-        ) : viewMode === 'portal' ? (
+        ) : viewMode === 'portal' && currentUser ? (
           <CaptivePortal lang={lang} />
         ) : !currentUser ? (
           <LoginPage
@@ -165,13 +172,13 @@ export default function App() {
           </div>
 
           <div className="text-[11px] text-slate-600">
-            {viewMode === 'portal' ? (
+            {viewMode === 'portal' && currentUser ? (
               <button
                 type="button"
                 onClick={() => setViewMode('admin')}
                 className="underline hover:text-slate-800 font-medium cursor-pointer"
               >
-                {lang === 'sw' ? 'Msimamizi wa Mfumo (Admin Login)' : 'Network Admin Console'}
+                {lang === 'sw' ? 'Rudi Kwenye Dashibodi' : 'Return to Admin Console'}
               </button>
             ) : currentUser ? (
               <button

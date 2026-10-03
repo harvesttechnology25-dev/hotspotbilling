@@ -22,9 +22,110 @@
       "palmpesa_user_id": "999",
       "palmpesa_user_ref": "USR-TEST",
       "palmpesa_api_token": "TOKEN_SAMPLE"
+    },
+    {
+      "id": 2,
+      "full_name": "juma",
+      "name": "juma",
+      "business_name": "ubungo",
+      "phone": "0623887886",
+      "email": "harvesttechnology25@gmail.com",
+      "password": "1234",
+      "location": "",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-11-02T09:25:40.216Z",
+      "created_at": "2026-10-03T08:13:11.472Z",
+      "updated_at": "2026-10-03T09:25:40.216Z",
+      "monthly_fee": 15000,
+      "subscription_fee": 15000,
+      "vendor_merchant_id": "PP-MERCHANT-10002",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0623887886",
+      "assigned_router_ids": [
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "full_name": "Juma Hasani",
+      "name": "Juma Hasani",
+      "business_name": "mbezi",
+      "phone": "0623887889",
+      "email": "harvesttechnology27@gmail.com",
+      "password": "1234",
+      "location": "",
+      "role": "HOTSPOT_OWNER",
+      "status": "ACTIVE",
+      "subscription_status": "ACTIVE",
+      "subscription_expires_at": "2026-11-02T09:27:51.200Z",
+      "created_at": "2026-10-03T09:10:23.695Z",
+      "updated_at": "2026-10-03T09:27:51.200Z",
+      "monthly_fee": 15000,
+      "subscription_fee": 15000,
+      "vendor_merchant_id": "PP-MERCHANT-10003",
+      "payout_channel": "PALMPESA",
+      "wallet_account_number": "0623887889",
+      "assigned_router_ids": [
+        2
+      ]
     }
   ],
-  "routers": [],
+  "routers": [
+    {
+      "id": 1,
+      "name": "MikroTik RB750Gr3 (hEX) - Ubungo AP",
+      "device_type": "MIKROTIK",
+      "model_name": "RouterBOARD RB750Gr3 (hEX)",
+      "ip_address": "192.168.88.1",
+      "api_port": 8728,
+      "api_username": "admin",
+      "status": "ONLINE",
+      "location": "Ubungo Bus Terminal, Dar es Salaam",
+      "brand_name": "MikroTik RouterOS v7",
+      "ssid": "UBUNGO_WIFI_HOTSPOT",
+      "hotspot_server_name": "ubungo-hotspot",
+      "dns_name": "wifi.ubungo.tz",
+      "owner_id": 2,
+      "owner_name": "juma",
+      "active_users_count": 14,
+      "created_at": "2026-10-01T10:00:00.000Z",
+      "updated_at": "2026-10-03T09:34:46.629Z",
+      "vpn_assigned_ip": "100.108.0.2",
+      "radius_secret": "radius_secret_2026",
+      "vendor_name": "PalmPesa",
+      "vendor_merchant_id": "PP-MERCHANT-10002",
+      "platform_commission_percent": 5,
+      "payout_channel": "PALMPESA"
+    },
+    {
+      "id": 2,
+      "name": "MikroTik hAP ac3 - Mbezi Stand Hotspot AP",
+      "device_type": "MIKROTIK",
+      "model_name": "MikroTik hAP ac3 (Dual Band)",
+      "ip_address": "192.168.89.1",
+      "api_port": 8728,
+      "api_username": "admin",
+      "status": "ONLINE",
+      "location": "Mbezi Louis Stand, Dar es Salaam",
+      "brand_name": "MikroTik RouterOS v7",
+      "ssid": "MBEZI_HOTSPOT_5G",
+      "hotspot_server_name": "mbezi-hotspot",
+      "dns_name": "wifi.mbezi.tz",
+      "owner_id": 3,
+      "owner_name": "Juma Hasani",
+      "active_users_count": 9,
+      "created_at": "2026-10-02T10:00:00.000Z",
+      "updated_at": "2026-10-03T09:00:00.000Z",
+      "vpn_assigned_ip": "100.108.0.3",
+      "radius_secret": "radius_secret_2026",
+      "vendor_name": "PalmPesa",
+      "vendor_merchant_id": "PP-MERCHANT-10003",
+      "platform_commission_percent": 5,
+      "payout_channel": "PALMPESA"
+    }
+  ],
   "plans": [
     {
       "id": 1,
@@ -150,6 +251,20 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": 1791015840902,
+      "external_reference": "BATCH-261003-3E8114",
+      "event_type": "VOUCHER_BATCH_GENERATED",
+      "payload_json": {
+        "batchId": "BATCH-261003-3E8114",
+        "planId": 1,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "quantity": 5,
+        "routerId": 1,
+        "prefix": "TZTEST"
+      },
+      "created_at": "2026-10-03T08:24:00.897Z"
+    },
     {
       "id": 1790756495685,
       "transaction_id": 14,
@@ -649,7 +764,7 @@
       "keyId": "y3hT9bs505Z6",
       "publicKey": "gw_pk_test_EoDvAZ",
       "secretKey": "gw_sk_test_IdufCg",
-      "apiEndpoint": "https://api.dalipay.com/v1",
+      "apiEndpoint": "https://app.dalipay.co.tz",
       "webhookSecret": "gw_wh_test_secret_dalipay",
       "isSandbox": true,
       "availableKeys": [

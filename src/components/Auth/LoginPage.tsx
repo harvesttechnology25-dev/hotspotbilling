@@ -54,32 +54,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
 
-  // OTP Verification state
-  const [registrationStep, setRegistrationStep] = useState<'form' | 'otp'>('form');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpReferenceId, setOtpReferenceId] = useState('');
-  const [otpEmail, setOtpEmail] = useState('');
-  const [debugOtp, setDebugOtp] = useState<string | null>(null);
-  const [resendCooldown, setResendCooldown] = useState(60);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-  const [isResendingOtp, setIsResendingOtp] = useState(false);
-  const [requireOtpPolicy, setRequireOtpPolicy] = useState<boolean>(true);
-
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-
-  // Fetch registration OTP policy
-  useEffect(() => {
-    fetch('/api/v1/auth/registration-config')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && data.requireOtp !== undefined) {
-          setRequireOtpPolicy(Boolean(data.requireOtp));
-        }
-      })
-      .catch((e) => console.error('Failed to fetch registration policy:', e));
-  }, []);
 
   // Curated modern telecommunication & network hero images
   const heroWallpapers = [
@@ -107,14 +84,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   ];
   const [activeWallpaperIndex, setActiveWallpaperIndex] = useState(0);
 
-  // Countdown timer for OTP resend
-  useEffect(() => {
-    if (registrationStep !== 'otp' || resendCooldown <= 0) return;
-    const t = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(t);
-  }, [registrationStep, resendCooldown]);
+
 
   // 1. Single Unified Login Submission
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -236,7 +206,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
-  // 2. User Self-Registration Initiation (Sends Email OTP or direct registration based on Vendor policy)
+  // 2. User Self-Registration (Direct Instant Registration - Zero OTP)
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regName || !regBusinessName || !regPhone || !regPassword) {
@@ -247,7 +217,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       );
       return;
     }
-
     if (!regConfirmPassword) {
       setErrorMsg(
         lang === 'sw'
@@ -256,7 +225,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       );
       return;
     }
-
     if (regPassword !== regConfirmPassword) {
       setErrorMsg(
         lang === 'sw'
@@ -265,7 +233,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       );
       return;
     }
-
     if (!regEmail || !regEmail.includes('@')) {
       setErrorMsg(
         lang === 'sw'
@@ -274,7 +241,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       );
       return;
     }
-
     if (regPassword.length < 4) {
       setErrorMsg(
         lang === 'sw'
@@ -304,120 +270,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Imeshindwa kutuma ombi la usajili.');
+        throw new Error(data.error || 'Imeshindwa kusajili akaunti.');
       }
 
-      // Check if OTP was bypassed by Vendor setting (direct registration)
-      if (data.requiresOtp === false || (data.user && !data.referenceId)) {
-        if (data.token) {
-          localStorage.setItem('tzwifi_token', data.token);
-          localStorage.setItem('tzwifi_user', JSON.stringify(data.user));
-        }
-        setSuccessMsg(data.message || (lang === 'sw' ? 'Akaunti yako imesajiliwa kikamilifu!' : 'Account created successfully!'));
-        setTimeout(() => {
-          onLoginSuccess(data.user);
-        }, 800);
-        return;
+      if (data.token) {
+        localStorage.setItem('tzwifi_token', data.token);
       }
-
-      // Otherwise switch to OTP Verification Step
-      setRegistrationStep('otp');
-      setOtpReferenceId(data.referenceId);
-      setOtpEmail(data.email || regEmail);
-      setDebugOtp(data.debugOtp || null);
-      setResendCooldown(60);
-      setSuccessMsg(data.message || 'Msimbo wa OTP umetumwa kwenye barua pepe yako!');
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Hitilafu ya kusajili akaunti. Tafadhali jaribu tena.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 3. Verify OTP Submission
-  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpCode.trim() || otpCode.trim().length < 4) {
-      setErrorMsg(
-        lang === 'sw'
-          ? 'Tafadhali weka nambari kamili ya OTP yenye tarakimu 6.'
-          : 'Please enter the 6-digit OTP code.'
-      );
-      return;
-    }
-
-    setIsVerifyingOtp(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    try {
-      const res = await fetch('/api/v1/auth/register-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          referenceId: otpReferenceId,
-          otp: otpCode.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Nambari ya OTP si sahihi.');
+      if (data.user) {
+        localStorage.setItem('tzwifi_user', JSON.stringify(data.user));
       }
 
       setSuccessMsg(
         lang === 'sw'
-          ? 'Uthibitisho umekamilika! Ufunguzi wa akaunti yako unaanza...'
-          : 'Verification successful! Opening your account now...'
+          ? 'Hongera! Akaunti yako ya Hotspot imefunguliwa kikamilifu.'
+          : 'Congratulations! Your Hotspot account has been created successfully.'
       );
-
-      // Save token and user session
-      if (data.token) {
-        localStorage.setItem('tzwifi_token', data.token);
-        localStorage.setItem('tzwifi_user', JSON.stringify(data.user));
-      }
 
       setTimeout(() => {
         onLoginSuccess(data.user);
       }, 700);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Msimbo wa OTP ulioweka si sahihi.');
+      setErrorMsg(err.message || 'Hitilafu ya kusajili akaunti. Tafadhali jaribu tena.');
     } finally {
-      setIsVerifyingOtp(false);
-    }
-  };
-
-  // 4. Resend OTP to User's Email
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0 || isResendingOtp) return;
-
-    setIsResendingOtp(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    try {
-      const res = await fetch('/api/v1/auth/register-resend-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          referenceId: otpReferenceId,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Imeshindikana kutuma tena OTP.');
-      }
-
-      setResendCooldown(60);
-      if (data.debugOtp) {
-        setDebugOtp(data.debugOtp);
-      }
-      setSuccessMsg(data.message || 'OTP mpya imetumwa kwenye barua pepe yako!');
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Hitilafu ya kutuma tena OTP.');
-    } finally {
-      setIsResendingOtp(false);
+      setIsLoading(false);
     }
   };
 
@@ -430,109 +305,78 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => {
-                if (registrationStep === 'otp') {
-                  setRegistrationStep('form');
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                } else {
-                  onCancel();
-                }
-              }}
+              onClick={onCancel}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>
-                {registrationStep === 'otp'
-                  ? lang === 'sw'
-                    ? 'Rudi Kwenye Taarifa'
-                    : 'Back to Details'
-                  : lang === 'sw'
-                  ? 'Rudi Mwanzo'
-                  : 'Back'}
-              </span>
+              <span>{lang === 'sw' ? 'Rudi Mwanzo' : 'Back'}</span>
             </button>
-
             <span className="text-xs font-semibold text-slate-400">INFOTECH WiFi Cloud</span>
           </div>
 
           {/* Form Card Header (PalmPesa header style) */}
           <div className="text-center space-y-2">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#1b62b6] to-[#005ea9] text-white flex items-center justify-center mx-auto shadow-lg shadow-blue-600/30">
-              {registrationStep === 'otp' ? (
-                <KeyRound className="w-7 h-7 stroke-[2.5]" />
-              ) : (
-                <Wifi className="w-7 h-7 stroke-[2.5]" />
-              )}
+              <Wifi className="w-7 h-7 stroke-[2.5]" />
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 font-['Sora',sans-serif] tracking-tight">
-              {registrationStep === 'otp'
-                ? lang === 'sw'
-                  ? 'Uhakiki wa OTP'
-                  : 'Email OTP Verification'
-                : authMode === 'login'
+              {authMode === 'login'
                 ? lang === 'sw'
                   ? 'Karibu Tena'
                   : 'Welcome Back'
                 : lang === 'sw'
-                ? 'Fungua Akaunti'
-                : 'Create Account'}
+                ? 'Fungua Akaunti ya Hotspot'
+                : 'Create Hotspot Account'}
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-500 font-medium">
-              {registrationStep === 'otp'
-                ? lang === 'sw'
-                  ? 'Weka msimbo wa tarakimu 6 uliotumwa kwenye barua pepe yako'
-                  : 'Enter the 6-digit verification code sent to your email'
-                : authMode === 'login'
+              {authMode === 'login'
                 ? lang === 'sw'
                   ? 'Ingia ili kufikia mfumo wako wa hotspot'
                   : 'Login to access your hotspot account'
                 : lang === 'sw'
-                ? 'Sajili hotspot yako uanze kukusanya malipo ya simu'
-                : 'Register your hotspot and start collecting mobile payments'}
+                ? 'Sajili hotspot yako uanze kukusanya malipo ya simu papo hapo'
+                : 'Register your hotspot and start collecting mobile payments instantly'}
             </p>
           </div>
 
-          {/* Switch Tab: Ingia / Jisajili (Only shown when not on OTP step) */}
-          {registrationStep === 'form' && (
-            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('login');
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                }}
-                className={`py-2.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  authMode === 'login'
-                    ? 'bg-white text-[#1b62b6] shadow-sm font-black'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>{lang === 'sw' ? 'Ingia (Login)' : 'Sign In'}</span>
-              </button>
+          {/* Switch Tab: Ingia / Jisajili */}
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('login');
+                setErrorMsg('');
+                setSuccessMsg('');
+              }}
+              className={`py-2.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                authMode === 'login'
+                  ? 'bg-white text-[#1b62b6] shadow-sm font-black'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>{lang === 'sw' ? 'Ingia (Login)' : 'Sign In'}</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('register');
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                }}
-                className={`py-2.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                  authMode === 'register'
-                    ? 'bg-white text-[#f8a30a] shadow-sm font-black'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>{lang === 'sw' ? 'Jisajili (Register)' : 'Register'}</span>
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('register');
+                setErrorMsg('');
+                setSuccessMsg('');
+              }}
+              className={`py-2.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                authMode === 'register'
+                  ? 'bg-white text-[#f8a30a] shadow-sm font-black'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>{lang === 'sw' ? 'Jisajili (Register)' : 'Register'}</span>
+            </button>
+          </div>
 
           {/* Alerts */}
           {errorMsg && (
@@ -549,99 +393,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </div>
           )}
 
-          {/* STEP A: OTP VERIFICATION VIEW */}
-          {registrationStep === 'otp' ? (
-            <form onSubmit={handleVerifyOtpSubmit} className="space-y-5 animate-in fade-in">
-              <div className="p-4 bg-blue-50/60 border border-blue-200/80 rounded-2xl text-center space-y-1">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  {lang === 'sw' ? 'Msimbo Umetumwa Kwenye Barua Pepe:' : 'Code Sent To:'}
-                </span>
-                <strong className="text-sm font-bold text-[#1b62b6] block truncate">
-                  {otpEmail}
-                </strong>
-                <button
-                  type="button"
-                  onClick={() => setRegistrationStep('form')}
-                  className="text-[11px] text-[#f8a30a] hover:underline font-bold mt-1 inline-block cursor-pointer"
-                >
-                  {lang === 'sw' ? 'Badilisha barua pepe' : 'Change email address'}
-                </button>
-              </div>
-
-              {/* Simulation Helper Banner (If in dev/simulation mode) */}
-              {debugOtp && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 text-center font-semibold animate-pulse">
-                  <span>Hali ya Majaribio (Dev Mode): Msimbo wako wa OTP ni: </span>
-                  <span className="font-mono font-black text-sm px-2 py-0.5 bg-white border border-amber-300 rounded ml-1 text-slate-900">
-                    {debugOtp}
-                  </span>
-                </div>
-              )}
-
-              {/* 6-Digit OTP Input */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700 block text-center">
-                  {lang === 'sw' ? 'Ingiza Msimbo wa OTP (Tarakimu 6)' : 'Enter 6-Digit OTP Code'}
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="------"
-                  autoFocus
-                  required
-                  className="w-full py-3.5 text-center font-mono font-black text-2xl tracking-[12px] rounded-2xl border-2 border-slate-300 focus:border-[#1b62b6] focus:ring-4 focus:ring-[#1b62b6]/20 outline-none transition bg-slate-50 focus:bg-white"
-                />
-              </div>
-
-              {/* Submit Verification Button */}
-              <button
-                type="submit"
-                disabled={isVerifyingOtp || otpCode.length < 4}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#1b62b6] hover:bg-[#005ea9] active:scale-98 text-white font-bold text-sm shadow-md shadow-blue-700/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isVerifyingOtp ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>{lang === 'sw' ? 'Inathibitisha...' : 'Verifying OTP...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>
-                      {lang === 'sw' ? 'Thibitisha na Ufungue Akaunti' : 'Verify & Open Account'}
-                    </span>
-                  </>
-                )}
-              </button>
-
-              {/* Resend OTP Button & Countdown */}
-              <div className="text-center pt-2 border-t border-slate-100">
-                {resendCooldown > 0 ? (
-                  <p className="text-xs text-slate-500 font-medium">
-                    {lang === 'sw'
-                      ? `Unaweza kutuma tena OTP baada ya sekunde ${resendCooldown}`
-                      : `You can resend OTP in ${resendCooldown}s`}
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={isResendingOtp}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1b62b6] hover:text-[#005ea9] hover:underline cursor-pointer"
-                  >
-                    <RotateCcw className={`w-3.5 h-3.5 ${isResendingOtp ? 'animate-spin' : ''}`} />
-                    <span>
-                      {lang === 'sw'
-                        ? 'Hujapata barua pepe? Bofya Kutuma Tena OTP'
-                        : 'Didn’t receive email? Resend OTP'}
-                    </span>
-                  </button>
-                )}
-              </div>
-            </form>
-          ) : authMode === 'login' ? (
+          {authMode === 'login' ? (
             /* STEP B: LOGIN FORM */
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               {/* Email or Phone */}
@@ -907,7 +659,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
               </div>
 
-              {/* Submit CTA Button (Respects Vendor's Global OTP Policy) */}
+              {/* Submit CTA Button (Instant Registration - Zero OTP) */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -917,27 +669,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>
-                      {requireOtpPolicy
-                        ? lang === 'sw'
-                          ? 'Inatuma OTP...'
-                          : 'Sending OTP...'
-                        : lang === 'sw'
-                        ? 'Inafungua Akaunti...'
-                        : 'Creating Account...'}
+                      {lang === 'sw' ? 'Inafungua Akaunti...' : 'Creating Account...'}
                     </span>
-                  </>
-                ) : requireOtpPolicy ? (
-                  <>
-                    <span>{lang === 'sw' ? 'Fungua Akaunti & Pokea OTP' : 'Create Account & Receive OTP'}</span>
-                    <ArrowRight className="w-4 h-4" />
                   </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4 text-slate-950 fill-slate-950" />
                     <span>
-                      {lang === 'sw'
-                        ? 'Fungua Akaunti Sasa'
-                        : 'Create Account Now'}
+                      {lang === 'sw' ? 'Fungua Akaunti ya Hotspot Sasa' : 'Create Hotspot Account Now'}
                     </span>
                     <ArrowRight className="w-4 h-4" />
                   </>

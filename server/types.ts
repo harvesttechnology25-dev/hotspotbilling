@@ -249,6 +249,7 @@ export interface VoucherRecord {
 export interface VoucherBatchRecord {
   id: number;
   batch_id: string;
+  batch_tag?: string;
   plan_id: number;
   plan_name: string;
   price: number;

@@ -27,6 +27,14 @@ async function startServer() {
   );
   app.use(express.urlencoded({ extended: true }));
 
+  // Prevent browser caching of dynamic API data
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
+
   // Mount API endpoints
   app.use('/api/v1', apiRouter);
   app.use('/api', apiRouter);

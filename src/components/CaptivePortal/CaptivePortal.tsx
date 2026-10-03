@@ -93,6 +93,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     ssid: string;
     location: string;
     routerId?: number;
+    ownerId?: number;
     ownerBusinessName?: string;
   }>({
     brandName: 'Kariakoo Cyber & WiFi Point',
@@ -103,9 +104,11 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   useEffect(() => {
     const p = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const rId = p?.get('routerId') || p?.get('router_id');
+    const oId = p?.get('ownerId') || p?.get('owner_id');
     const ip = p?.get('ip') || mikrotikParams.ip;
     const query = new URLSearchParams();
     if (rId) query.set('routerId', rId);
+    if (oId) query.set('ownerId', oId);
     if (ip) query.set('ip', ip);
 
     fetch(`/api/v1/portal/info?${query.toString()}`)
@@ -117,6 +120,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
             ssid: data.ssid,
             location: data.location,
             routerId: data.routerId,
+            ownerId: data.ownerId,
             ownerBusinessName: data.ownerBusinessName,
           });
           if (data.portalTheme) {
@@ -225,6 +229,8 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
           phoneNumber,
           networkProvider: carrierToUse,
           planId: selectedPlanId,
+          routerId: portalInfo.routerId,
+          ownerId: portalInfo.ownerId,
           macAddress: mikrotikParams.mac,
           userIp: mikrotikParams.ip,
         }),

@@ -23,54 +23,27 @@ export class MikrotikService {
   }
 
   /**
-   * Mock in-memory active sessions when router hardware is offline or simulated
+   * Live active sessions in memory (zero simulation)
    */
-  private static simulatedActiveSessions: Map<number, HotspotActiveSession[]> = new Map();
+  private static liveActiveSessions: Map<number, HotspotActiveSession[]> = new Map();
 
   static initializeSimulatedSessions() {
-    if (this.simulatedActiveSessions.size === 0) {
-      this.simulatedActiveSessions.set(1, [
-        {
-          id: 101,
-          router_id: 1,
-          username: 'TZ-55102',
-          ip_address: '192.168.88.24',
-          mac_address: 'BC:D0:74:11:2E:8A',
-          uptime_seconds: 3420,
-          bytes_in: 245100980, // ~233 MB
-          bytes_out: 42100800, // ~40 MB
-          rate_limit: '3M/8M',
-          session_id: '*0B2',
-          last_synced_at: new Date().toISOString(),
-        },
-        {
-          id: 102,
-          router_id: 1,
-          username: 'TZ-88301',
-          ip_address: '192.168.88.52',
-          mac_address: 'F0:18:98:5C:33:1B',
-          uptime_seconds: 7890,
-          bytes_in: 589210450, // ~562 MB
-          bytes_out: 98124000,
-          rate_limit: '2M/4M',
-          session_id: '*14B',
-          last_synced_at: new Date().toISOString(),
-        },
-        {
-          id: 103,
-          router_id: 2,
-          username: 'TZ-31290',
-          ip_address: '10.5.50.15',
-          mac_address: '44:65:0E:8F:A2:70',
-          uptime_seconds: 1250,
-          bytes_in: 89400120,
-          bytes_out: 12300400,
-          rate_limit: '5M/10M',
-          session_id: '*21A',
-          last_synced_at: new Date().toISOString(),
-        },
-      ]);
-    }
+    // Zero simulation: start with real clean state
+  }
+
+  static addActiveSession(routerId: number, session: HotspotActiveSession) {
+    const list = this.liveActiveSessions.get(routerId) || [];
+    const filtered = list.filter((s) => s.username.toUpperCase() !== session.username.toUpperCase());
+    filtered.push(session);
+    this.liveActiveSessions.set(routerId, filtered);
+  }
+
+  static removeActiveSession(routerId: number, username: string) {
+    const list = this.liveActiveSessions.get(routerId) || [];
+    this.liveActiveSessions.set(
+      routerId,
+      list.filter((s) => s.username.toUpperCase() !== username.toUpperCase())
+    );
   }
 
   static formatUptimeForRouterOS(seconds: number): string {
@@ -194,15 +167,8 @@ export class MikrotikService {
    * Retrieves active hotspot sessions (/ip/hotspot/active)
    */
   static async getActiveSessions(router: RouterRecord): Promise<HotspotActiveSession[]> {
-    this.initializeSimulatedSessions();
-    const sessions = this.simulatedActiveSessions.get(router.id) || [];
-    return sessions.map((s) => ({
-      ...s,
-      uptime_seconds: s.uptime_seconds + Math.floor(Math.random() * 5),
-      bytes_in: s.bytes_in + Math.floor(Math.random() * 20000),
-      bytes_out: s.bytes_out + Math.floor(Math.random() * 5000),
-      last_synced_at: new Date().toISOString(),
-    }));
+    const sessions = this.liveActiveSessions.get(router.id) || [];
+    return sessions;
   }
 
   /**
@@ -213,9 +179,9 @@ export class MikrotikService {
     username: string
   ): Promise<{ success: boolean; message: string }> {
     this.initializeSimulatedSessions();
-    const current = this.simulatedActiveSessions.get(router.id) || [];
+    const current = this.liveActiveSessions.get(router.id) || [];
     const filtered = current.filter((s) => s.username !== username);
-    this.simulatedActiveSessions.set(router.id, filtered);
+    this.liveActiveSessions.set(router.id, filtered);
 
     const kickCmd = `/ip hotspot active remove [find user="${username}"]`;
     console.log(`[RouterOS API Command -> ${router.name}]: ${kickCmd}`);
@@ -237,8 +203,8 @@ export class MikrotikService {
     this.initializeSimulatedSessions();
 
     // 1. Kick from active sessions
-    const current = this.simulatedActiveSessions.get(router.id) || [];
-    this.simulatedActiveSessions.set(
+    const current = this.liveActiveSessions.get(router.id) || [];
+    this.liveActiveSessions.set(
       router.id,
       current.filter((s) => s.username !== username)
     );
@@ -280,7 +246,7 @@ export class MikrotikService {
         break;
       case 'kick_all':
         command = '/ip hotspot active remove [find]';
-        this.simulatedActiveSessions.set(router.id, []);
+        this.liveActiveSessions.set(router.id, []);
         message = `Watumiaji wote waliokuwa hewani wametolewa kwenye ${router.name}.`;
         break;
       case 'custom':
@@ -357,13 +323,21 @@ export class MikrotikService {
         voucherStatus = 'UNUSED';
       }
 
+      const computedStatus: 'ONLINE' | 'OFFLINE' | 'EXPIRED' | 'AVAILABLE' = isOnline
+        ? 'ONLINE'
+        : isExpired
+        ? 'EXPIRED'
+        : hasUsed
+        ? 'OFFLINE'
+        : 'AVAILABLE';
+
       usersMap.set(v.code.toUpperCase(), {
         id: v.id,
         router_id: router.id,
         username: v.code,
         password: v.password || v.code,
         is_online: isOnline,
-        status: isOnline ? 'ONLINE' : isExpired ? 'EXPIRED' : 'OFFLINE',
+        status: computedStatus,
         ip_address: active?.ip_address,
         mac_address: active?.mac_address || v.mac_address,
         uptime_seconds: active?.uptime_seconds,

@@ -89,7 +89,7 @@ const DEFAULT_SETTINGS: GatewaySettings = {
   hotspotName: 'TZ-WIFI-HOTSPOT',
   supportPhone: '+255 754 000 111',
   autoLoginEnabled: true,
-  requireRegistrationOtp: true,
+  requireRegistrationOtp: false,
   smsGateway: {
     provider: 'BEEM',
     senderId: 'INFOTECH',
@@ -1077,6 +1077,18 @@ const mergedEmail: EmailGatewayConfig = {
   saveVoucherBatch(batch: VoucherBatchRecord): void {
     this.voucherBatches.unshift(batch);
     this.saveToDisk();
+  }
+
+  deleteVoucherBatch(batchId: string): boolean {
+    const prevBatches = this.voucherBatches.length;
+    this.voucherBatches = this.voucherBatches.filter((b) => b.batch_id !== batchId && b.batch_tag !== batchId);
+    const vouchersToRemove = this.vouchers.filter((v) => v.batch_tag === batchId);
+    vouchersToRemove.forEach((v) => {
+      this.deleteRadiusUser(v.code);
+    });
+    this.vouchers = this.vouchers.filter((v) => v.batch_tag !== batchId);
+    this.saveToDisk();
+    return this.voucherBatches.length < prevBatches;
   }
 
   // --- FreeRADIUS AAA Methods ---

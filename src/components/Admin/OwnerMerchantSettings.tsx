@@ -57,16 +57,25 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
   const owner = localOwner;
   const [selectedGateway, setSelectedGateway] = useState<
     'dalipay' | 'palmpay' | 'azampay' | 'vodacom_mpesa' | 'tigopesa' | 'airtel_money' | 'manual_wallet'
-  >('palmpay');
+  >('dalipay');
 
+  // DaliPay State (Direct to Owner Account)
+  const [daliPublicKey, setDaliPublicKey] = useState(owner?.dalipay_public_key || '');
+  const [daliSecretKey, setDaliSecretKey] = useState(owner?.dalipay_secret_key || '');
+  const [daliKeyId, setDaliKeyId] = useState(owner?.dalipay_key_id || '');
+  const [daliEndpoint, setDaliEndpoint] = useState(owner?.dalipay_api_endpoint || 'https://app.dalipay.co.tz');
+  const [daliWebhookSecret, setDaliWebhookSecret] = useState(owner?.dalipay_webhook_secret || '');
+  const [showDaliSecret, setShowDaliSecret] = useState(false);
+  const [copiedDaliKey, setCopiedDaliKey] = useState(false);
+
+  // PalmPesa State
   const [userId, setUserId] = useState(owner?.palmpesa_user_id || '');
   const [userRef, setUserRef] = useState(owner?.palmpesa_user_ref || '');
   const [apiToken, setApiToken] = useState(owner?.palmpesa_api_token || '');
+  const [acceptStk, setAcceptStk] = useState(owner?.palmpesa_accept_stk !== false);
   const [webhookSecret, setWebhookSecret] = useState('');
-  const [apiEndpoint, setApiEndpoint] = useState('https://app.dalipay.co.tz/api/v1');
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const webhookUrl = typeof window !== 'undefined' ? (window.location.origin + '/api/v1/payments/webhook') : '/api/v1/payments/webhook';
-  const [acceptStk, setAcceptStk] = useState(owner?.palmpesa_accept_stk !== false);
   const [accountNumber, setAccountNumber] = useState(owner?.wallet_account_number || owner?.phone || '');
   const [merchantName, setMerchantName] = useState(owner?.business_name || '');
 
@@ -87,13 +96,34 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
 
   useEffect(() => {
     if (owner) {
+      setDaliPublicKey(owner.dalipay_public_key || '');
+      setDaliSecretKey(owner.dalipay_secret_key || '');
+      setDaliKeyId(owner.dalipay_key_id || '');
+      setDaliEndpoint(owner.dalipay_api_endpoint || 'https://app.dalipay.co.tz');
+      setDaliWebhookSecret(owner.dalipay_webhook_secret || '');
+
       setUserId(owner.palmpesa_user_id || '');
       setUserRef(owner.palmpesa_user_ref || '');
       setApiToken(owner.palmpesa_api_token || '');
       setAcceptStk(owner.palmpesa_accept_stk !== false);
       setAccountNumber(owner.wallet_account_number || owner.phone || '');
       setMerchantName(owner.business_name || '');
-      if (owner.dalipay_api_endpoint) setApiEndpoint(owner.dalipay_api_endpoint);
+
+      if (owner.payout_channel === 'DALIPAY' || owner.dalipay_public_key || !owner.palmpesa_user_id) {
+        setSelectedGateway('dalipay');
+      } else if (owner.payout_channel === 'PALMPESA') {
+        setSelectedGateway('palmpay');
+      } else if (owner.payout_channel === 'AZAMPAY_SUB') {
+        setSelectedGateway('azampay');
+      } else if (owner.payout_channel === 'VODACOM_DIRECT') {
+        setSelectedGateway('vodacom_mpesa');
+      } else if (owner.payout_channel === 'TIGO_DIRECT') {
+        setSelectedGateway('tigopesa');
+      } else if (owner.payout_channel === 'AIRTEL_DIRECT') {
+        setSelectedGateway('airtel_money');
+      } else if (owner.payout_channel === 'MANUAL') {
+        setSelectedGateway('manual_wallet');
+      }
     }
   }, [owner]);
 
@@ -115,12 +145,10 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
     try {
       const payload: Partial<HotspotOwner> = {
         ...owner,
-        palmpesa_user_id: userId ? userId.trim() : undefined,
-        palmpesa_user_ref: userRef ? userRef.trim() : undefined,
-        palmpesa_api_token: apiToken ? apiToken.trim() : undefined,
-        palmpesa_accept_stk: acceptStk,
         payout_channel:
-          selectedGateway === 'palmpay'
+          selectedGateway === 'dalipay'
+            ? 'DALIPAY'
+            : selectedGateway === 'palmpay'
             ? 'PALMPESA'
             : selectedGateway === 'azampay'
             ? 'AZAMPAY_SUB'
@@ -132,11 +160,15 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
             ? 'AIRTEL_DIRECT'
             : 'MANUAL',
         wallet_account_number: accountNumber.trim(),
-        dalipay_api_endpoint: apiEndpoint.trim(),
-        dalipay_key_id: userId.trim(),
-        dalipay_public_key: userRef.trim(),
-        dalipay_secret_key: apiToken.trim(),
-        dalipay_webhook_secret: webhookSecret.trim(),
+        dalipay_public_key: daliPublicKey.trim(),
+        dalipay_secret_key: daliSecretKey.trim(),
+        dalipay_key_id: daliKeyId.trim(),
+        dalipay_api_endpoint: daliEndpoint.trim() || 'https://app.dalipay.co.tz',
+        dalipay_webhook_secret: daliWebhookSecret.trim(),
+        palmpesa_user_id: userId ? userId.trim() : undefined,
+        palmpesa_user_ref: userRef ? userRef.trim() : undefined,
+        palmpesa_api_token: apiToken ? apiToken.trim() : undefined,
+        palmpesa_accept_stk: acceptStk,
       };
 
       const res = await fetch(`/api/v1/owners/${owner.id}`, {
@@ -311,51 +343,107 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase">USER ID</span>
-              <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block">
-                {userId || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
-              </span>
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase">PUBLIC USER REF</span>
-              <span className="font-mono font-bold text-slate-700 text-xs mt-0.5 block truncate">
-                {userRef || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
-              </span>
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-slate-200 sm:col-span-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">YOUR API TOKEN</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowToken(!showToken)}
-                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
-                  >
-                    {showToken ? 'Ficha' : 'Onyesha'}
-                  </button>
-                  {apiToken && (
-                    <button
-                      type="button"
-                      onClick={handleCopyToken}
-                      className="text-[10px] font-bold text-slate-500 hover:text-slate-700 ml-1"
-                      title="Nakili Token"
-                    >
-                      {copiedToken ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                  )}
+            {owner?.payout_channel === 'DALIPAY' || daliPublicKey ? (
+              <>
+                <div className="p-3 bg-white rounded-xl border border-indigo-200">
+                  <span className="text-[10px] font-bold text-indigo-600 block uppercase">GATEWAY & CHANNEL</span>
+                  <span className="font-mono font-black text-slate-900 text-xs mt-0.5 block">
+                    DaliPay Direct Wallet
+                  </span>
                 </div>
-              </div>
-              <span className="font-mono text-xs text-slate-800 mt-1 block truncate">
-                {apiToken
-                  ? showToken
-                    ? apiToken
-                    : `${apiToken.slice(0, 8)}••••••••••••••••••••${apiToken.slice(-4)}`
-                  : (lang === 'sw' ? 'Hakuna API Token iliyowekwa' : 'No API Token configured')}
-              </span>
-            </div>
+
+                <div className="p-3 bg-white rounded-xl border border-indigo-200">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">PUBLIC KEY</span>
+                  <span className="font-mono font-bold text-slate-700 text-xs mt-0.5 block truncate">
+                    {daliPublicKey || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-indigo-200 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">SECRET KEY</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowDaliSecret(!showDaliSecret)}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                      >
+                        {showDaliSecret ? 'Ficha' : 'Onyesha'}
+                      </button>
+                      {daliSecretKey && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(daliSecretKey);
+                            setCopiedDaliKey(true);
+                            setTimeout(() => setCopiedDaliKey(false), 2000);
+                          }}
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-700 ml-1 cursor-pointer"
+                          title="Nakili Secret Key"
+                        >
+                          {copiedDaliKey ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs text-slate-800 mt-1 block truncate">
+                    {daliSecretKey
+                      ? showDaliSecret
+                        ? daliSecretKey
+                        : `${daliSecretKey.slice(0, 8)}••••••••••••••••••••${daliSecretKey.slice(-4)}`
+                      : (lang === 'sw' ? 'Hakuna Secret Key iliyowekwa' : 'No Secret Key configured')}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-3 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">USER ID</span>
+                  <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block">
+                    {userId || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">PUBLIC USER REF</span>
+                  <span className="font-mono font-bold text-slate-700 text-xs mt-0.5 block truncate">
+                    {userRef || (lang === 'sw' ? 'Haijawekwa' : 'Not Configured')}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">YOUR API TOKEN</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowToken(!showToken)}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
+                      >
+                        {showToken ? 'Ficha' : 'Onyesha'}
+                      </button>
+                      {apiToken && (
+                        <button
+                          type="button"
+                          onClick={handleCopyToken}
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-700 ml-1"
+                          title="Nakili Token"
+                        >
+                          {copiedToken ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs text-slate-800 mt-1 block truncate">
+                    {apiToken
+                      ? showToken
+                        ? apiToken
+                        : `${apiToken.slice(0, 8)}••••••••••••••••••••${apiToken.slice(-4)}`
+                      : (lang === 'sw' ? 'Hakuna API Token iliyowekwa' : 'No API Token configured')}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">

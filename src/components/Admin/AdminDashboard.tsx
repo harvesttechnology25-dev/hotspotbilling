@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Shield,
   ShieldCheck,
+  Crown,
   Radio,
   Sliders,
   ChevronLeft,
@@ -105,7 +106,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Fetch registered owners
   const fetchOwners = async () => {
     try {
-      const res = await fetch('/api/v1/owners');
+      const res = await fetch(`/api/v1/owners?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setOwners(data);
@@ -346,6 +347,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const currentOwnerId = !isVendor ? currentOwner?.id : undefined;
+
+  // Check if current regular owner subscription has expired
+  const nowMs = Date.now();
+  const expiresAtMs = currentOwner?.subscription_expires_at
+    ? new Date(currentOwner.subscription_expires_at).getTime()
+    : 0;
+  const isSubscriptionExpired = Boolean(
+    !isVendor &&
+      currentOwner &&
+      (currentOwner.subscription_status === 'EXPIRED' ||
+        (currentOwner.subscription_expires_at && expiresAtMs <= nowMs))
+  );
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] bg-slate-100/70">
@@ -711,6 +724,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {lang === 'sw' ? 'Lipa Sh 15,000' : 'Renew'}
                 </button>
               </div>
+
+
             </div>
           </div>
         )}
@@ -809,8 +824,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           })}
         </div>
 
-        {/* Dynamic Module Content View */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-[1720px] mx-auto space-y-5 sm:space-y-6 pb-28 lg:pb-8">
+        {/* Dynamic Module Content View OR Fullscreen Subscription Gate if Expired */}
+        {isSubscriptionExpired && currentOwner ? (
+          <main className="flex-1 w-full min-h-[calc(100vh-8rem)] p-3 sm:p-6 bg-slate-950">
+            <SubscriptionGate
+              owner={currentOwner}
+              onRenewSuccess={(updated) => {
+                setCurrentOwner(updated);
+                setShowRenewalModal(false);
+                if (onSwitchUser) onSwitchUser(updated);
+                fetchOwners();
+              }}
+              onLogout={() => {
+                if (onLogout) onLogout();
+              }}
+              lang={lang}
+            />
+          </main>
+        ) : (
+          <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-[1720px] mx-auto space-y-5 sm:space-y-6 pb-28 lg:pb-8">
           {/* Welcome Banner for Hotspot Owner who hasn't added a router yet */}
           {!isVendor && (!currentOwner?.assigned_router_ids || currentOwner.assigned_router_ids.length === 0) && activeTab !== 'routers' && (
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white border border-indigo-700/60 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-200">
@@ -1008,6 +1040,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
         </main>
+        )}
       </div>
 
       {/* Fixed Mobile & Tablet Bottom Navigation Bar */}

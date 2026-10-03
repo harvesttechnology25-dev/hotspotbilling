@@ -499,7 +499,7 @@ export const PaymentConfig: React.FC = () => {
                     <span>Mazingira Halisi ya API ya Malipo — USSD Pop-up inatumwa moja kwa moja kwenye simu</span>
                   </div>
                   <p className="text-slate-600 text-[11px]">
-                    Umeunganishwa na API za majaribio za <strong>DaliPay Aggregator</strong>. Unaweza kuchagua mojawapo ya Funguo 3 (Key ID) zilizo hai hapa chini ili kufanya majaribio ya USSD Push ya M-Pesa, Tigo Pesa, Airtel Money na Halopesa.
+                    Umeunganishwa na API za uzalishaji za <strong>DaliPay Aggregator</strong> kupitia endpoint rasmi ya <code>POST /api/v1/collections</code> (Headers: <code>X-Public-Key</code> na <code>X-Secret-Key</code>). Unaweza kuchagua mojawapo ya Funguo zilizo hai hapa chini ili kufanya majaribio ya USSD Push ya Tigo, Airtel, Halopesa, Azampesa na Mpesa.
                   </p>
                 </div>
 
@@ -552,7 +552,7 @@ export const PaymentConfig: React.FC = () => {
                                 publicKey: kItem.publicKey,
                                 secretKey: kItem.secretKey,
                                 isSandbox: true,
-                                apiEndpoint: settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz/api/v1',
+                                apiEndpoint: settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz',
                                 webhookSecret: settings.dalipay?.webhookSecret || 'gw_wh_test_secret_dalipay',
                               },
                             })
@@ -684,7 +684,7 @@ export const PaymentConfig: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz/api/v1'}
+                      value={settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz'}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -699,7 +699,7 @@ export const PaymentConfig: React.FC = () => {
                           },
                         })
                       }
-                      placeholder="https://app.dalipay.co.tz/api/v1"
+                      placeholder="https://app.dalipay.co.tz"
                       className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-indigo-600 focus:outline-hidden bg-white"
                     />
                   </div>

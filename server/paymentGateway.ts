@@ -93,61 +93,127 @@ export class PaymentGatewayService {
       throw new Error('Kifurushi hakijapatikana (Plan not found).');
     }
 
-    const router = params.routerId ? db.getRouterById(params.routerId) : db.getRouters()[0];
+    // Resolve router and owner for merchant routing
+    const routers = db.getRouters();
+    const router = params.routerId
+      ? db.getRouterById(params.routerId)
+      : params.userIp
+      ? routers.find((r) => r.ip_address === params.userIp || r.vpn_assigned_ip === params.userIp)
+      : routers[0];
+
+    const ownerId = params.ownerId || router?.owner_id;
+    const owner = ownerId ? db.getOwnerById(ownerId) : undefined;
     const settings = db.getSettings();
     const externalRef = this.generateReference('TZWF');
 
     // Determine gateway mode & configuration check
     let gatewayMode: 'LIVE' | 'SANDBOX' = 'LIVE';
     let externalTransactionId: string | null = null;
-    const activeGateway = settings.activeGateway || 'DALIPAY';
+    
+    // Gateway resolution: prioritize owner/router preference, then system default
+    const activeGateway =
+      router?.payout_channel === 'DALIPAY' || owner?.payout_channel === 'DALIPAY'
+        ? 'DALIPAY'
+        : router?.payout_channel === 'PALMPESA' || owner?.payout_channel === 'PALMPESA'
+        ? 'PALMPESA'
+        : settings.activeGateway || 'DALIPAY';
 
-    // Verify gateway configuration
     if (activeGateway === 'DALIPAY') {
-      const dalipayConfig = settings.dalipay;
-      if (!dalipayConfig || (!dalipayConfig.publicKey && !dalipayConfig.secretKey)) {
+      // Resolve DaliPay credentials hierarchy:
+      // 1. Router Override (if specific router has its own DaliPay API keys)
+      // 2. Hotspot Owner Account (Hotspot Owner's direct DaliPay API keys)
+      // 3. Platform Admin Default (System DaliPay Keys)
+      const dalipayPublicKey = (
+        router?.dalipay_public_key ||
+        owner?.dalipay_public_key ||
+        settings.dalipay?.publicKey ||
+        ''
+      ).trim();
+
+      const dalipaySecretKey = (
+        router?.dalipay_secret_key ||
+        owner?.dalipay_secret_key ||
+        settings.dalipay?.secretKey ||
+        ''
+      ).trim();
+
+      const dalipayEndpoint = (
+        router?.dalipay_api_endpoint ||
+        owner?.dalipay_api_endpoint ||
+        settings.dalipay?.apiEndpoint ||
+        'https://app.dalipay.co.tz'
+      ).trim();
+
+      const isCustomOwnerDali = Boolean(
+        (router?.dalipay_public_key && router?.dalipay_secret_key) ||
+        (owner?.dalipay_public_key && owner?.dalipay_secret_key)
+      );
+
+      if (!dalipayPublicKey && !dalipaySecretKey) {
         throw new Error(
-          'Mipangilio ya API ya DaliPay haijasanidiwa. Tafadhali ingia kwenye Mipangilio ya Malipo (Admin) na uweke DaliPay Key ID, Public Key, na Secret Key kabla ya wateja kulipa.'
+          owner
+            ? `Akaunti ya mmiliki wa Hotspot (${owner.business_name || owner.name}) haina API Keys za DaliPay zilizowekwa. Tafadhali mmiliki aingie kwenye Dashibodi > Mipangilio ya Malipo na aweke DaliPay Public Key na Secret Key ili pesa za wateja ziingie moja kwa moja kwenye akaunti yake.`
+            : 'Mipangilio ya API ya DaliPay haijasanidiwa. Tafadhali ingia kwenye Mipangilio ya Malipo (Admin) na uweke DaliPay Public Key na Secret Key.'
         );
       }
 
-      gatewayMode = dalipayConfig.isSandbox ? 'SANDBOX' : 'LIVE';
-      const dalipayBase = dalipayConfig.apiEndpoint || 'https://api.dalipay.com/v1';
+      gatewayMode = settings.dalipay?.isSandbox ? 'SANDBOX' : 'LIVE';
+      
+      // Chagua Base URL safi (chaguo-msingi ni app.dalipay.co.tz)
+      let baseUrl = dalipayEndpoint.replace(/\/+$/, '');
+      if (baseUrl.endsWith('/api/v1/collections')) {
+        baseUrl = baseUrl.replace('/api/v1/collections', '');
+      } else if (baseUrl.endsWith('/api/v1')) {
+        baseUrl = baseUrl.replace('/api/v1', '');
+      }
+
+      // Format provider name to match DaliPay spec (Tigo, Airtel, Halopesa, Azampesa, Mpesa)
+      let providerName = 'Tigo';
+      const rawProv = ((carrierResult as any).carrier || carrierResult.provider || provider || '').toLowerCase();
+      if (rawProv.includes('airtel')) providerName = 'Airtel';
+      else if (rawProv.includes('vodacom') || rawProv.includes('mpesa') || rawProv.includes('m-pesa')) providerName = 'Mpesa';
+      else if (rawProv.includes('halo') || rawProv.includes('halopesa')) providerName = 'Halopesa';
+      else if (rawProv.includes('azam')) providerName = 'Azampesa';
+      else providerName = 'Tigo';
+
+      // Namba ya simu ya Tanzania (k.mf. 07XXXXXXXX)
+      let phoneClean = (carrierResult.normalized || params.phoneNumber).replace(/\+/g, '');
+      if (phoneClean.startsWith('255')) {
+        phoneClean = '0' + phoneClean.slice(3);
+      }
 
       try {
-        const pushRes = await fetch(`${dalipayBase}/checkout/push`, {
+        const pushRes = await fetch(`${baseUrl}/api/v1/collections`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-KEY': dalipayConfig.secretKey || '',
-            'X-PUBLIC-KEY': dalipayConfig.publicKey || '',
-            'X-KEY-ID': dalipayConfig.keyId || '',
-            Authorization: `Bearer ${dalipayConfig.secretKey || ''}`,
+            'X-Public-Key': dalipayPublicKey,
+            'X-Secret-Key': dalipaySecretKey,
           },
           body: JSON.stringify({
-            key_id: dalipayConfig.keyId,
-            phone_number: carrierResult.normalized || params.phoneNumber,
-            amount: plan.price,
-            carrier: provider,
-            reference: externalRef,
+            account_number: phoneClean,
+            amount: Number(plan.price),
             currency: 'TZS',
-            callback_url: `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
+            provider: providerName,
+            external_id: externalRef.slice(0, 30),
+            customer_name: params.phoneNumber,
           }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(10000),
         });
 
         const pushData: any = await pushRes.json().catch(() => ({}));
-        if (!pushRes.ok) {
-          const apiErrMsg = pushData.message || pushData.error || `DaliPay API error HTTP ${pushRes.status}`;
-          throw new Error(`Hitilafu kutoka DaliPay Aggregator API: ${apiErrMsg}`);
+        if (!pushRes.ok || pushData.success === false) {
+          const apiErrMsg = pushData.message || pushData.error || `HTTP ${pushRes.status}`;
+          throw new Error(`Hitilafu kutoka DaliPay: ${apiErrMsg}`);
         }
-        externalTransactionId = pushData.transaction_id || pushData.id || pushData.reference || null;
+
+        externalTransactionId = pushData.data?.uuid || pushData.data?.reference || externalRef;
       } catch (err: any) {
         console.error('DaliPay API Call Error:', err);
         throw new Error(
           err.message?.includes('Hitilafu kutoka DaliPay')
             ? err.message
-            : `Imeshindikana kuunganishwa na DaliPay API: ${err.message || 'Mtandao haujajibu'}. Tafadhali thibitisha API endpoint na keys zako.`
+            : `Imeshindikana kuunganishwa na DaliPay API: ${err.message || 'Mtandao haujajibu'}.`
         );
       }
     } else if (activeGateway === 'PALMPESA') {
@@ -255,6 +321,11 @@ export class PaymentGatewayService {
       }
     }
 
+    const isCustomOwnerDali = Boolean(
+      (router?.dalipay_public_key && router?.dalipay_secret_key) ||
+      (owner?.dalipay_public_key && owner?.dalipay_secret_key)
+    );
+
     // Save pending transaction in persistent database
     const transaction: TransactionRecord = {
       id: db.getNextTransactionId(),
@@ -266,9 +337,14 @@ export class PaymentGatewayService {
       status: 'PENDING',
       plan_id: plan.id,
       router_id: router?.id,
+      owner_id: owner?.id,
+      vendor_amount: isCustomOwnerDali ? plan.price : Math.round(plan.price * 0.95),
+      platform_fee: isCustomOwnerDali ? 0 : Math.round(plan.price * 0.05),
       mac_address: params.macAddress,
       user_ip: params.userIp,
-      gateway_provider: activeGateway,
+      gateway_provider: isCustomOwnerDali
+        ? `DALIPAY (Moja kwa moja: ${owner?.business_name || owner?.name || 'Akaunti ya Mmiliki'})`
+        : activeGateway,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -288,6 +364,9 @@ export class PaymentGatewayService {
         planName: plan.name,
         gateway: activeGateway,
         gatewayMode,
+        isCustomOwnerDali,
+        ownerId: owner?.id,
+        ownerBusinessName: owner?.business_name || owner?.name,
       },
       created_at: new Date().toISOString(),
     });
@@ -364,40 +443,58 @@ export class PaymentGatewayService {
         );
       }
 
-      const dalipayBase = dalipayConfig.apiEndpoint || 'https://api.dalipay.com/v1';
+      let baseUrl = (dalipayConfig.apiEndpoint || 'https://app.dalipay.co.tz').trim().replace(/\/+$/, '');
+      if (baseUrl.endsWith('/api/v1/collections')) {
+        baseUrl = baseUrl.replace('/api/v1/collections', '');
+      } else if (baseUrl.endsWith('/api/v1')) {
+        baseUrl = baseUrl.replace('/api/v1', '');
+      }
+
+      let providerName = 'Tigo';
+      const rawProv = ((carrierResult as any).carrier || carrierResult.provider || provider || '').toLowerCase();
+      if (rawProv.includes('airtel')) providerName = 'Airtel';
+      else if (rawProv.includes('vodacom') || rawProv.includes('mpesa') || rawProv.includes('m-pesa')) providerName = 'Mpesa';
+      else if (rawProv.includes('halo') || rawProv.includes('halopesa')) providerName = 'Halopesa';
+      else if (rawProv.includes('azam')) providerName = 'Azampesa';
+      else providerName = 'Tigo';
+
+      let phoneClean = (carrierResult.normalized || params.phoneNumber).replace(/\+/g, '');
+      if (phoneClean.startsWith('255')) {
+        phoneClean = '0' + phoneClean.slice(3);
+      }
+
       try {
-        const pushRes = await fetch(`${dalipayBase}/checkout/push`, {
+        const pushRes = await fetch(`${baseUrl}/api/v1/collections`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-KEY': dalipayConfig.secretKey || '',
-            'X-PUBLIC-KEY': dalipayConfig.publicKey || '',
-            'X-KEY-ID': dalipayConfig.keyId || '',
-            Authorization: `Bearer ${dalipayConfig.secretKey || ''}`,
+            'X-Public-Key': dalipayConfig.publicKey || '',
+            'X-Secret-Key': dalipayConfig.secretKey || '',
           },
           body: JSON.stringify({
-            key_id: dalipayConfig.keyId,
-            phone_number: carrierResult.normalized || params.phoneNumber,
-            amount: amount,
-            carrier: provider,
-            reference: externalRef,
+            account_number: phoneClean,
+            amount: Number(amount),
             currency: 'TZS',
-            callback_url: `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
+            provider: providerName,
+            external_id: externalRef.slice(0, 30),
+            customer_name: params.phoneNumber,
           }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(10000),
         });
 
         const pushData: any = await pushRes.json().catch(() => ({}));
-        if (!pushRes.ok) {
-          throw new Error(`DaliPay Aggregator Error: ${pushData.message || pushData.error || pushRes.statusText}`);
+        if (!pushRes.ok || pushData.success === false) {
+          const apiErrMsg = pushData.message || pushData.error || `HTTP ${pushRes.status}`;
+          throw new Error(`Hitilafu kutoka DaliPay: ${apiErrMsg}`);
         }
-        externalTransactionId = pushData.transaction_id || pushData.id || pushData.reference || null;
+
+        externalTransactionId = pushData.data?.uuid || pushData.data?.reference || externalRef;
       } catch (err: any) {
         console.error('Subscription DaliPay API Call Error:', err);
         throw new Error(
-          err.message?.includes('DaliPay Aggregator Error')
+          err.message?.includes('Hitilafu kutoka DaliPay')
             ? err.message
-            : `Imeshindikana kutuma ombi la malipo kupitia DaliPay API: ${err.message || 'Mtandao haujajibu'}.`
+            : `Imeshindikana kuunganishwa na DaliPay API: ${err.message || 'Mtandao haujajibu'}.`
         );
       }
     } else if (gateway === 'PALMPESA') {

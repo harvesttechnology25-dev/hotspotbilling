@@ -326,8 +326,8 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
       : filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const onlineCount = users.filter((u) => u.is_online).length;
-  const offlineCount = users.filter((u) => !u.is_online && u.status !== 'EXPIRED').length;
-  const unusedCount = users.filter(checkIsUnused).length;
+  const unusedCount = users.filter((u) => !u.is_online && checkIsUnused(u) && u.status !== 'EXPIRED' && u.voucher_status !== 'EXPIRED').length;
+  const offlineCount = users.filter((u) => !u.is_online && !checkIsUnused(u) && u.status !== 'EXPIRED' && u.voucher_status !== 'EXPIRED').length;
   const usedCount = users.filter((u) => !checkIsUnused(u)).length;
   const expiredCount = users.filter((u) => u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED').length;
   const phoneCount = users.filter(checkIsPhoneUser).length;
@@ -416,7 +416,16 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <div className="text-2xl font-black text-slate-900">{onlineCount}</div>
-          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Wapo hewani kwenye Wi-Fi</p>
+          <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Wapo hewani sasa hivi</p>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Hazijatumika (Unused)</span>
+            <Ticket className="w-3.5 h-3.5 text-indigo-500" />
+          </div>
+          <div className="text-2xl font-black text-indigo-600">{unusedCount}</div>
+          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Vocha mpya tayari kutumiwa</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
@@ -425,7 +434,7 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
             <Users className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-2xl font-black text-slate-900">{offlineCount}</div>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Wana vocha hai lakini hawajaunganishwa</p>
+          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Walioshatumia lakini wametoka hewani</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
@@ -760,9 +769,14 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 ONLINE
                               </span>
-                            ) : u.status === 'EXPIRED' ? (
+                            ) : u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200">
                                 EXPIRED
+                              </span>
+                            ) : isUnused ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <Ticket className="w-3 h-3 text-indigo-500" />
+                                HAIJATUMIKA
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">

@@ -306,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Navigation Buttons List */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${currentUser ? "grid-cols-3" : "grid-cols-2"}`}>
             <button
               type="button"
               onClick={() => handleNavigate('welcome')}
@@ -320,18 +320,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>{lang === 'sw' ? 'Mwanzo' : 'Home'}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => handleNavigate('portal')}
-              className={`p-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1.5 transition ${
-                viewMode === 'portal'
-                  ? 'bg-[#1b62b6] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Captive Portal</span>
-            </button>
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => handleNavigate('portal')}
+                className={`p-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1.5 transition ${
+                  viewMode === 'portal'
+                    ? 'bg-[#1b62b6] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Captive Portal</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -351,8 +353,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'Dashibodi'
                     : 'Dashboard'
                   : lang === 'sw'
-                  ? 'Ingia'
-                  : 'Login'}
+                  ? 'Ingia / Jisajili'
+                  : 'Login / Register'}
               </span>
             </button>
           </div>

@@ -1,1 +1,80 @@
 @import "tailwindcss";
+
+
+@media print {
+  /* Hide all system chrome, navbar, sidebar, buttons, footers */
+  header,
+  footer,
+  nav,
+  aside,
+  .no-print,
+  [role="navigation"] {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When printing vouchers, hide entire app layout outside the modal */
+  body.printing-vouchers #root > div > header,
+  body.printing-vouchers #root > div > footer,
+  body.printing-vouchers #root > div > main > div > aside,
+  body.printing-vouchers #root > div > main > div > div:not(.print-allow-container) {
+    display: none !important;
+  }
+
+  #voucher-print-modal {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  #voucher-print-dialog {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #voucher-print-controls {
+    display: none !important;
+  }
+
+  #voucher-printable-area {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .tear-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  @page {
+    margin: 4mm;
+    size: auto;
+  }
+}

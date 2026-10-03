@@ -33,6 +33,9 @@ import {
   BadgeAlert,
   Sliders,
   CheckCheck,
+  LayoutGrid,
+  List,
+  Power,
 } from 'lucide-react';
 import { HotspotOwner, RouterItem, UserRole, ManualSubscriptionRequest } from '../../types/index.ts';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
@@ -48,6 +51,8 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
   const [manualRequests, setManualRequests] = useState<ManualSubscriptionRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [pingingRouterId, setPingingRouterId] = useState<number | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingOwner, setEditingOwner] = useState<HotspotOwner | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -127,51 +132,39 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
     }
   };
 
-  const handleToggleOtpPolicy = async (newValue: boolean) => {
-    setIsUpdatingOtpPolicy(true);
-    setRequireOtpPolicy(newValue);
-    try {
-      const res = await fetch('/api/v1/auth/registration-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requireOtp: newValue }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage({
-          type: 'success',
-          text: newValue
-            ? '✓ Uthibitisho wa OTP umewashwa! Watumiaji wote wapya watatumiwa msimbo wa siri wa tarakimu 6 (OTP) kwenye barua pepe kuhakiki akaunti zao.'
-            : '✓ Uthibitisho wa OTP umezimwa! Usajili wa moja kwa moja bila kusubiri OTP (Instant 1-Click Activation) umewashwa.',
-        });
-      } else {
-        throw new Error(data.error || 'Failed to update OTP policy');
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Hitilafu ya kusasisha sera ya OTP.' });
-      fetchOtpPolicy();
-    } finally {
-      setIsUpdatingOtpPolicy(false);
-    }
-  };
-
   const fetchData = async (isBackground = false) => {
     if (!isBackground) {
       setIsLoading(true);
     }
     try {
-      const [ownersRes, routersRes, reqsRes] = await Promise.all([
-        fetch('/api/v1/owners'),
-        fetch('/api/v1/routers'),
-        fetch('/api/v1/subscription/manual-requests'),
+      const [ownersRes, routersRes, reqsRes] = await Promise.allSettled([
+        fetch(`/api/v1/owners?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/v1/routers?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/v1/subscription/manual-requests?_t=${Date.now()}`, { cache: 'no-store' }),
       ]);
-      const ownersData = await ownersRes.json();
-      const routersData = await routersRes.json();
-      const reqsData = reqsRes.ok ? await reqsRes.json() : [];
-      setOwners(Array.isArray(ownersData) ? ownersData : []);
-      setRouters(Array.isArray(routersData) ? routersData : []);
-      setManualRequests(Array.isArray(reqsData) ? reqsData : []);
-      fetchOtpPolicy();
+
+      if (ownersRes.status === 'fulfilled' && ownersRes.value.ok) {
+        const ownersData = await ownersRes.value.json();
+        if (Array.isArray(ownersData)) {
+          setOwners(ownersData);
+        }
+      }
+
+      if (routersRes.status === 'fulfilled' && routersRes.value.ok) {
+        const routersData = await routersRes.value.json();
+        if (Array.isArray(routersData)) {
+          setRouters(routersData);
+        }
+      }
+
+      if (reqsRes.status === 'fulfilled' && reqsRes.value.ok) {
+        const reqsData = await reqsRes.value.json();
+        if (Array.isArray(reqsData)) {
+          setManualRequests(reqsData);
+        }
+      }
+
+      if (onOwnersUpdated) onOwnersUpdated();
     } catch (err) {
       console.error('Failed to load owners data:', err);
     } finally {
@@ -183,10 +176,120 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
 
   useEffect(() => {
     fetchData(false);
-    // Silent background poll every 30s without flicking the UI / cards
-    const interval = setInterval(() => fetchData(true), 30000);
+    // Real-time background sync every 5 seconds
+    const interval = setInterval(() => fetchData(true), 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Ping MikroTik Router to test live connectivity
+  const handlePingRouter = async (router: RouterItem) => {
+    setPingingRouterId(router.id);
+    try {
+      const res = await fetch(`/api/v1/routers/${router.id}/test-connection`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.reachable) {
+        setMessage({
+          type: "success",
+          text: `✓ Router/AP: ${router.name} iko ONLINE (Hewani)! Ping Latency: ${data.latencyMs}ms.`,
+        });
+      } else {
+        setMessage({
+          type: "error",
+          text: `✕ Router/AP: ${router.name} iko OFFLINE au haikupatikana (${data.message || "Timeout"}).`,
+        });
+      }
+      fetchData(true);
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Hitilafu ya kupima muunganisho." });
+    } finally {
+      setPingingRouterId(null);
+    }
+  };
+
+  // Vendor toggle MikroTik Router / AP status between ONLINE and OFFLINE
+  const handleToggleRouterStatus = async (router: RouterItem) => {
+    try {
+      const nextStatus = router.status === "ONLINE" ? "OFFLINE" : "ONLINE";
+      const res = await fetch(`/api/v1/routers/${router.id}/toggle-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (res.ok) {
+        setMessage({
+          type: "success",
+          text: `✓ Hali ya ${router.name} imebadilishwa kuwa: ${nextStatus === "ONLINE" ? "🟢 ONLINE (Hewani)" : "🔴 OFFLINE (Imekatika)"}.`,
+        });
+        fetchData(true);
+      }
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message });
+    }
+  };
+
+  // Calculate exact subscription days and expiration status for an owner
+  const getSubscriptionInfo = (owner: HotspotOwner) => {
+    const isVendor = owner.role === "VENDOR_ADMIN";
+    if (isVendor) {
+      return { isExpired: false, daysLeft: 999, label: "Bila Kikomo", expiresDateStr: "Vendor Master" };
+    }
+    const now = Date.now();
+    const expiresAt = owner.subscription_expires_at
+      ? new Date(owner.subscription_expires_at).getTime()
+      : 0;
+    const isExpired =
+      owner.subscription_status === "EXPIRED" ||
+      (owner.subscription_expires_at ? expiresAt <= now : false);
+    const daysLeft = Math.max(0, Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)));
+    return {
+      isExpired,
+      daysLeft,
+      label: isExpired ? "Imeisha (Expired)" : `Siku ${daysLeft} zimebaki`,
+      expiresDateStr: owner.subscription_expires_at
+        ? new Date(owner.subscription_expires_at).toLocaleDateString("sw-TZ", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "Haijawekwa",
+    };
+  };
+
+  // Vendor toggle subscription expire / activate button
+  const handleToggleSubscription = async (owner: HotspotOwner, newStatus: "ACTIVE" | "EXPIRED") => {
+    if (owner.role === "VENDOR_ADMIN" || owner.id === 1) {
+      alert("Huwezi kusitisha subscription ya Vendor Master HQ!");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const res = await fetch(`/api/v1/owners/${owner.id}/toggle-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: newStatus === "ACTIVE" ? "activate" : "expire",
+          days: 30,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("Imeshindwa kubadilisha hali ya subscription.");
+      }
+      setMessage({
+        type: "success",
+        text:
+          newStatus === "ACTIVE"
+            ? `✓ Subscription ya ${owner.business_name} (${owner.name}) imewashwa kwa siku 30!`
+            : `✓ Subscription ya ${owner.business_name} (${owner.name}) imesitishwa (Imeisha/Expired)! Mteja huyu ataona ukurasa wa subscription mara moja akifungua mfumo.`,
+      });
+      fetchData(true);
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Hitilafu imetokea." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleOpenAdd = () => {
     setEditingOwner(null);
@@ -451,14 +554,15 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
   };
 
   const filteredOwners = owners.filter((o) => {
-    // Only show Hotspot Owners in this module (exclude staff and vendor admin)
-    if (o.role !== 'HOTSPOT_OWNER') return false;
-    const q = searchQuery.toLowerCase();
+    // Exclude only the master vendor admin account (ID 1 / VENDOR_ADMIN)
+    if (o.role === 'VENDOR_ADMIN' || o.id === 1) return false;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
     return (
-      o.name.toLowerCase().includes(q) ||
-      o.business_name.toLowerCase().includes(q) ||
-      o.email.toLowerCase().includes(q) ||
-      o.phone.toLowerCase().includes(q)
+      (o.name || '').toLowerCase().includes(q) ||
+      (o.business_name || '').toLowerCase().includes(q) ||
+      (o.email || '').toLowerCase().includes(q) ||
+      (o.phone || '').toLowerCase().includes(q)
     );
   });
 
@@ -512,77 +616,6 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
           >
             <UserPlus className="w-4 h-4" />
             <span>➕ Tengeneza Akaunti ya MikroTik User</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Registration OTP Verification Policy Control Bar */}
-      <div className="p-4 bg-gradient-to-r from-slate-900 via-[#07314a] to-slate-900 text-white rounded-3xl border border-white/10 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${
-              requireOtpPolicy
-                ? 'bg-blue-600/30 text-blue-300 border-blue-400/40'
-                : 'bg-amber-500/20 text-[#f8a30a] border-amber-400/30'
-            }`}
-          >
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Sera ya Usajili wa Wateja (Registration OTP Policy)
-              </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 border ${
-                  requireOtpPolicy
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    requireOtpPolicy ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                  }`}
-                />
-                <span>{requireOtpPolicy ? 'OTP IMEWASHWA (ON)' : 'OTP IMEZIMWA - PAPO HAPO (OFF)'}</span>
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              {requireOtpPolicy
-                ? 'Wateja au wamiliki wapya wanaojisajili wanatakiwa kuthibitisha msimbo wa tarakimu 6 (OTP) kupitia barua pepe kabla ya kuingia.'
-                : 'Usajili wa moja kwa moja umewashwa! Mteja anajaza fomu na akaunti yake inafunguliwa papo hapo bila kusubiri OTP (Instant 1-Click Activation).'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
-          <button
-            type="button"
-            disabled={isUpdatingOtpPolicy}
-            onClick={() => handleToggleOtpPolicy(!requireOtpPolicy)}
-            className={`px-4 py-2.5 rounded-xl font-black text-xs transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95 disabled:opacity-50 ${
-              requireOtpPolicy
-                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40'
-                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40'
-            }`}
-          >
-            {isUpdatingOtpPolicy ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Inasasisha...</span>
-              </>
-            ) : requireOtpPolicy ? (
-              <>
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Zima OTP (Bypass)</span>
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Washa OTP (Enable)</span>
-              </>
-            )}
           </button>
         </div>
       </div>
@@ -841,17 +874,57 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
         </div>
       )}
 
+      {/* Active Hotspot Owners Registry Notice Banner */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-white shrink-0 shadow-md">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-white">
+                Wateja & Wamiliki wa Hotspot Waliojiunga: {filteredOwners.length}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                Papo Hapo (Real-time)
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-slate-300">
+              {filteredOwners.map((o) => (
+                <span
+                  key={o.id}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[11px] font-semibold"
+                >
+                  <Building className="w-3 h-3 text-indigo-400" />
+                  <span>{o.business_name}</span>
+                  <span className="text-slate-400">({o.name} • {o.phone})</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => fetchData(false)}
+          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+          <span>Sasisha Orodha</span>
+        </button>
+      </div>
+
       {/* Quick Stats Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase">Wamiliki Halisi (Tenants)</span>
-          <div className="text-xl font-black text-indigo-600 mt-1">{owners.filter((o) => o.role === 'HOTSPOT_OWNER').length}</div>
+          <span className="text-[11px] font-bold text-slate-400 uppercase">Wamiliki Waliosajiliwa (Tenants)</span>
+          <div className="text-xl font-black text-indigo-600 mt-1">{filteredOwners.length}</div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase">Hotspot Tenants</span>
-          <div className="text-xl font-black text-indigo-600 mt-1">
-            {owners.filter((o) => o.role === 'HOTSPOT_OWNER').length}
+          <span className="text-[11px] font-bold text-slate-400 uppercase">Akaunti Zinazotumika (Active)</span>
+          <div className="text-xl font-black text-emerald-600 mt-1">
+            {filteredOwners.filter((o) => o.status === 'ACTIVE').length}
           </div>
         </div>
 
@@ -866,41 +939,259 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center gap-3">
-        <Search className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Tafuta mmiliki kwa jina, cafe/lounge, barua pepe, au namba ya simu..."
-          className="w-full text-xs bg-transparent focus:outline-hidden text-slate-800 placeholder-slate-400"
-        />
-        {searchQuery && (
+      {/* Search and Filters with View Mode Toggle */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex-1 bg-white rounded-2xl p-3 border border-slate-200 shadow-xs flex items-center gap-3">
+          <Search className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tafuta mmiliki kwa jina, cafe/lounge, barua pepe, au namba ya simu..."
+            className="w-full text-xs bg-transparent focus:outline-hidden text-slate-800 placeholder-slate-400"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              Futa
+            </button>
+          )}
+        </div>
+
+        {/* View Mode Toggle: Table or Grid */}
+        <div className="flex items-center gap-1 p-1 bg-slate-200/80 rounded-2xl border border-slate-300/80 shrink-0 self-start sm:self-auto">
           <button
             type="button"
-            onClick={() => setSearchQuery('')}
-            className="text-xs text-slate-400 hover:text-slate-600"
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              viewMode === 'table'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            Futa
+            <List className="w-3.5 h-3.5" />
+            <span>Jedwali (Table)</span>
           </button>
-        )}
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              viewMode === 'grid'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Kadi (Cards)</span>
+          </button>
+        </div>
       </div>
 
-      {/* Owners Cards Grid */}
+      {/* Owners List: Table or Cards View */}
       {isLoading ? (
         <div className="py-12 text-center text-xs text-slate-400">Inapakia wamiliki na taarifa...</div>
       ) : filteredOwners.length === 0 ? (
         <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-500 text-xs">
-          Hakuna mmiliki aliyepatikana kwa utafutaji huo.
+          Hakuna mmiliki au mteja aliyepatikana kwa utafutaji huo.
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 w-full">
+          {viewMode === 'table' ? (
+            /* Table View with Subscription Days and Expire/Activate Controls */
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                      <th className="py-3 px-4"># ID</th>
+                      <th className="py-3 px-4">Mmiliki / Mteja</th>
+                      <th className="py-3 px-4">Hotspot / Eneo</th>
+                      <th className="py-3 px-4">Simu & Barua Pepe</th>
+                      <th className="py-3 px-4">Nenosiri</th>
+                      <th className="py-3 px-4">MikroTik Router / AP & Hali</th>
+                      <th className="py-3 px-4">Siku za Subscription</th>
+                      <th className="py-3 px-4">Udhibiti (Washa / Zima Expire)</th>
+                      <th className="py-3 px-4 text-right">Vitendo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedOwners.map((owner) => {
+                      const isPasswordRevealed = revealedPasswordId === owner.id;
+                      const subInfo = getSubscriptionInfo(owner);
+                      return (
+                        <tr key={owner.id} className="hover:bg-slate-50/70 transition">
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-400">
+                            #{owner.id}
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                {owner.name.charAt(0)}
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-slate-900">{owner.name}</div>
+                                <span className="text-[10px] font-semibold text-emerald-700">🏢 Hotspot Owner</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                              <Building className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{owner.business_name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600 space-y-0.5">
+                            <div className="font-mono text-slate-900 font-bold">{owner.phone}</div>
+                            <div className="text-[11px] text-slate-400 truncate max-w-[160px]">{owner.email}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-slate-800 text-xs">
+                                {isPasswordRevealed ? owner.password || "123456" : "••••••••"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setRevealedPasswordId(isPasswordRevealed ? null : owner.id)}
+                                className="text-slate-400 hover:text-indigo-600 cursor-pointer"
+                              >
+                                {isPasswordRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </td>
+                          {/* MikroTik Router / AP & Online/Offline Status */}
+                          <td className="py-3.5 px-4">
+                            {(() => {
+                              const assigned = routers.filter(
+                                (r) =>
+                                  owner.assigned_router_ids?.includes(r.id) ||
+                                  r.owner_id === owner.id ||
+                                  (r.owner_name && r.owner_name.toLowerCase() === (owner.name || "").toLowerCase()) ||
+                                  (r.owner_name && r.owner_name.toLowerCase() === (owner.business_name || "").toLowerCase())
+                              );
+                              if (assigned.length === 0) {
+                                return (
+                                  <span className="text-amber-600 text-[11px] font-semibold flex items-center gap-1">
+                                    <Wifi className="w-3 h-3 text-amber-500" />
+                                    <span>Bado Hajajumuisha Router</span>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <div className="space-y-1.5">
+                                  {assigned.map((r) => {
+                                    const isOnline = r.status === "ONLINE";
+                                    return (
+                                      <div key={r.id} className="flex items-center gap-1.5 flex-wrap">
+                                        {isOnline ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span>ONLINE</span>
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300 shrink-0">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                            <span>OFFLINE</span>
+                                          </span>
+                                        )}
+                                        <span className="font-bold text-slate-800 text-[11px] truncate max-w-[130px]">{r.name}</span>
+                                        <span className="font-mono text-[10px] text-slate-400">({r.ip_address})</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          {/* Number of Subscription Days Remaining */}
+                          <td className="py-3.5 px-4">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-black text-xs">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                <span className={subInfo.isExpired ? "text-rose-600" : "text-emerald-700"}>
+                                  {subInfo.isExpired ? "0 Siku (Imeisha)" : `Siku ${subInfo.daysLeft} zimebaki`}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                Hadi: {subInfo.expiresDateStr}
+                              </div>
+                            </div>
+                          </td>
+                          {/* Toggle Expire or Activate Button */}
+                          <td className="py-3.5 px-4">
+                            {subInfo.isExpired ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSubscription(owner, "ACTIVE")}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
+                                title="Washa subscription ya siku 30 (Mteja ataendelea kutumia mfumo)"
+                              >
+                                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                                <span>⚡ Washa (Siku 30)</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSubscription(owner, "EXPIRED")}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition flex items-center gap-1.5 cursor-pointer border border-rose-200 whitespace-nowrap"
+                                title="Sitisha / fanya subscription iishe ili mteja aone ukurasa wa subscription mara moja"
+                              >
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>⛔ Sitisha (Expire Sasa)</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {onSwitchToOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => onSwitchToOwner(owner)}
+                                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer"
+                                  title="Ingia kwenye akaunti ya mmiliki huyu"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>Ingia</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(owner)}
+                                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                                title="Hariri Taarifa"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(owner)}
+                                className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 transition cursor-pointer"
+                                title="Futa"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* Cards Grid View */
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 w-full">
             {paginatedOwners.map((owner) => {
               const isVendor = owner.role === 'VENDOR_ADMIN';
-              const assignedRouters = routers.filter((r) =>
-                owner.assigned_router_ids?.includes(r.id)
+              const assignedRouters = routers.filter(
+                (r) =>
+                  owner.assigned_router_ids?.includes(r.id) ||
+                  r.owner_id === owner.id ||
+                  (r.owner_name && r.owner_name.toLowerCase() === (owner.name || "").toLowerCase()) ||
+                  (r.owner_name && r.owner_name.toLowerCase() === (owner.business_name || "").toLowerCase())
               );
               const isPasswordRevealed = revealedPasswordId === owner.id;
               const monthlyFee = owner.subscription_fee || owner.monthly_fee || 15000;
@@ -1007,121 +1298,87 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                       </button>
                     </div>
 
-                    {/* Monthly Fee & Subscription Status */}
-                    {!isVendor && (
-                      <div className="mt-2.5 p-3 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2.5 text-xs">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-indigo-950">
-                            <Coins className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                            <div>
-                              <span className="text-[11px] text-slate-600 font-medium">Ada ya Mfumo: </span>
-                              <span className="font-mono font-black text-indigo-900 text-xs">
-                                TZS {monthlyFee.toLocaleString()}
+                    {/* Monthly Fee & Subscription Status & Days Remaining */}
+                    {!isVendor && (() => {
+                      const subInfo = getSubscriptionInfo(owner);
+                      return (
+                        <div className="mt-2.5 p-3 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-indigo-950">
+                              <Coins className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                              <div>
+                                <span className="text-[11px] text-slate-600 font-medium">Ada: </span>
+                                <span className="font-mono font-black text-indigo-900 text-xs">
+                                  TZS {monthlyFee.toLocaleString()}
+                                </span>
+                                <span className="text-[10px] text-slate-500"> / mwezi</span>
+                              </div>
+                            </div>
+
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                subInfo.isExpired
+                                  ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                  : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                              }`}
+                            >
+                              {subInfo.isExpired ? "⛔ Imeisha (0 Siku)" : `🟢 Siku ${subInfo.daysLeft} zimebaki`}
+                            </span>
+                          </div>
+
+                          {/* Expiry date info */}
+                          <div className="text-[11px] text-slate-600 flex items-center justify-between pt-1 border-t border-indigo-100/80">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Mwisho: <strong>{subInfo.expiresDateStr}</strong></span>
+                            </span>
+
+                            {hasPendingReq && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white font-black text-[9px] animate-pulse">
+                                Ombi Linasubiri
                               </span>
-                              <span className="text-[10px] text-slate-500 font-normal"> / mwezi</span>
+                            )}
+                          </div>
+
+                          {/* Toggle Expire/Activate Button */}
+                          <div className="pt-2 border-t border-indigo-100 flex items-center justify-between gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenManualApprove(owner)}
+                              className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                              title="Thibitisha malipo ya mkono (Taslimu / Benki) na uongeze muda"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
+                              <span>⚡ Idhinisha Manual (Extend)</span>
+                            </button>
+
+                            <div className="w-full flex items-center justify-between gap-1 pt-1">
+                              {subInfo.isExpired ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSubscription(owner, "ACTIVE")}
+                                  className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                                  <span>⚡ Washa Subscription (Siku 30)</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSubscription(owner, "EXPIRED")}
+                                  className="w-full py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                  title="Sitisha subscription ili mteja akifungua mfumo aone ukurasa wa subscription moja kwa moja"
+                                >
+                                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>⛔ Sitisha / Expire Subscription</span>
+                                </button>
+                              )}
                             </div>
                           </div>
-
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                              owner.subscription_status === 'EXPIRED'
-                                ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                                : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                            }`}
-                          >
-                            {owner.subscription_status === 'EXPIRED' ? '🔴 Muda Umeisha' : '🟢 Subscription Active'}
-                          </span>
                         </div>
-
-                        {/* Expiry date info */}
-                        <div className="text-[11px] text-slate-600 flex items-center justify-between pt-1 border-t border-indigo-100/80">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>
-                              {owner.subscription_expires_at ? (
-                                <>
-                                  Inaisha: <strong>{new Date(owner.subscription_expires_at).toLocaleDateString('sw-TZ')}</strong>
-                                </>
-                              ) : (
-                                'Siku 30 Zimebaki'
-                              )}
-                            </span>
-                          </span>
-
-                          {hasPendingReq && (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white font-black text-[9px] animate-pulse">
-                              Ombi Linasubiri
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Dedicated Vendor Manual Approval Button */}
-                        <div className="pt-2 border-t border-indigo-100 flex items-center justify-between gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenManualApprove(owner)}
-                            className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                            title="Thibitisha malipo ya mkono (Taslimu / Benki) na ufungue mfumo"
-                          >
-                            <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                            <span>⚡ Idhinisha Manual (Approve / Extend)</span>
-                          </button>
-
-                          <div className="w-full flex items-center justify-between gap-1 pt-1">
-                            {owner.subscription_status === 'EXPIRED' ? (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    const res = await fetch('/api/v1/subscription/toggle-expire', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ ownerId: owner.id, isExpired: false, days: 30 }),
-                                    });
-                                    if (res.ok) {
-                                      fetchData();
-                                      setMessage({ type: 'success', text: `Subscription ya ${owner.business_name} imerejeshwa ACTIVE kwa siku 30!` });
-                                    }
-                                  } catch (e: any) {
-                                    setMessage({ type: 'error', text: e.message });
-                                  }
-                                }}
-                                className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[10px] transition cursor-pointer"
-                              >
-                                Zima Expire
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    const res = await fetch('/api/v1/subscription/toggle-expire', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ ownerId: owner.id, isExpired: true }),
-                                    });
-                                    if (res.ok) {
-                                      fetchData();
-                                      setMessage({ type: 'success', text: `Subscription ya ${owner.business_name} imewekwa EXPIRED kwa majaribio!` });
-                                    }
-                                  } catch (e: any) {
-                                    setMessage({ type: 'error', text: e.message });
-                                  }
-                                }}
-                                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[10px] transition cursor-pointer"
-                              >
-                                Washa Expire
-                              </button>
-                            )}
-
-                            <span className="text-[10px] text-slate-400">
-                              Hali: {owner.subscription_status || 'ACTIVE'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
+                      );
+                    })()}
+                    
                     {/* PalmPesa Account Status */}
                     <div className="mt-2.5 p-2.5 rounded-xl border flex items-center justify-between text-xs bg-slate-50 border-slate-200">
                       <div className="flex items-center gap-2">
@@ -1144,12 +1401,12 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                       </span>
                     </div>
 
-                    {/* Assigned Routers */}
+                    {/* MikroTik Router(s) & APs Fleet Status with ONLINE / OFFLINE Badge */}
                     <div className="mt-4 pt-3 border-t border-slate-100">
                       <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold mb-2">
                         <span className="flex items-center gap-1.5">
                           <Server className="w-3.5 h-3.5 text-slate-400" />
-                          <span>MikroTik Router(s) Zinazomilikiwa:</span>
+                          <span>MikroTik Router(s) & APs:</span>
                         </span>
                         <span className="font-bold text-slate-800">
                           {isVendor ? `${routers.length} (Zote Nchini)` : assignedRouters.length}
@@ -1161,32 +1418,101 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                           👑 Kama Vendor HQ, una uwezo wa kuona na kudhibiti router zote nchini Tanzania.
                         </div>
                       ) : assignedRouters.length > 0 ? (
-                        <div className="space-y-1.5">
-                          {assignedRouters.map((r) => (
-                            <div
-                              key={r.id}
-                              className="flex items-center justify-between p-2 rounded-xl border border-slate-200 bg-slate-50/60 text-xs"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`w-2 h-2 rounded-full ${
-                                    r.status === 'ONLINE' ? 'bg-emerald-500' : 'bg-slate-400'
-                                  }`}
-                                />
-                                <span className="font-bold text-slate-800">{r.name}</span>
-                                <span className="text-[10px] text-slate-500">({r.location})</span>
+                        <div className="space-y-2">
+                          {assignedRouters.map((r) => {
+                            const isOnline = r.status === "ONLINE";
+                            const isPinging = pingingRouterId === r.id;
+
+                            return (
+                              <div
+                                key={r.id}
+                                className={`p-3 rounded-xl border transition text-xs space-y-2 ${
+                                  isOnline
+                                    ? "bg-emerald-50/50 border-emerald-200/90 shadow-2xs"
+                                    : "bg-rose-50/50 border-rose-200/90"
+                                }`}
+                              >
+                                {/* Top Row: Device Name & ONLINE / OFFLINE Badge */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <Wifi className={`w-3.5 h-3.5 shrink-0 ${isOnline ? "text-emerald-600" : "text-rose-500"}`} />
+                                      <span className="font-bold text-slate-900 truncate">{r.name}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                      {r.model_name || "MikroTik RouterOS"} • {r.location}
+                                    </div>
+                                  </div>
+
+                                  {/* Status Badge: ONLINE vs OFFLINE */}
+                                  <div className="shrink-0">
+                                    {isOnline ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                        <span>ONLINE</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                        <span>OFFLINE</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Middle Row: Network Details */}
+                                <div className="flex items-center justify-between text-[11px] text-slate-600 bg-white/85 p-2 rounded-lg border border-slate-200/70 font-mono">
+                                  <div className="flex items-center gap-1 truncate">
+                                    <span className="text-slate-400">IP:</span>
+                                    <span className="font-bold text-slate-800">{r.ip_address}</span>
+                                    {r.ssid && (
+                                      <span className="text-indigo-600 font-sans ml-1 text-[10px]">
+                                        ({r.ssid})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] font-sans font-semibold text-slate-500 shrink-0">
+                                    {r.active_users_count !== undefined ? `${r.active_users_count} wateja live` : "Hotspot Tayari"}
+                                  </div>
+                                </div>
+
+                                {/* Bottom Row: Controls (Ping Test & Status Toggle for Vendor) */}
+                                <div className="flex items-center justify-between pt-1 text-[11px]">
+                                  <button
+                                    type="button"
+                                    disabled={isPinging}
+                                    onClick={() => handlePingRouter(r)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[10px] transition cursor-pointer shadow-2xs disabled:opacity-50"
+                                    title="Pima muunganisho wa Router na seva ya Vendor"
+                                  >
+                                    <RefreshCw className={`w-3 h-3 text-indigo-600 ${isPinging ? "animate-spin" : ""}`} />
+                                    <span>{isPinging ? "Inapima..." : "Pima Ping"}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleRouterStatus(r)}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                                      isOnline
+                                        ? "text-rose-600 hover:bg-rose-100/60 bg-white border border-rose-200"
+                                        : "text-emerald-700 hover:bg-emerald-100/60 bg-white border border-emerald-200"
+                                    }`}
+                                    title={isOnline ? "Weka Offline kwa majaribio" : "Weka Online kwa majaribio"}
+                                  >
+                                    <Power className="w-3 h-3" />
+                                    <span>{isOnline ? "Zima (OFFLINE)" : "Washa (ONLINE)"}</span>
+                                  </button>
+                                </div>
                               </div>
-                              <span className="font-mono text-[10px] text-slate-600 bg-white px-1.5 py-0.5 rounded-md border border-slate-200">
-                                {r.ip_address}
-                              </span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
-                        <div className="text-[11px] bg-amber-50 border border-amber-200/60 rounded-xl p-2.5 text-amber-800 flex items-start gap-2">
+                        <div className="text-[11px] bg-amber-50 border border-amber-200/60 rounded-xl p-3 text-amber-800 flex items-start gap-2.5">
                           <Wifi className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                           <div>
-                            <strong>Hajajumuisha router bado.</strong> Mmiliki ataongeza router yake mwenyewe moja kwa moja akishaingia kwenye akaunti yake.
+                            <strong className="block text-amber-900 font-bold mb-0.5">Hajajumuisha MikroTik Router au AP bado.</strong>
+                            <span className="text-amber-700">Router au Access Point ikiongezwa itajitokeza hapa ikiwa na hali ya ONLINE au OFFLINE papo hapo.</span>
                           </div>
                         </div>
                       )}
@@ -1219,6 +1545,7 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
             })}
           </div>
 
+          )}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
             <TablePagination
               currentPage={currentPage}

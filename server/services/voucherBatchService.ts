@@ -11,7 +11,8 @@ export interface GenerateBatchOptions {
   planId: number;
   quantity: number;
   routerId?: number;
-  ownerId?: number;
+  ownerId?: number | string;
+  owner_id?: number | string;
   prefix?: string;
   codeLength?: number;
   printFormat?: 'A4_GRID' | 'THERMAL_58MM' | 'THERMAL_80MM';
@@ -96,7 +97,7 @@ export class VoucherBatchService {
         password: pinOnly,
         plan_id: plan.id,
         router_id: routerId,
-        owner_id: ownerId,
+        owner_id: options.owner_id || options.ownerId || ownerId,
         status: 'AVAILABLE',
         batch_tag: batchId,
         expires_at: expiresAt,
@@ -121,7 +122,7 @@ export class VoucherBatchService {
       plan_name: plan.name,
       price: plan.price,
       router_id: routerId,
-      owner_id: ownerId,
+      owner_id: options.owner_id || options.ownerId || ownerId,
       quantity,
       prefix,
       code_length: codeLength,

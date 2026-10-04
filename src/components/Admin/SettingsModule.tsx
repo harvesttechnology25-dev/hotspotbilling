@@ -17,6 +17,7 @@ import { MySQLSchemaViewer } from './MySQLSchemaViewer.tsx';
 import { SystemResetManager } from './SystemResetManager.tsx';
 import { CompanyInfoSettings } from './CompanyInfoSettings.tsx';
 import { OwnerAllInOneScript } from './OwnerAllInOneScript.tsx';
+import { PaymentConfig } from './PaymentConfig.tsx';
 
 export type SettingsSubTab =
   | 'company_info'
@@ -286,15 +287,19 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           <OwnerAllInOneScript currentUser={currentUser} lang={lang} />
         )}
 
-        {/* 3. Payment Gateway (Both) */}
+        {/* 3. Payment Gateway (Both: PaymentConfig for Vendor, OwnerMerchantSettings for Owner) */}
         {activeSubTab === 'payment_gateway' && (
-          <OwnerMerchantSettings
-            owner={currentUser}
-            onUpdated={(updatedOwner: HotspotOwner) => {
-              if (onOwnerUpdated) onOwnerUpdated(updatedOwner);
-            }}
-            lang={lang}
-          />
+          isVendor ? (
+            <PaymentConfig />
+          ) : (
+            <OwnerMerchantSettings
+              owner={currentUser}
+              onUpdated={(updatedOwner: HotspotOwner) => {
+                if (onOwnerUpdated) onOwnerUpdated(updatedOwner);
+              }}
+              lang={lang}
+            />
+          )
         )}
 
         {/* 4. Email & SMS Gateways (Both, but OTP Toggle is visible only to Vendor) */}

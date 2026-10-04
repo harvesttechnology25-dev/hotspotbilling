@@ -56,7 +56,6 @@ export const PaymentConfig: React.FC = () => {
   } | null>(null);
   const [testingSubOwnerId, setTestingSubOwnerId] = useState<number | null>(null);
 
-  // Webhook Test simulator state
   const [testCarrier, setTestCarrier] = useState<NetworkProvider>('VODACOM');
   const [testPhone, setTestPhone] = useState('0754123456');
   const [testAmount, setTestAmount] = useState('1500');
@@ -258,7 +257,6 @@ export const PaymentConfig: React.FC = () => {
         body: JSON.stringify({
           ownerId,
           externalReference: reference,
-          simulateSuccess: true,
         }),
       });
 
@@ -415,7 +413,7 @@ export const PaymentConfig: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              {(['DALIPAY', 'PALMPESA', 'AZAMPAY', 'VODACOM_OPENAPI', 'SELCOM', 'LIVE_SANDBOX'] as const).map((gw) => (
+              {(['DALIPAY', 'PALMPESA', 'AZAMPAY', 'VODACOM_OPENAPI', 'SELCOM', 'TEST_SANDBOX'] as const).map((gw) => (
                 <button
                   key={gw}
                   type="button"
@@ -453,7 +451,7 @@ export const PaymentConfig: React.FC = () => {
                       ? 'M-Pesa, Tigo, Airtel, Halo'
                       : gw === 'AZAMPAY'
                       ? 'M-Pesa, Tigo, Airtel, Halo'
-                      : gw === 'LIVE_SANDBOX'
+                      : gw === 'TEST_SANDBOX'
                       ? 'Mtandao Umeidhinisha'
                       : 'Direct Telco API'}
                   </div>
@@ -501,7 +499,7 @@ export const PaymentConfig: React.FC = () => {
                     <span>Mazingira Halisi ya API ya Malipo — USSD Pop-up inatumwa moja kwa moja kwenye simu</span>
                   </div>
                   <p className="text-slate-600 text-[11px]">
-                    Umeunganishwa na API za majaribio za <strong>DaliPay Aggregator</strong>. Unaweza kuchagua mojawapo ya Funguo 3 (Key ID) zilizo hai hapa chini ili kufanya majaribio ya USSD Push ya M-Pesa, Tigo Pesa, Airtel Money na Halopesa.
+                    Umeunganishwa na API za uzalishaji za <strong>DaliPay Aggregator</strong> kupitia endpoint rasmi ya <code>POST /api/v1/collections</code> (Headers: <code>X-Public-Key</code> na <code>X-Secret-Key</code>). Unaweza kuchagua mojawapo ya Funguo zilizo hai hapa chini ili kufanya majaribio ya USSD Push ya Tigo, Airtel, Halopesa, Azampesa na Mpesa.
                   </p>
                 </div>
 
@@ -516,6 +514,14 @@ export const PaymentConfig: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {(settings.dalipay?.availableKeys || [
+                      {
+                        keyId: "o8YDH6_Liq3x",
+                        publicKey: "gw_pk_production_o8YDH6_Liq3xgwifJV3PqOJk26QkgaLu",
+                        secretKey: "gw_sk_production_oOPpUe7FQpBf_wSSokBDnu0bL5lx8HKFrgRW9Dg6A3k",
+                        status: "Live Production",
+                        created: "03 Oct 2026",
+                        lastUsed: "Active",
+                      },
                       {
                         keyId: 'y3hT9bs505Z6',
                         publicKey: 'gw_pk_test_EoDvAZ',
@@ -554,7 +560,7 @@ export const PaymentConfig: React.FC = () => {
                                 publicKey: kItem.publicKey,
                                 secretKey: kItem.secretKey,
                                 isSandbox: true,
-                                apiEndpoint: settings.dalipay?.apiEndpoint || 'https://api.dalipay.com/v1',
+                                apiEndpoint: settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz',
                                 webhookSecret: settings.dalipay?.webhookSecret || 'gw_wh_test_secret_dalipay',
                               },
                             })
@@ -686,7 +692,7 @@ export const PaymentConfig: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={settings.dalipay?.apiEndpoint || 'https://api.dalipay.com/v1'}
+                      value={settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz'}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -701,7 +707,7 @@ export const PaymentConfig: React.FC = () => {
                           },
                         })
                       }
-                      placeholder="https://api.dalipay.com/v1"
+                      placeholder="https://app.dalipay.co.tz"
                       className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-indigo-600 focus:outline-hidden bg-white"
                     />
                   </div>
@@ -787,7 +793,7 @@ export const PaymentConfig: React.FC = () => {
                         <span>Ref: <strong>{daliTestResult.reference}</strong></span>
                         <span>TX ID: <strong>{daliTestResult.transactionId}</strong></span>
                         <span>Key ID: <strong>{daliTestResult.keyId}</strong></span>
-                        <span className="text-emerald-700 font-bold">✓ Simulated OK</span>
+                        <span className="text-emerald-700 font-bold">✓ Live Active</span>
                       </div>
                     )}
                   </div>
@@ -1110,7 +1116,7 @@ export const PaymentConfig: React.FC = () => {
                     Chagua Aggregator Inayopokea Subscription:
                   </label>
                   <select
-                    value={settings.subscriptionGateway || 'PALMPESA'}
+                    value={settings.subscriptionGateway || settings.activeGateway || 'DALIPAY'}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
@@ -1405,7 +1411,6 @@ export const PaymentConfig: React.FC = () => {
                     <button
                       type="button"
                       disabled={isTestingPush}
-                      onClick={() => handleSimulateSubscriptionPush(owner)}
                       className="py-2 px-3 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Jaribu kutuma USSD push ya Sh 15,000 kwenda kwa mtumiaji huyu"
                     >

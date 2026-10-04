@@ -55,7 +55,6 @@ export interface Voucher {
   password: string;
   plan_id: number;
   router_id?: number;
-  owner_id?: number | string;
   transaction_id?: number;
   mac_address?: string;
   status: 'AVAILABLE' | 'ACTIVE' | 'EXPIRED' | 'REVOKED';
@@ -172,8 +171,7 @@ export interface HotspotOwner {
   role: UserRole;
   status: 'ACTIVE' | 'SUSPENDED';
   assigned_router_ids: number[];
-  parent_owner_id?: number | string;
-  is_sub_user?: boolean;
+  parent_owner_id?: number;
   staff_title?: string;
   privileges?: UserPrivileges;
   commission_rate?: number;
@@ -387,7 +385,7 @@ export interface SmsGatewayConfig {
 }
 
 export interface GatewaySettings {
-  activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX' | 'LIVE_SANDBOX';
+  activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX';
   subscriptionGateway?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'ACTIVE_DEFAULT';
   subscriptionAggregatorAccount?: string;
   webhookSecret: string;

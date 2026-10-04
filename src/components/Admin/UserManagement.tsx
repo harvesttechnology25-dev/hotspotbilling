@@ -398,7 +398,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     assigned_router_ids: [] as number[],
     monthly_fee: 0,
     commission_rate: 0,
-    parent_owner_id: (currentUser?.role === 'HOTSPOT_OWNER' ? currentUser.id : undefined) as number | string | undefined,
+    parent_owner_id: currentUser?.role === 'HOTSPOT_OWNER' ? currentUser.id : undefined,
   });
 
   const isVendor = currentUser?.role === 'VENDOR_ADMIN';

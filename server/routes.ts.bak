@@ -623,9 +623,6 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
   const owner = router?.owner_id ? db.getOwnerById(router.owner_id) : (ownerId ? db.getOwnerById(ownerId) : undefined);
   const theme = router?.portal_theme || owner?.portal_theme;
 
-  const settings = db.getSettings();
-  const hasPaymentApi = Boolean(settings.dalipay?.publicKey || router?.dalipay_public_key || owner?.dalipay_public_key);
-
   res.json({
     brandName: router?.brand_name || router?.name || owner?.business_name || 'INFOTECH WiFi',
     ssid: router?.ssid || 'INFOTECH_HOTSPOT',
@@ -634,7 +631,6 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
     ownerId: owner?.id,
     ownerBusinessName: owner?.business_name || router?.vendor_name,
     portalTheme: theme,
-    hasPaymentApi: true,
   });
 });
 

@@ -127,12 +127,6 @@ export class PaymentGatewayService {
       // 1. Router Override (if specific router has its own DaliPay API keys)
       // 2. Hotspot Owner Account (Hotspot Owner's direct DaliPay API keys)
       // 3. Platform Admin Default (System DaliPay Keys)
-      const hasCustomOwnerDali = Boolean(
-        (router?.dalipay_public_key && router?.dalipay_secret_key) ||
-        (owner?.dalipay_public_key && owner?.dalipay_secret_key)
-      );
-
-      // If hotspot belongs to a specific owner/router, strictly require their own API keys
       const dalipayPublicKey = (
         router?.dalipay_public_key ||
         owner?.dalipay_public_key ||

@@ -100,8 +100,7 @@ export interface HotspotOwner {
   role: UserRole;
   status: 'ACTIVE' | 'SUSPENDED';
   assigned_router_ids: number[];
-  parent_owner_id?: number | string;
-  is_sub_user?: boolean;
+  parent_owner_id?: number;
   staff_title?: string;
   privileges?: UserPrivileges;
   commission_rate?: number;
@@ -235,7 +234,7 @@ export interface VoucherRecord {
   password: string;
   plan_id: number;
   router_id?: number;
-  owner_id?: number | string;
+  owner_id?: number;
   transaction_id?: number;
   mac_address?: string;
   status: VoucherStatus;
@@ -255,7 +254,7 @@ export interface VoucherBatchRecord {
   plan_name: string;
   price: number;
   router_id?: number;
-  owner_id?: number | string;
+  owner_id?: number;
   quantity: number;
   prefix: string;
   code_length: number;
@@ -461,7 +460,7 @@ export interface SmsGatewayConfig {
 export interface GatewaySettings {
   adminUsername?: string;
   adminPassword?: string;
-  activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX' | 'LIVE_SANDBOX';
+  activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX';
   subscriptionGateway?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'ACTIVE_DEFAULT';
   subscriptionAggregatorAccount?: string;
   webhookSecret: string;
@@ -713,6 +712,3 @@ export const DEFAULT_COMPANY_INFO: CompanyPublicInfo = {
 };
 
 
-
-export type User = HotspotOwner;
-export type Voucher = VoucherRecord;

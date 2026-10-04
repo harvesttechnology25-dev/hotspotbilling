@@ -190,15 +190,6 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
 
   // Handle initiate payment with automatic carrier detection
   const handleInitiatePayment = async () => {
-    if (portalInfo.hasPaymentApi === false) {
-      setInitiationError(
-        lang === 'sw'
-          ? 'Huduma ya malipo ya mtandaoni haijawashwa na msimamizi wa mtandao huu. Tafazali wasiliana na mwhudumu au weka vocha ya karatasi.'
-          : 'Online payments are not configured for this hotspot. Please contact the administrator or enter a paper voucher.'
-      );
-      return;
-    }
-
     if (!selectedPlanId) {
       setInitiationError(
         lang === 'sw'
@@ -734,23 +725,6 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
                 )}
               </div>
 
-              {/* No Payment API Configured Warning */}
-              {portalInfo.hasPaymentApi === false && (
-                <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-2xl flex items-start gap-2.5">
-                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold">
-                      {lang === 'sw' ? 'Malipo ya Mtandaoni Hayapatikani' : 'Online Payments Unavailable'}
-                    </p>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      {lang === 'sw'
-                        ? 'Msimamizi wa eneo hili bado hajaweka API ya malipo. Tafazali nunua au weka vocha ya karatasi kuputia kitufe kilicho chini.'
-                        : 'The hotspot owner has not configured payment APIs yet. Please enter a paper voucher using the button below.'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Error Message */}
               {initiationError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
@@ -762,7 +736,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
               {/* Pay Button */}
               <button
                 type="button"
-                disabled={initiatingPayment || !phoneNumber.trim() }
+                disabled={initiatingPayment || !phoneNumber.trim()}
                 onClick={handleInitiatePayment}
                 className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-50 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/25 transition flex items-center justify-center gap-2"
               >

@@ -16,116 +16,86 @@
       "commission_rate": 10,
       "monthly_fee": 0,
       "created_at": "2026-07-27T05:56:14.374Z",
-      "updated_at": "2026-10-01T14:42:11.805Z",
+      "updated_at": "2026-10-03T12:59:45.551Z",
       "subscription_fee": 0,
       "subscription_status": "ACTIVE",
       "palmpesa_user_id": "999",
-      "palmpesa_user_ref": "USR-TEST",
-      "palmpesa_api_token": "TOKEN_SAMPLE"
+      "palmpesa_user_ref": "gw_pk_production_o8YDH6_Liq3xgwifJV3PqOJk26QkgaLu",
+      "palmpesa_api_token": "gw_sk_production_oOPpUe7FQpBf_wSSokBDnu0bL5lx8HKFrgRW9Dg6A3k",
+      "payout_channel": "DALIPAY",
+      "wallet_account_number": "0754111222",
+      "dalipay_public_key": "gw_pk_production_o8YDH6_Liq3xgwifJV3PqOJk26QkgaLu",
+      "dalipay_secret_key": "gw_sk_production_oOPpUe7FQpBf_wSSokBDnu0bL5lx8HKFrgRW9Dg6A3k",
+      "dalipay_key_id": "",
+      "dalipay_api_endpoint": "https://app.dalipay.co.tz",
+      "dalipay_webhook_secret": "qKxPqR45uLM3n0arqbGy4lWq32DEscm5nPMQ9NkB2k",
+      "palmpesa_accept_stk": true
     },
     {
       "id": 2,
-      "full_name": "juma",
-      "name": "juma",
-      "business_name": "ubungo",
-      "phone": "0623887886",
-      "email": "harvesttechnology25@gmail.com",
+      "full_name": "Denis Kapami",
+      "name": "Denis Kapami",
+      "business_name": "mwenge",
+      "phone": "0787825713",
+      "email": "denis@gmail.com",
       "password": "1234",
       "location": "",
       "role": "HOTSPOT_OWNER",
       "status": "ACTIVE",
       "subscription_status": "ACTIVE",
-      "subscription_expires_at": "2026-11-02T09:25:40.216Z",
-      "created_at": "2026-10-03T08:13:11.472Z",
-      "updated_at": "2026-10-03T09:25:40.216Z",
+      "subscription_expires_at": "2026-11-02T17:00:09.369Z",
+      "created_at": "2026-10-03T13:08:46.223Z",
+      "updated_at": "2026-10-03T17:00:09.369Z",
       "monthly_fee": 15000,
       "subscription_fee": 15000,
       "vendor_merchant_id": "PP-MERCHANT-10002",
       "payout_channel": "PALMPESA",
-      "wallet_account_number": "0623887886",
-      "assigned_router_ids": [
-        1
-      ]
+      "wallet_account_number": "0787825713"
     },
     {
+      "name": "Baraka Juma",
+      "business_name": "mwenge",
+      "staff_title": "",
+      "phone": "0756321214",
+      "email": "amina@gma.com",
+      "password": "1234",
+      "role": "CASHIER",
+      "status": "ACTIVE",
+      "assigned_router_ids": [],
+      "monthly_fee": 0,
+      "commission_rate": 0,
+      "parent_owner_id": 2,
+      "privileges": {
+        "can_generate_vouchers": true,
+        "can_view_vouchers": true,
+        "can_print_vouchers": true,
+        "can_view_active_users": true
+      },
       "id": 3,
-      "full_name": "Juma Hasani",
-      "name": "Juma Hasani",
-      "business_name": "mbezi",
-      "phone": "0623887889",
-      "email": "harvesttechnology27@gmail.com",
+      "full_name": "Baraka Juma",
+      "created_at": "2026-10-03T17:04:16.038Z",
+      "updated_at": "2026-10-03T17:04:16.038Z"
+    },
+    {
+      "id": 4,
+      "full_name": "Omary Athumani Mmasa",
+      "name": "Omary Athumani Mmasa",
+      "business_name": "Kinondoni",
+      "phone": "0452113696",
+      "email": "omarymmasa95@gmail.com",
       "password": "1234",
       "location": "",
       "role": "HOTSPOT_OWNER",
       "status": "ACTIVE",
       "subscription_status": "ACTIVE",
-      "subscription_expires_at": "2026-11-02T09:27:51.200Z",
-      "created_at": "2026-10-03T09:10:23.695Z",
-      "updated_at": "2026-10-03T09:27:51.200Z",
+      "subscription_expires_at": "2026-11-02T17:05:32.388Z",
+      "created_at": "2026-10-03T17:05:32.388Z",
+      "updated_at": "2026-10-03T17:05:32.388Z",
       "monthly_fee": 15000,
-      "subscription_fee": 15000,
-      "vendor_merchant_id": "PP-MERCHANT-10003",
-      "payout_channel": "PALMPESA",
-      "wallet_account_number": "0623887889",
-      "assigned_router_ids": [
-        2
-      ]
+      "subscription_fee": 15000
     }
   ],
-  "routers": [
-    {
-      "id": 1,
-      "name": "MikroTik RB750Gr3 (hEX) - Ubungo AP",
-      "device_type": "MIKROTIK",
-      "model_name": "RouterBOARD RB750Gr3 (hEX)",
-      "ip_address": "192.168.88.1",
-      "api_port": 8728,
-      "api_username": "admin",
-      "status": "ONLINE",
-      "location": "Ubungo Bus Terminal, Dar es Salaam",
-      "brand_name": "MikroTik RouterOS v7",
-      "ssid": "UBUNGO_WIFI_HOTSPOT",
-      "hotspot_server_name": "ubungo-hotspot",
-      "dns_name": "wifi.ubungo.tz",
-      "owner_id": 2,
-      "owner_name": "juma",
-      "active_users_count": 14,
-      "created_at": "2026-10-01T10:00:00.000Z",
-      "updated_at": "2026-10-03T09:34:46.629Z",
-      "vpn_assigned_ip": "100.108.0.2",
-      "radius_secret": "radius_secret_2026",
-      "vendor_name": "PalmPesa",
-      "vendor_merchant_id": "PP-MERCHANT-10002",
-      "platform_commission_percent": 5,
-      "payout_channel": "PALMPESA"
-    },
-    {
-      "id": 2,
-      "name": "MikroTik hAP ac3 - Mbezi Stand Hotspot AP",
-      "device_type": "MIKROTIK",
-      "model_name": "MikroTik hAP ac3 (Dual Band)",
-      "ip_address": "192.168.89.1",
-      "api_port": 8728,
-      "api_username": "admin",
-      "status": "ONLINE",
-      "location": "Mbezi Louis Stand, Dar es Salaam",
-      "brand_name": "MikroTik RouterOS v7",
-      "ssid": "MBEZI_HOTSPOT_5G",
-      "hotspot_server_name": "mbezi-hotspot",
-      "dns_name": "wifi.mbezi.tz",
-      "owner_id": 3,
-      "owner_name": "Juma Hasani",
-      "active_users_count": 9,
-      "created_at": "2026-10-02T10:00:00.000Z",
-      "updated_at": "2026-10-03T09:00:00.000Z",
-      "vpn_assigned_ip": "100.108.0.3",
-      "radius_secret": "radius_secret_2026",
-      "vendor_name": "PalmPesa",
-      "vendor_merchant_id": "PP-MERCHANT-10003",
-      "platform_commission_percent": 5,
-      "payout_channel": "PALMPESA"
-    }
-  ],
+  "routers": [],
   "plans": [
     {
       "id": 1,
@@ -138,15 +108,16 @@
       "validity_period": 7200,
       "shared_users": 1,
       "is_active": true,
-      "description_sw": "Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps",
-      "description_en": "2 Hours unlimited browsing at 4Mbps peak speed",
-      "created_at": "2026-08-25T07:51:48.717Z",
-      "updated_at": "2026-09-27T17:29:04.538Z",
       "badge": "HOT_DEAL",
+      "badge_text": "Majaribio / Kasi",
       "features": [
         "Masaa 2 bila kikomo cha MB",
         "Kasi ya 4 Mbps"
-      ]
+      ],
+      "description_sw": "Masaa 2 ya intaneti bila kikomo kwa kasi ya 4Mbps",
+      "description_en": "2 Hours unlimited browsing at 4Mbps",
+      "created_at": "2026-10-03T12:50:39.881Z",
+      "updated_at": "2026-10-03T12:50:39.881Z"
     },
     {
       "id": 2,
@@ -159,16 +130,17 @@
       "validity_period": 21600,
       "shared_users": 1,
       "is_active": true,
-      "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
-      "description_en": "6 Hours for remote work, streaming, and downloads",
-      "created_at": "2026-08-25T07:51:48.717Z",
-      "updated_at": "2026-09-24T07:51:48.717Z",
-      "badge": "NONE",
+      "badge": "POPULAR",
+      "badge_text": "Inapendwa Zaidi",
       "features": [
         "Masaa 6 ya kazi & masomo",
         "Kasi ya 6 Mbps",
         "YouTube & TikTok bila kukwama"
-      ]
+      ],
+      "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+      "description_en": "6 Hours for remote work and streaming",
+      "created_at": "2026-10-03T12:50:39.881Z",
+      "updated_at": "2026-10-03T12:50:39.881Z"
     },
     {
       "id": 3,
@@ -181,16 +153,17 @@
       "validity_period": 86400,
       "shared_users": 1,
       "is_active": true,
-      "description_sw": "Siku 1 kamili (masaa 24) intaneti mfululizo bila kikomo",
-      "description_en": "Full 24-hour unlimited connection at high speed",
-      "created_at": "2026-08-25T07:51:48.717Z",
-      "updated_at": "2026-09-24T07:51:48.717Z",
-      "badge": "POPULAR",
+      "badge": "BEST_VALUE",
+      "badge_text": "Thamani Bora",
       "features": [
         "Saa 24 (siku 1) mfululizo",
         "Kasi ya 8 Mbps",
-        "Inafaa kwa kupakua na kupiga simu"
-      ]
+        "Inafaa kwa kupakua na simu"
+      ],
+      "description_sw": "Siku 1 kamili (masaa 24) intaneti mfululizo bila kikomo",
+      "description_en": "Full 24-hour unlimited connection at high speed",
+      "created_at": "2026-10-03T12:50:39.881Z",
+      "updated_at": "2026-10-03T12:50:39.881Z"
     },
     {
       "id": 4,
@@ -203,43 +176,1340 @@
       "validity_period": 604800,
       "shared_users": 1,
       "is_active": true,
-      "description_sw": "Wiki nzima (siku 7) intaneti kasi kubwa bila kukatika",
-      "description_en": "7 Days continuous broadband internet with prioritized QoS",
-      "created_at": "2026-08-25T07:51:48.717Z",
-      "updated_at": "2026-09-24T07:51:48.717Z",
-      "badge": "BEST_VALUE",
+      "badge": "SUPER_FAST",
+      "badge_text": "Kasi Kubwa",
       "features": [
         "Siku 7 mfululizo bila kikomo",
         "Kasi kubwa 10 Mbps",
         "QoS prioritization kwa kazi"
-      ]
+      ],
+      "description_sw": "Wiki nzima (siku 7) intaneti kasi kubwa bila kukatika",
+      "description_en": "7 Days continuous broadband internet with QoS",
+      "created_at": "2026-10-03T12:50:39.881Z",
+      "updated_at": "2026-10-03T12:50:39.881Z"
+    }
+  ],
+  "transactions": [
+    {
+      "id": 1,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-6D5E1F81",
+      "transaction_id": "40971ab0-99b8-4d97-a5ad-4713ef2c2772",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "user_ip": "127.0.0.1",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T13:00:15.596Z",
+      "updated_at": "2026-10-03T13:00:41.675Z"
+    },
+    {
+      "id": 2,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-56BEF13A",
+      "transaction_id": "726be07b-687b-4c24-9ba1-af097baa9a2d",
+      "status": "SUCCESS",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T13:02:10.616Z",
+      "updated_at": "2026-10-03T13:02:42.028Z"
+    },
+    {
+      "id": 3,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 1000,
+      "external_reference": "TZWF-261003-7BF4C0EB",
+      "transaction_id": "947f4a6e-611e-4999-913b-b5f7e91d4f8f",
+      "status": "PENDING",
+      "plan_id": 2,
+      "vendor_amount": 950,
+      "platform_fee": 50,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T13:10:42.898Z",
+      "updated_at": "2026-10-03T13:10:42.898Z"
+    },
+    {
+      "id": 4,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-3B8DDC0B",
+      "transaction_id": "308d4c4e-9ee9-49ae-bf43-a73f8aa43e86",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T14:04:46.971Z",
+      "updated_at": "2026-10-03T14:04:46.971Z"
     },
     {
       "id": 5,
-      "name": "Siku 30 (Mwezi 1) - Unlimited",
-      "type": "TIME_BASED",
-      "limit_uptime": 2592000,
-      "limit_bytes_total": null,
-      "rate_limit": "5M/15M",
-      "price": 18000,
-      "validity_period": 2592000,
-      "shared_users": 2,
-      "is_active": true,
-      "description_sw": "Mwezi mzima (siku 30) vifaa hadi 2 kwa wakati mmoja",
-      "description_en": "Monthly unlimited internet package up to 2 simultaneous devices",
-      "created_at": "2026-08-25T07:51:48.717Z",
-      "updated_at": "2026-09-24T07:51:48.717Z",
-      "badge": "NONE",
-      "features": [
-        "Intaneti ya kasi ya juu bila kikomo"
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-C4139A7C",
+      "transaction_id": "f23e32f5-2f96-47bb-a231-07c152178e0c",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T14:57:18.958Z",
+      "updated_at": "2026-10-03T14:57:18.958Z"
+    },
+    {
+      "id": 6,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-28FCCB63",
+      "transaction_id": "d21be8b4-98a0-4f0c-be3d-7d601b6dc473",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T14:59:09.857Z",
+      "updated_at": "2026-10-03T14:59:09.857Z"
+    },
+    {
+      "id": 7,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-C7F607AA",
+      "transaction_id": "f741b09b-9823-4452-b546-50b96accfd7c",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T15:06:25.064Z",
+      "updated_at": "2026-10-03T15:06:25.064Z"
+    },
+    {
+      "id": 8,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 1000,
+      "external_reference": "TZWF-261003-76686483",
+      "transaction_id": "01fd5f9f-7005-48ff-b0f9-45ccce1f453d",
+      "status": "PENDING",
+      "plan_id": 2,
+      "vendor_amount": 950,
+      "platform_fee": 50,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T15:57:15.887Z",
+      "updated_at": "2026-10-03T15:57:15.887Z"
+    },
+    {
+      "id": 9,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-056A6661",
+      "transaction_id": "df8ba395-53e7-4f7f-b828-3f498ca80fee",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T15:58:11.754Z",
+      "updated_at": "2026-10-03T15:58:11.754Z"
+    },
+    {
+      "id": 10,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-56F3A47F",
+      "transaction_id": "bb49bc38-bd15-4aa4-b88a-550e6af7d94f",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T15:59:55.698Z",
+      "updated_at": "2026-10-03T15:59:55.698Z"
+    },
+    {
+      "id": 11,
+      "phone_number": "0623887886",
+      "network_provider": "HALOTEL",
+      "amount": 15000,
+      "external_reference": "SUB-2-1791043288312",
+      "transaction_id": "e5bd5558-6bf9-43a1-b012-b3faa0994604",
+      "status": "PENDING",
+      "plan_id": 1,
+      "owner_id": 2,
+      "vendor_amount": 15000,
+      "platform_fee": 0,
+      "gateway_provider": "DALIPAY (Aggregator Live API)",
+      "created_at": "2026-10-03T16:01:33.636Z",
+      "updated_at": "2026-10-03T16:01:33.636Z"
+    },
+    {
+      "id": 12,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-07BB9A0D",
+      "transaction_id": "e66464d0-ba10-4205-8756-8e97a5da7576",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T16:13:43.351Z",
+      "updated_at": "2026-10-03T16:13:43.351Z"
+    },
+    {
+      "id": 13,
+      "phone_number": "255623887886",
+      "network_provider": "HALOTEL",
+      "amount": 500,
+      "external_reference": "TZWF-261003-2CE53669",
+      "transaction_id": "2b05629c-89c8-4499-b077-f1bb0a47bc88",
+      "status": "PENDING",
+      "plan_id": 1,
+      "vendor_amount": 475,
+      "platform_fee": 25,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "user_ip": "192.168.88.24",
+      "gateway_provider": "DALIPAY",
+      "created_at": "2026-10-03T16:25:03.495Z",
+      "updated_at": "2026-10-03T16:25:03.495Z"
+    }
+  ],
+  "vouchers": [
+    {
+      "id": 1,
+      "code": "PHO-7886-1449",
+      "password": "PHO-7886-1449",
+      "plan_id": 1,
+      "transaction_id": 1,
+      "status": "ACTIVE",
+      "batch_tag": "PHONE_AUTO_LOGIN",
+      "activated_at": "2026-10-03T13:00:41.678Z",
+      "expires_at": "2026-10-03T15:00:41.678Z",
+      "created_at": "2026-10-03T13:00:41.678Z",
+      "updated_at": "2026-10-03T13:00:41.678Z"
+    },
+    {
+      "id": 2,
+      "code": "PHO-7886-9267",
+      "password": "PHO-7886-9267",
+      "plan_id": 1,
+      "transaction_id": 2,
+      "mac_address": "BC:D0:74:11:2E:8A",
+      "status": "ACTIVE",
+      "batch_tag": "PHONE_AUTO_LOGIN",
+      "activated_at": "2026-10-03T13:02:42.035Z",
+      "expires_at": "2026-10-03T15:02:42.034Z",
+      "created_at": "2026-10-03T13:02:42.035Z",
+      "updated_at": "2026-10-03T13:02:42.035Z"
+    },
+    {
+      "id": 1791036107557,
+      "code": "TZ-741238",
+      "password": "741238",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.557Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107584,
+      "code": "TZ-132371",
+      "password": "132371",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.583Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107593,
+      "code": "TZ-333203",
+      "password": "333203",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.591Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107599,
+      "code": "TZ-105896",
+      "password": "105896",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.596Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107602,
+      "code": "TZ-813017",
+      "password": "813017",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.598Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107606,
+      "code": "TZ-647989",
+      "password": "647989",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.601Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107609,
+      "code": "TZ-813750",
+      "password": "813750",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.603Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107613,
+      "code": "TZ-916012",
+      "password": "916012",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.606Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107619,
+      "code": "TZ-485130",
+      "password": "485130",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.611Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    },
+    {
+      "id": 1791036107621,
+      "code": "TZ-633597",
+      "password": "633597",
+      "plan_id": 2,
+      "owner_id": 2,
+      "status": "AVAILABLE",
+      "batch_tag": "BATCH-261003-161C73",
+      "expires_at": "2026-10-03T20:01:47.557Z",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "updated_at": "2026-10-03T14:01:47.612Z",
+      "plan": {
+        "id": 2,
+        "name": "Masaa 6 - Standard (6 Hours)",
+        "type": "TIME_BASED",
+        "limit_uptime": 21600,
+        "limit_bytes_total": null,
+        "rate_limit": "3M/6M",
+        "price": 1000,
+        "validity_period": 21600,
+        "shared_users": 1,
+        "is_active": true,
+        "badge": "POPULAR",
+        "badge_text": "Inapendwa Zaidi",
+        "features": [
+          "Masaa 6 ya kazi & masomo",
+          "Kasi ya 6 Mbps",
+          "YouTube & TikTok bila kukwama"
+        ],
+        "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+        "description_en": "6 Hours for remote work and streaming",
+        "created_at": "2026-10-03T12:50:39.881Z",
+        "updated_at": "2026-10-03T12:50:39.881Z"
+      }
+    }
+  ],
+  "voucherBatches": [
+    {
+      "id": 1791036107616,
+      "batch_id": "BATCH-261003-161C73",
+      "plan_id": 2,
+      "plan_name": "Masaa 6 - Standard (6 Hours)",
+      "price": 1000,
+      "owner_id": 2,
+      "quantity": 10,
+      "prefix": "TZ",
+      "code_length": 6,
+      "print_format": "A4_GRID",
+      "created_at": "2026-10-03T14:01:47.557Z",
+      "vouchers": [
+        {
+          "id": 1791036107557,
+          "code": "TZ-741238",
+          "password": "741238",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.557Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107584,
+          "code": "TZ-132371",
+          "password": "132371",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.583Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107593,
+          "code": "TZ-333203",
+          "password": "333203",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.591Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107599,
+          "code": "TZ-105896",
+          "password": "105896",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.596Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107602,
+          "code": "TZ-813017",
+          "password": "813017",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.598Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107606,
+          "code": "TZ-647989",
+          "password": "647989",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.601Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107609,
+          "code": "TZ-813750",
+          "password": "813750",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.603Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107613,
+          "code": "TZ-916012",
+          "password": "916012",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.606Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107619,
+          "code": "TZ-485130",
+          "password": "485130",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.611Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        },
+        {
+          "id": 1791036107621,
+          "code": "TZ-633597",
+          "password": "633597",
+          "plan_id": 2,
+          "owner_id": 2,
+          "status": "AVAILABLE",
+          "batch_tag": "BATCH-261003-161C73",
+          "expires_at": "2026-10-03T20:01:47.557Z",
+          "created_at": "2026-10-03T14:01:47.557Z",
+          "updated_at": "2026-10-03T14:01:47.612Z",
+          "plan": {
+            "id": 2,
+            "name": "Masaa 6 - Standard (6 Hours)",
+            "type": "TIME_BASED",
+            "limit_uptime": 21600,
+            "limit_bytes_total": null,
+            "rate_limit": "3M/6M",
+            "price": 1000,
+            "validity_period": 21600,
+            "shared_users": 1,
+            "is_active": true,
+            "badge": "POPULAR",
+            "badge_text": "Inapendwa Zaidi",
+            "features": [
+              "Masaa 6 ya kazi & masomo",
+              "Kasi ya 6 Mbps",
+              "YouTube & TikTok bila kukwama"
+            ],
+            "description_sw": "Masaa 6 ya kazi, video na kupakua maudhui mtandaoni",
+            "description_en": "6 Hours for remote work and streaming",
+            "created_at": "2026-10-03T12:50:39.881Z",
+            "updated_at": "2026-10-03T12:50:39.881Z"
+          }
+        }
       ]
     }
   ],
-  "transactions": [],
-  "vouchers": [],
-  "voucherBatches": [],
-  "radcheck": [],
-  "radreply": [],
+  "radcheck": [
+    {
+      "id": 1791036108070,
+      "username": "TZ-741238",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "741238"
+    },
+    {
+      "id": 1791036108137,
+      "username": "TZ-741238",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036108141,
+      "username": "TZ-741238",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108544,
+      "username": "TZ-132371",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "132371"
+    },
+    {
+      "id": 1791036108109,
+      "username": "TZ-132371",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036107730,
+      "username": "TZ-132371",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107608,
+      "username": "TZ-333203",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "333203"
+    },
+    {
+      "id": 1791036108149,
+      "username": "TZ-333203",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036107693,
+      "username": "TZ-333203",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107661,
+      "username": "TZ-105896",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "105896"
+    },
+    {
+      "id": 1791036107940,
+      "username": "TZ-105896",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036108426,
+      "username": "TZ-105896",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108163,
+      "username": "TZ-813017",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "813017"
+    },
+    {
+      "id": 1791036107647,
+      "username": "TZ-813017",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036107860,
+      "username": "TZ-813017",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107604,
+      "username": "TZ-647989",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "647989"
+    },
+    {
+      "id": 1791036108207,
+      "username": "TZ-647989",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036108251,
+      "username": "TZ-647989",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108006,
+      "username": "TZ-813750",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "813750"
+    },
+    {
+      "id": 1791036108132,
+      "username": "TZ-813750",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036107740,
+      "username": "TZ-813750",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107917,
+      "username": "TZ-916012",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "916012"
+    },
+    {
+      "id": 1791036107783,
+      "username": "TZ-916012",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036107678,
+      "username": "TZ-916012",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108313,
+      "username": "TZ-485130",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "485130"
+    },
+    {
+      "id": 1791036108480,
+      "username": "TZ-485130",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036108162,
+      "username": "TZ-485130",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107662,
+      "username": "TZ-633597",
+      "attribute": "Cleartext-Password",
+      "op": ":=",
+      "value": "633597"
+    },
+    {
+      "id": 1791036108170,
+      "username": "TZ-633597",
+      "attribute": "Simultaneous-Use",
+      "op": ":=",
+      "value": "1"
+    },
+    {
+      "id": 1791036108077,
+      "username": "TZ-633597",
+      "attribute": "Max-All-Session",
+      "op": ":=",
+      "value": "21600"
+    }
+  ],
+  "radreply": [
+    {
+      "id": 1791036108421,
+      "username": "TZ-741238",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108040,
+      "username": "TZ-741238",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108555,
+      "username": "TZ-132371",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108570,
+      "username": "TZ-132371",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108409,
+      "username": "TZ-333203",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108024,
+      "username": "TZ-333203",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108244,
+      "username": "TZ-105896",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108431,
+      "username": "TZ-105896",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107827,
+      "username": "TZ-813017",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108531,
+      "username": "TZ-813017",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108484,
+      "username": "TZ-647989",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036107944,
+      "username": "TZ-647989",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036107812,
+      "username": "TZ-813750",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108163,
+      "username": "TZ-813750",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108203,
+      "username": "TZ-916012",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108528,
+      "username": "TZ-916012",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108067,
+      "username": "TZ-485130",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036108418,
+      "username": "TZ-485130",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    },
+    {
+      "id": 1791036108512,
+      "username": "TZ-633597",
+      "attribute": "MikroTik-Rate-Limit",
+      "op": "=",
+      "value": "3M/6M"
+    },
+    {
+      "id": 1791036107650,
+      "username": "TZ-633597",
+      "attribute": "Session-Timeout",
+      "op": "=",
+      "value": "21600"
+    }
+  ],
   "nasList": [
     {
       "id": 1,
@@ -252,391 +1522,292 @@
   ],
   "auditLogs": [
     {
-      "id": 1791015840902,
-      "external_reference": "BATCH-261003-3E8114",
-      "event_type": "VOUCHER_BATCH_GENERATED",
-      "payload_json": {
-        "batchId": "BATCH-261003-3E8114",
-        "planId": 1,
-        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
-        "quantity": 5,
-        "routerId": 1,
-        "prefix": "TZTEST"
-      },
-      "created_at": "2026-10-03T08:24:00.897Z"
-    },
-    {
-      "id": 1790756495685,
-      "transaction_id": 14,
-      "external_reference": "DALI-TEST-495684",
-      "event_type": "DALIPAY_TEST_PUSH_DISPATCHED",
-      "payload_json": {
-        "keyId": "y3hT9bs505Z6",
-        "publicKey": "gw_pk_test_EoDvAZ",
-        "amount": 1000,
-        "phoneNumber": "0754123456",
-        "carrier": "VODACOM",
-        "environment": "Test environment (Simulated transactions, no real money movement)"
-      },
-      "created_at": "2026-09-30T08:21:35.685Z"
-    },
-    {
-      "id": 1790753342146,
-      "external_reference": "OMADA-SSID-3-1790753342146",
-      "event_type": "OMADA_SSID_PROVISIONED",
-      "payload_json": {
-        "routerId": 3,
-        "newSsid": "KARIAKOO-FREE-WIFI",
-        "macAddress": "50:D4:F7:2B:8C:1A"
-      },
-      "created_at": "2026-09-30T07:29:02.146Z"
-    },
-    {
-      "id": 1790753336933,
-      "external_reference": "OMADA-SSID-3-1790753336933",
-      "event_type": "OMADA_SSID_PROVISIONED",
-      "payload_json": {
-        "routerId": 3,
-        "newSsid": "KARIAKOO-SUPER-FAST-WIFI",
-        "macAddress": "50:D4:F7:2B:8C:1A"
-      },
-      "created_at": "2026-09-30T07:28:56.933Z"
-    },
-    {
-      "id": 1790753331113,
-      "external_reference": "OMADA-ADOPT-4-1790753331113",
-      "event_type": "OMADA_AP_ADOPTED_SUCCESS",
-      "payload_json": {
-        "routerId": 4,
-        "routerName": "Omada-EAP225-Lobby",
-        "macAddress": "B0:4E:26:88:19:AC",
-        "modelName": "TP-Link Omada EAP225 (AC1350 Dual-Band Gigabit)",
-        "ssid": "SAMAKI-LOUNGE-WIFI",
-        "informUrl": "http://167.99.120.45:29810/inform",
-        "apUsername": "admin",
-        "adoptedAt": "2026-09-30T07:28:51.111Z"
-      },
-      "created_at": "2026-09-30T07:28:51.111Z"
-    },
-    {
-      "id": 1790608553746,
-      "external_reference": "TRIAL-FREE-83268",
-      "event_type": "FREE_TRIAL_15MIN_ACTIVATED",
-      "payload_json": {
-        "mac": "AA:BB:CC:11:22:33",
-        "voucherCode": "FREE-83268",
-        "durationSeconds": 900,
-        "routerId": 1
-      },
-      "created_at": "2026-09-28T15:15:53.736Z"
-    },
-    {
-      "id": 1790530446555,
-      "external_reference": "OTP-juma@gmail.com",
-      "event_type": "EMAIL_OTP_DISPATCHED_SIMULATED",
-      "payload_json": {
-        "to": "juma@gmail.com",
-        "name": "Juma Ali",
-        "otp": "515414",
-        "provider": "RESEND",
-        "mode": "SIMULATION",
-        "note": "Email API key not yet set in Vendor Settings or set to Simulation. Code logged for seamless testing."
-      },
-      "created_at": "2026-09-27T17:34:06.555Z"
-    },
-    {
-      "id": 1790529726381,
-      "external_reference": "OTP-testadmin@tzwifi.co.tz",
-      "event_type": "EMAIL_OTP_DISPATCHED_SIMULATED",
-      "payload_json": {
-        "to": "testadmin@tzwifi.co.tz",
-        "name": "Msimamizi wa Mtandao (Admin Test)",
-        "otp": "694031",
-        "provider": "RESEND",
-        "mode": "SIMULATION",
-        "note": "Email API key not yet set in Vendor Settings or set to Simulation. Code logged for seamless testing."
-      },
-      "created_at": "2026-09-27T17:22:06.381Z"
-    },
-    {
-      "id": 1790529719136,
-      "external_reference": "REG-1790529714826-CXITT",
-      "event_type": "USER_REGISTERED_OTP_VERIFIED",
-      "payload_json": {
-        "ownerId": 6,
-        "email": "amina@gmail.com",
-        "phone": "0755998877",
-        "businessName": "Amina Hotspot"
-      },
-      "created_at": "2026-09-27T17:21:59.136Z"
-    },
-    {
-      "id": 1790529714827,
-      "external_reference": "OTP-amina@gmail.com",
-      "event_type": "EMAIL_OTP_DISPATCHED_SIMULATED",
-      "payload_json": {
-        "to": "amina@gmail.com",
-        "name": "Amina Bakari",
-        "otp": "493760",
-        "provider": "RESEND",
-        "mode": "SIMULATION",
-        "note": "Email API key not yet set in Vendor Settings or set to Simulation. Code logged for seamless testing."
-      },
-      "created_at": "2026-09-27T17:21:54.827Z"
-    },
-    {
-      "id": 1790527811047,
-      "external_reference": "SUB-2-1790527803761",
-      "event_type": "VENDOR_SUBSCRIPTION_CREDITED_TO_AGGREGATOR",
-      "payload_json": {
-        "ownerId": 2,
-        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
-        "amountPaid": 15000,
-        "creditedTo": "PalmPesa Vendor Master Aggregator (User ID: 770)",
-        "merchantId": "770",
-        "receivingAccount": "USR-B2510CD582DF",
-        "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)",
-        "newSubscriptionExpiresAt": "2026-12-24T16:35:06.952Z",
-        "status": "CONFIRMED_AND_UNLOCKED"
-      },
-      "created_at": "2026-09-27T16:50:11.047Z"
-    },
-    {
-      "id": 1790527803771,
+      "id": 1791044703496,
       "transaction_id": 13,
-      "external_reference": "SUB-2-1790527803761",
-      "event_type": "VENDOR_SUBSCRIPTION_INITIATED",
-      "payload_json": {
-        "ownerId": 2,
-        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
-        "amount": 15000,
-        "carrier": "TIGO",
-        "phoneNumber": "0712345678",
-        "vendorAggregator": {
-          "gateway": "PALMPESA",
-          "aggregatorName": "PalmPesa Vendor Master Aggregator (User ID: 770)",
-          "merchantId": "770",
-          "receivingAccount": "USR-B2510CD582DF",
-          "isConfigured": true,
-          "isSandbox": false,
-          "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
-        },
-        "destinationWallet": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
-      },
-      "created_at": "2026-09-27T16:50:03.771Z"
-    },
-    {
-      "id": 1790527415155,
-      "external_reference": "SUB-2-1790527411957",
-      "event_type": "VENDOR_SUBSCRIPTION_CREDITED_TO_AGGREGATOR",
-      "payload_json": {
-        "ownerId": 2,
-        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
-        "amountPaid": 15000,
-        "creditedTo": "PalmPesa Vendor Master Aggregator (User ID: 770)",
-        "merchantId": "770",
-        "receivingAccount": "USR-B2510CD582DF",
-        "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)",
-        "newSubscriptionExpiresAt": "2026-11-24T16:35:06.952Z",
-        "status": "CONFIRMED_AND_UNLOCKED"
-      },
-      "created_at": "2026-09-27T16:43:35.155Z"
-    },
-    {
-      "id": 1790527411966,
-      "transaction_id": 12,
-      "external_reference": "SUB-2-1790527411957",
-      "event_type": "VENDOR_SUBSCRIPTION_INITIATED",
-      "payload_json": {
-        "ownerId": 2,
-        "ownerBusinessName": "Kariakoo Cyber & WiFi Point",
-        "amount": 15000,
-        "carrier": "TIGO",
-        "phoneNumber": "0712345678",
-        "vendorAggregator": {
-          "gateway": "PALMPESA",
-          "aggregatorName": "PalmPesa Vendor Master Aggregator (User ID: 770)",
-          "merchantId": "770",
-          "receivingAccount": "USR-B2510CD582DF",
-          "isConfigured": true,
-          "isSandbox": false,
-          "destinationSummary": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
-        },
-        "destinationWallet": "Akaunti ya PalmPesa ya Vendor (User ID: 770, Ref: USR-B2510CD582DF)"
-      },
-      "created_at": "2026-09-27T16:43:31.966Z"
-    },
-    {
-      "id": 1790330146029,
-      "transaction_id": 10,
-      "external_reference": "TZWF-260925-ADBEEEE2",
-      "event_type": "USER_PROVISIONED_ROUTEROS",
-      "payload_json": {
-        "voucherCode": "TZ-11503",
-        "router": "Mikrotik-Main-Dar",
-        "planName": "Masaa 6 - Standard (6 Hours)"
-      },
-      "created_at": "2026-09-25T09:55:46.028Z"
-    },
-    {
-      "id": 1790330146026,
-      "external_reference": "TZWF-260925-ADBEEEE2",
-      "event_type": "WEBHOOK_RECEIVED",
-      "payload_json": {
-        "externalReference": "TZWF-260925-ADBEEEE2",
-        "transactionId": "AI1790330146026",
-        "status": "SUCCESS",
-        "amount": 1000,
-        "currency": "TZS",
-        "phoneNumber": "255787825713",
-        "carrier": "AIRTEL",
-        "timestamp": "2026-09-25T09:55:46.026Z",
-        "message": "Payment approved by customer"
-      },
-      "created_at": "2026-09-25T09:55:46.026Z"
-    },
-    {
-      "id": 1790330130564,
-      "transaction_id": 10,
-      "external_reference": "TZWF-260925-ADBEEEE2",
-      "event_type": "USSD_PUSH_INITIATED",
-      "payload_json": {
-        "phoneNumber": "255787825713",
-        "provider": "AIRTEL",
-        "amount": 1000,
-        "planName": "Masaa 6 - Standard (6 Hours)",
-        "gatewayMode": "SIMULATION"
-      },
-      "created_at": "2026-09-25T09:55:30.564Z"
-    },
-    {
-      "id": 1790329832678,
-      "transaction_id": 9,
-      "external_reference": "TZWF-260925-31A401E0",
-      "event_type": "USSD_PUSH_INITIATED",
-      "payload_json": {
-        "phoneNumber": "255787825713",
-        "provider": "AIRTEL",
-        "amount": 5000,
-        "planName": "Siku 7 (Wiki 1) - Kasi Kubwa",
-        "gatewayMode": "SIMULATION"
-      },
-      "created_at": "2026-09-25T09:50:32.678Z"
-    },
-    {
-      "id": 1790329823061,
-      "transaction_id": 8,
-      "external_reference": "TZWF-260925-25ED9949",
-      "event_type": "USSD_PUSH_INITIATED",
-      "payload_json": {
-        "phoneNumber": "255787825713",
-        "provider": "AIRTEL",
-        "amount": 1000,
-        "planName": "Masaa 6 - Standard (6 Hours)",
-        "gatewayMode": "SIMULATION"
-      },
-      "created_at": "2026-09-25T09:50:23.061Z"
-    },
-    {
-      "id": 1790329810954,
-      "transaction_id": 7,
-      "external_reference": "TZWF-260925-02C282CE",
-      "event_type": "USSD_PUSH_INITIATED",
-      "payload_json": {
-        "phoneNumber": "255787825713",
-        "provider": "AIRTEL",
-        "amount": 1000,
-        "planName": "Masaa 6 - Standard (6 Hours)",
-        "gatewayMode": "SIMULATION"
-      },
-      "created_at": "2026-09-25T09:50:10.954Z"
-    },
-    {
-      "id": 1790329777019,
-      "external_reference": "TZWF-260925-39755C52",
-      "event_type": "WEBHOOK_RECEIVED",
-      "payload_json": {
-        "externalReference": "TZWF-260925-39755C52",
-        "transactionId": "HA1790329777019",
-        "status": "FAILED",
-        "amount": 500,
-        "currency": "TZS",
-        "phoneNumber": "255623887886",
-        "carrier": "HALOTEL",
-        "timestamp": "2026-09-25T09:49:37.019Z",
-        "message": "User cancelled USSD prompt"
-      },
-      "created_at": "2026-09-25T09:49:37.019Z"
-    },
-    {
-      "id": 1790329746180,
-      "transaction_id": 6,
-      "external_reference": "TZWF-260925-39755C52",
+      "external_reference": "TZWF-261003-2CE53669",
       "event_type": "USSD_PUSH_INITIATED",
       "payload_json": {
         "phoneNumber": "255623887886",
         "provider": "HALOTEL",
         "amount": 500,
         "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
-        "gatewayMode": "SIMULATION"
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
       },
-      "created_at": "2026-09-25T09:49:06.180Z"
+      "created_at": "2026-10-03T16:25:03.496Z"
     },
     {
-      "id": 1790324024154,
-      "external_reference": "BATCH-260925-7E572E",
-      "event_type": "VOUCHER_BATCH_GENERATED",
-      "payload_json": {
-        "batchId": "BATCH-260925-7E572E",
-        "planId": 1,
-        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
-        "quantity": 20,
-        "prefix": "TZ"
-      },
-      "created_at": "2026-09-25T08:13:44.144Z"
-    },
-    {
-      "id": 1790236327115,
-      "transaction_id": 5,
-      "external_reference": "TZWF-260924-D9B87373",
-      "event_type": "USER_PROVISIONED_ROUTEROS",
-      "payload_json": {
-        "voucherCode": "TZ-46402",
-        "router": "Mikrotik-Main-Dar",
-        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)"
-      },
-      "created_at": "2026-09-24T07:52:07.114Z"
-    },
-    {
-      "id": 1790236327113,
-      "external_reference": "TZWF-260924-D9B87373",
-      "event_type": "WEBHOOK_RECEIVED",
-      "payload_json": {
-        "externalReference": "TZWF-260924-D9B87373",
-        "transactionId": "VO1790236327113",
-        "status": "SUCCESS",
-        "amount": 500,
-        "currency": "TZS",
-        "phoneNumber": "255754123456",
-        "carrier": "VODACOM",
-        "timestamp": "2026-09-24T07:52:07.113Z",
-        "message": "Payment approved by customer"
-      },
-      "created_at": "2026-09-24T07:52:07.113Z"
-    },
-    {
-      "id": 1790236320330,
-      "transaction_id": 5,
-      "external_reference": "TZWF-260924-D9B87373",
+      "id": 1791044023352,
+      "transaction_id": 12,
+      "external_reference": "TZWF-261003-07BB9A0D",
       "event_type": "USSD_PUSH_INITIATED",
       "payload_json": {
-        "phoneNumber": "255754123456",
-        "provider": "VODACOM",
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
         "amount": 500,
         "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
-        "gatewayMode": "SIMULATION"
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
       },
-      "created_at": "2026-09-24T07:52:00.330Z"
+      "created_at": "2026-10-03T16:13:43.352Z"
+    },
+    {
+      "id": 1791043195699,
+      "transaction_id": 10,
+      "external_reference": "TZWF-261003-56F3A47F",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T15:59:55.700Z"
+    },
+    {
+      "id": 1791043091755,
+      "transaction_id": 9,
+      "external_reference": "TZWF-261003-056A6661",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T15:58:11.755Z"
+    },
+    {
+      "id": 1791043035888,
+      "transaction_id": 8,
+      "external_reference": "TZWF-261003-76686483",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 1000,
+        "planName": "Masaa 6 - Standard (6 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T15:57:15.888Z"
+    },
+    {
+      "id": 1791039985065,
+      "transaction_id": 7,
+      "external_reference": "TZWF-261003-C7F607AA",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T15:06:25.065Z"
+    },
+    {
+      "id": 1791039549860,
+      "transaction_id": 6,
+      "external_reference": "TZWF-261003-28FCCB63",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T14:59:09.860Z"
+    },
+    {
+      "id": 1791039438959,
+      "transaction_id": 5,
+      "external_reference": "TZWF-261003-C4139A7C",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T14:57:18.959Z"
+    },
+    {
+      "id": 1791036286972,
+      "transaction_id": 4,
+      "external_reference": "TZWF-261003-3B8DDC0B",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T14:04:46.972Z"
+    },
+    {
+      "id": 1791036107619,
+      "external_reference": "BATCH-261003-161C73",
+      "event_type": "VOUCHER_BATCH_GENERATED",
+      "payload_json": {
+        "batchId": "BATCH-261003-161C73",
+        "planId": 2,
+        "planName": "Masaa 6 - Standard (6 Hours)",
+        "quantity": 10,
+        "prefix": "TZ"
+      },
+      "created_at": "2026-10-03T14:01:47.557Z"
+    },
+    {
+      "id": 1791033042899,
+      "transaction_id": 3,
+      "external_reference": "TZWF-261003-7BF4C0EB",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 1000,
+        "planName": "Masaa 6 - Standard (6 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T13:10:42.899Z"
+    },
+    {
+      "id": 1791032562039,
+      "transaction_id": 2,
+      "external_reference": "TZWF-261003-56BEF13A",
+      "event_type": "USER_PROVISIONED_ROUTEROS",
+      "payload_json": {
+        "voucherCode": "PHO-7886-9267",
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)"
+      },
+      "created_at": "2026-10-03T13:02:42.038Z"
+    },
+    {
+      "id": 1791032562018,
+      "external_reference": "TZWF-261003-56BEF13A",
+      "event_type": "WEBHOOK_RECEIVED",
+      "payload_json": {
+        "event": "collection.success",
+        "data": {
+          "reference": "col_zSqdOdRSR_qIZt9DHzoMvA",
+          "uuid": "726be07b-687b-4c24-9ba1-af097baa9a2d",
+          "status": "success",
+          "amount": 500,
+          "currency": "TZS",
+          "external_id": "TZWF-261003-56BEF13A"
+        }
+      },
+      "signature_header": "8ad5c976dab501ae18e04903d8058514dde1fc1ef57096165531dd087b156895",
+      "created_at": "2026-10-03T13:02:42.018Z"
+    },
+    {
+      "id": 1791032530616,
+      "transaction_id": 2,
+      "external_reference": "TZWF-261003-56BEF13A",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T13:02:10.616Z"
+    },
+    {
+      "id": 1791032441681,
+      "transaction_id": 1,
+      "external_reference": "TZWF-261003-6D5E1F81",
+      "event_type": "USER_PROVISIONED_ROUTEROS",
+      "payload_json": {
+        "voucherCode": "PHO-7886-1449",
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)"
+      },
+      "created_at": "2026-10-03T13:00:41.680Z"
+    },
+    {
+      "id": 1791032441671,
+      "external_reference": "TZWF-261003-6D5E1F81",
+      "event_type": "WEBHOOK_RECEIVED",
+      "payload_json": {
+        "event": "collection.success",
+        "data": {
+          "reference": "col_sWIESRgd_R1EKZX_PQQwHQ",
+          "uuid": "40971ab0-99b8-4d97-a5ad-4713ef2c2772",
+          "status": "success",
+          "amount": 500,
+          "currency": "TZS",
+          "external_id": "TZWF-261003-6D5E1F81"
+        }
+      },
+      "signature_header": "a8eedc18f855e660d5241c74dab82c1818f31693cc5c2c0210677ef4d1abeef4",
+      "created_at": "2026-10-03T13:00:41.671Z"
+    },
+    {
+      "id": 1791032415596,
+      "transaction_id": 1,
+      "external_reference": "TZWF-261003-6D5E1F81",
+      "event_type": "USSD_PUSH_INITIATED",
+      "payload_json": {
+        "phoneNumber": "255623887886",
+        "provider": "HALOTEL",
+        "amount": 500,
+        "planName": "Masaa 2 - Kasi ya Juu (2 Hours)",
+        "gateway": "DALIPAY",
+        "gatewayMode": "LIVE",
+        "isCustomOwnerDali": false
+      },
+      "created_at": "2026-10-03T13:00:15.596Z"
+    },
+    {
+      "id": 1791031839881,
+      "external_reference": "FACTORY-RESET-1791031839881",
+      "event_type": "SYSTEM_FACTORY_RESET_FOR_LIVE_LAUNCH",
+      "payload_json": {
+        "timestamp": "2026-10-03T12:50:39.881Z",
+        "options": {
+          "clearTransactions": true,
+          "clearVouchers": true,
+          "clearFreeTrials": true,
+          "clearAuditLogs": true,
+          "clearDemoOwners": true,
+          "clearDemoRouters": true,
+          "resetPlansToDefault": true
+        },
+        "clearedTransactions": 0,
+        "clearedVouchers": 0,
+        "clearedBatches": 0,
+        "clearedTrials": 0,
+        "clearedLogs": 26,
+        "clearedOwners": 2,
+        "clearedRouters": 2
+      },
+      "created_at": "2026-10-03T12:50:39.881Z"
     }
   ],
   "freeTrialClaims": [],
@@ -761,12 +1932,12 @@
       "isSandbox": true
     },
     "dalipay": {
-      "keyId": "y3hT9bs505Z6",
-      "publicKey": "gw_pk_test_EoDvAZ",
-      "secretKey": "gw_sk_test_IdufCg",
+      "keyId": "o8YDH6_Liq3x",
+      "publicKey": "gw_pk_production_o8YDH6_Liq3xgwifJV3PqOJk26QkgaLu",
+      "secretKey": "gw_sk_production_oOPpUe7FQpBf_wSSokBDnu0bL5lx8HKFrgRW9Dg6A3k",
       "apiEndpoint": "https://app.dalipay.co.tz",
-      "webhookSecret": "gw_wh_test_secret_dalipay",
-      "isSandbox": true,
+      "webhookSecret": "gw_wh_live_secret",
+      "isSandbox": false,
       "availableKeys": [
         {
           "keyId": "y3hT9bs505Z6",

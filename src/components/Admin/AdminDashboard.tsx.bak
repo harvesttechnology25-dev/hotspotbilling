@@ -873,44 +873,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-         {/* Alert Banner for Hotspot Owner who has not configured DaliPay API Keys */}
-          {!isVendor && (!currentOwner?.dalipay_public_key || !currentOwner?.dalipay_secret_key) && activeTab !== 'merchant_settings' && (
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-900/90 via-amber-800/80 to-slate-900 text-white border border-amber-500/50 shadow-lw flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-200">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/30 border border-amber-400/40 flex items-center justify-center font-bold text-xl text-amber-300 shrink-0 shadow-inner">
-                  <CreditCard className="w-6 h-6 text-amber-300" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-md">
-                      {lang === 'sw' ? 'Muhimu Sana' : 'Action Required'}
-                    </span>
-                    <h3 className="font-bold text-sm text-white">
-                      {lang === 'sw'
-                        ? 'Sanidi Njia ya Malipo (DaliPay API Keys)'
-                        : 'Configure Payment Gateway (DaliPay API Keys)'}
-                    </h3>
-                  </div>
-                  <p className="text-xs text-amber-100/90 mt-1 max-w-xl leading-relaxed">
-                    {lang === 'sw'
-                      ? 'Hujaweka funguo zako za DaliPay. Wateja hawataweba kununua vocha kupitia M-Pesa, Airtel Money, au TigoPesa hadi utakapoweka Public Key na Secret Key zako.'
-                      : 'You have not configured your DaliPay API keys yet. Customers will not be able to purchase vouchers via Mobile Money until you set up your credentials.'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSettingsSubTab('payment_gateway');
-                  setActiveTab('merchant_settings');
-                }}
-                className="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 shadow-md transition whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>{lang === 'sw' ? '🔭 Weka DaliPay API Sasa' : '🔭 Set Up DaliPay Keys'}</span>
-              </button>
-            </div>
-          )}
-
           {activeTab === 'overview' && (
             <AdminOverview
               ownerId={currentOwnerId}

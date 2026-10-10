@@ -37,12 +37,16 @@ interface CaptivePortalCustomizerProps {
   currentOwner?: HotspotOwner;
   routers?: RouterItem[];
   lang?: 'sw' | 'en';
+  selectedRouterId?: number | 'all';
+  onSelectRouter?: (id: number | 'all') => void;
 }
 
 export const CaptivePortalCustomizer: React.FC<CaptivePortalCustomizerProps> = ({
   currentOwner,
   routers = [],
   lang = 'sw',
+  selectedRouterId: propSelectedRouterId,
+  onSelectRouter,
 }) => {
   const [theme, setTheme] = useState<PortalThemeConfig>(() => {
     if (currentOwner?.portal_theme) {
@@ -61,7 +65,13 @@ export const CaptivePortalCustomizer: React.FC<CaptivePortalCustomizerProps> = (
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
   const [expandedPreview, setExpandedPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<'presets' | 'cards' | 'colors' | 'branding' | 'mikrotik_export'>('presets');
-  const [selectedRouterId, setSelectedRouterId] = useState<number | 'all'>('all');
+  const [selectedRouterId, setSelectedRouterId] = useState<number | 'all'>(propSelectedRouterId ?? 'all');
+
+  useEffect(() => {
+    if (propSelectedRouterId !== undefined) {
+      setSelectedRouterId(propSelectedRouterId);
+    }
+  }, [propSelectedRouterId]);
 
   // Load existing saved theme for this owner or router
   useEffect(() => {

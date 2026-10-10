@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AdminOverview } from './AdminOverview.tsx';
 import { ActiveHotspotUsers } from './ActiveHotspotUsers.tsx';
 import { PlanManagement } from './PlanManagement.tsx';
@@ -15,6 +15,8 @@ import { SystemResetManager } from './SystemResetManager.tsx';
 import { SettingsModule, SettingsSubTab } from './SettingsModule.tsx';
 import { UserManagement } from './UserManagement.tsx';
 import { CompanyInfoSettings } from './CompanyInfoSettings.tsx';
+import { VendorAdminManagement } from './VendorAdminManagement.tsx';
+import { VendorAccountEditModal } from './VendorAccountEditModal.tsx';
 import { AboutUsModal } from '../Modals/AboutUsModal.tsx';
 import { ContactUsModal } from '../Modals/ContactUsModal.tsx';
 import { SubscriptionGate } from '../Subscription/SubscriptionGate.tsx';
@@ -54,6 +56,10 @@ import {
   RotateCcw,
   Flame,
   Info,
+  MapPin,
+  Check,
+  Edit2,
+  AlertCircle,
 } from 'lucide-react';
 import { HotspotOwner, RouterItem } from '../../types/index.ts';
 
@@ -84,6 +90,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<
     | 'overview'
     | 'owners'
+    | 'vendor_admins'
     | 'company_info'
     | 'user_management'
     | 'active_users'
@@ -100,13 +107,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | 'settings'
   >('active_users');
 
+  const [isVendorAccountModalOpen, setIsVendorAccountModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Fetch registered owners
   const fetchOwners = async () => {
     try {
-      const res = await fetch(`/api/v1/owners?_t=${Date.now()}`, { cache: 'no-store' });
+      const headers: Record<string, string> = {};
+      const token = localStorage.getItem('tzwifi_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (currentUser?.id) headers['x-owner-id'] = String(currentUser.id);
+
+      const res = await fetch(`/api/v1/owners?_t=${Date.now()}`, { cache: 'no-store', headers });
       if (res.ok) {
         const data = await res.json();
         setOwners(data);
@@ -150,7 +163,144 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [currentUser]);
 
+  const isMasterVendor = currentUser?.role === 'VENDOR_ADMIN';
   const isVendor = currentOwner?.role === 'VENDOR_ADMIN';
+  const isStaff = Boolean(
+    !isVendor &&
+      (currentOwner?.is_sub_user ||
+        currentOwner?.parent_owner_id != null ||
+        (currentOwner?.role && !['VENDOR_ADMIN', 'HOTSPOT_OWNER'].includes(currentOwner.role)))
+  );
+
+  const parentOwner = useMemo(() => {
+    if (isStaff && currentOwner?.parent_owner_id) {
+      return owners.find((o) => Number(o.id) === Number(currentOwner.parent_owner_id));
+    }
+    return undefined;
+  }, [isStaff, currentOwner?.parent_owner_id, owners]);
+
+  // Active Site / Router Switcher state (Allows clients with multiple MikroTiks/sites to switch and manage each site)
+  const [selectedSiteRouterId, setSelectedSiteRouterId] = useState<number | 'ALL'>(() => {
+    try {
+      const saved = localStorage.getItem('tzwifi_active_site_id');
+      if (saved === 'ALL') return 'ALL';
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 'ALL';
+  });
+  const [isSiteDropdownOpen, setIsSiteDropdownOpen] = useState(false);
+
+  // Available routers for the current user
+  const availableRouters = useMemo(() => {
+    if (isVendor) return routers;
+    if (isStaff && currentOwner?.parent_owner_id) {
+      const pid = Number(currentOwner.parent_owner_id);
+      return routers.filter(
+        (r) => r.owner_id === pid || (parentOwner?.assigned_router_ids || []).includes(r.id)
+      );
+    }
+    if (currentOwner) {
+      const oid = Number(currentOwner.id);
+      const assigned = currentOwner.assigned_router_ids || [];
+      return routers.filter((r) => r.owner_id === oid || assigned.includes(r.id));
+    }
+    return routers;
+  }, [routers, isVendor, isStaff, currentOwner, parentOwner]);
+
+  // If user has specific routers and selected router is not among them, adjust
+  useEffect(() => {
+    if (availableRouters.length > 0) {
+      if (selectedSiteRouterId !== 'ALL' && !availableRouters.some((r) => r.id === selectedSiteRouterId)) {
+        // Keep or select first available router
+        setSelectedSiteRouterId(availableRouters[0].id);
+      }
+    }
+  }, [availableRouters, selectedSiteRouterId]);
+
+  const activeSite = useMemo(() => {
+    if (selectedSiteRouterId === 'ALL') return null;
+    return availableRouters.find((r) => r.id === selectedSiteRouterId) || null;
+  }, [availableRouters, selectedSiteRouterId]);
+
+  const handleSiteChange = (newSiteId: number | 'ALL') => {
+    setSelectedSiteRouterId(newSiteId);
+    try {
+      localStorage.setItem('tzwifi_active_site_id', String(newSiteId));
+    } catch {}
+    setIsSiteDropdownOpen(false);
+  };
+
+  const staffPrivileges = currentOwner?.privileges || {};
+
+  // Build items allowed for this staff member
+  const staffItems: any[] = useMemo(() => {
+    if (!isStaff) return [];
+    const items: any[] = [];
+    if (staffPrivileges.can_view_active_users !== false) {
+      items.push({
+        id: 'active_users',
+        label: lang === 'sw' ? 'Watumiaji Wangu & Remote' : 'My Active Users & Remote',
+        subLabel: lang === 'sw' ? 'Waliopo Online, data na control' : 'Online users, traffic & kick control',
+        icon: Wifi,
+        badge: 'Live',
+      });
+    }
+    if (
+      staffPrivileges.can_generate_vouchers ||
+      staffPrivileges.can_view_vouchers ||
+      staffPrivileges.can_print_vouchers ||
+      currentOwner?.role === 'CASHIER' ||
+      currentOwner?.role === 'OPERATOR'
+    ) {
+      items.push({
+        id: 'vouchers',
+        label: lang === 'sw' ? 'Vocha Zangu & Chapisha' : 'My Vouchers & Print',
+        subLabel: lang === 'sw' ? 'Tengeneza kadi za kuuza' : 'Generate cards to sell locally',
+        icon: Tag,
+      });
+    }
+    if (staffPrivileges.can_manage_routers || currentOwner?.role === 'TECHNICIAN') {
+      items.push({
+        id: 'routers',
+        label: lang === 'sw' ? 'Vifaa, APs & Routers' : 'My Routers & Access Points',
+        subLabel: lang === 'sw' ? 'Ruijie, TP-Link, Cudy, MikroTik' : 'Ruijie, TP-Link, Cudy, MikroTik, D-Link',
+        icon: Server,
+      });
+    }
+    if (staffPrivileges.can_manage_plans) {
+      items.push({
+        id: 'plans',
+        label: lang === 'sw' ? 'Vifurushi vya Hotspot' : 'Hotspot Packages',
+        subLabel: lang === 'sw' ? 'Panga bei na kasi' : 'Custom pricing & speed limits',
+        icon: Package,
+      });
+    }
+    if (staffPrivileges.can_view_reports) {
+      items.push({
+        id: 'overview',
+        label: lang === 'sw' ? 'Mapato Yangu & Mauzo' : 'My Revenue & Sales',
+        subLabel: lang === 'sw' ? 'Mauzo ya router yangu' : 'Revenue from my routers',
+        icon: LayoutDashboard,
+      });
+    }
+    if (staffPrivileges.can_view_reports || staffPrivileges.can_manage_payments) {
+      items.push({
+        id: 'transactions',
+        label: lang === 'sw' ? 'Miamala ya Wateja Wangu' : 'My Customer Transactions',
+        subLabel: lang === 'sw' ? 'M-Pesa, Tigo, Airtel zangu' : 'M-Pesa, Tigo, Airtel records',
+        icon: Receipt,
+      });
+    }
+    if (staffPrivileges.can_manage_subusers) {
+      items.push({
+        id: 'user_management',
+        label: lang === 'sw' ? 'Wafanyakazi Wenzangu' : 'Team Members',
+        subLabel: lang === 'sw' ? 'Mameneja, wauza vocha na mafundi' : 'Staff list & privileges',
+        icon: ShieldCheck,
+      });
+    }
+    return items;
+  }, [isStaff, staffPrivileges, currentOwner?.role, lang]);
 
   // Role-Aware Navigation Structure
   const navSections = isVendor
@@ -169,15 +319,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               label: lang === 'sw' ? 'Wamiliki wa Hotspot (Tenants)' : 'Hotspot Owners (Tenants)',
               subLabel: lang === 'sw' ? 'Sajili na simamia wateja' : 'Register and manage client accounts',
               icon: Users,
-              badge: `${owners.filter((o) => o.role === 'HOTSPOT_OWNER').length}`,
+              badge: `${owners.filter((o) => o.role === 'HOTSPOT_OWNER' && !o.is_sub_user && !o.parent_owner_id).length}`,
             },
-
             {
-              id: 'user_management',
-              label: lang === 'sw' ? 'Wafanyakazi & Privileges (Users)' : 'Staff & Privileges (Users)',
-              subLabel: lang === 'sw' ? 'Sajili na simamia ruhusa za watumiaji' : 'Manage users and granular privileges',
+              id: 'vendor_admins',
+              label: lang === 'sw' ? 'Wasimamizi & Admins (HQ Privileges)' : 'System Admins & Staff (HQ Privileges)',
+              subLabel: lang === 'sw' ? 'Tengeneza admins na uwape privelege' : 'Create HQ admins & assign privileges',
               icon: ShieldCheck,
-              badge: 'Access',
+              badge: 'Admins',
             },
             {
               id: 'active_users',
@@ -205,9 +354,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             },
             {
               id: 'vouchers',
-              label: lang === 'sw' ? 'Vocha & Kadi za Uchapishaji' : 'Voucher Station & Printing',
-              subLabel: lang === 'sw' ? 'Tengeneza na chapisha' : 'Batch voucher cards & printing',
+              label: lang === 'sw' ? 'Vocha & Chapisha (Voucher Station)' : 'Voucher Station & Print',
+              subLabel: lang === 'sw' ? 'Tengeneza kadi, uza na chapisha (A4/POS)' : 'Generate, inventory & print vouchers (A4/POS)',
               icon: Tag,
+              badge: 'Print',
             },
             {
               id: 'portal_customizer',
@@ -229,16 +379,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ],
         },
         {
-          title: lang === 'sw' ? 'MIPANGILIO YA MFUMO (SETTINGS)' : 'SYSTEM SETTINGS',
+          title: lang === 'sw' ? 'MIPANGILIO YA MFUMO & USALAMA' : 'SYSTEM SETTINGS & SECURITY',
           items: [
             {
               id: 'settings',
               label: lang === 'sw' ? 'Mipangilio Mikuu (Settings)' : 'System Settings',
-              subLabel: lang === 'sw' ? 'VPS, Payment, Email, Schema & Factory Reset' : 'VPS, Gateways, Database & Reset',
+              subLabel: lang === 'sw' ? 'VPS, Payment, Email, Schema & Gateways' : 'VPS, Gateways, Database & Setup',
               icon: Settings,
-              badge: '6 Tools',
+              badge: '5 Tools',
+            },
+            {
+              id: 'system_reset',
+              label: lang === 'sw' ? 'Reset Mfumo Wote (Factory Reset)' : 'System Factory Reset',
+              subLabel: lang === 'sw' ? 'Uzinduzi Live: Futa data za majaribio' : 'Purge test data & prepare for live launch',
+              icon: RotateCcw,
+              badge: lang === 'sw' ? 'Uzinduzi' : 'Live Reset',
             },
           ],
+        },
+      ]
+    : isStaff
+    ? [
+        {
+          title: `${lang === 'sw' ? 'KITUO CHA MFANYAKAZI' : 'STAFF WORKSTATION'} (${parentOwner?.business_name || currentOwner?.business_name || 'HOTSPOT'})`,
+          items: staffItems,
         },
       ]
     : [
@@ -327,26 +491,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         },
       ];
 
+  // Auto-switch to first available tab for staff if current tab is restricted
+  useEffect(() => {
+    if (isStaff && staffItems.length > 0) {
+      const allowedIds = staffItems.map((i) => i.id);
+      if (!allowedIds.includes(activeTab)) {
+        setActiveTab(allowedIds[0]);
+      }
+    }
+  }, [isStaff, staffItems, activeTab]);
+
   const currentItem = navSections
     .flatMap((s) => s.items)
     .find((item) => item.id === activeTab);
 
-  const handleSelectAccount = (owner: HotspotOwner) => {
-    // Only Vendor Admin is authorized to switch accounts
-    if (!isVendor) return;
-
-    setCurrentOwner(owner);
-    setIsAccountDropdownOpen(false);
-    if (onSwitchUser) {
-      onSwitchUser(owner);
-    }
-    // If switched to owner and tab is not allowed, switch to active_users
-    if (owner.role === 'HOTSPOT_OWNER' && ['owners', 'company_info', 'vps_devops', 'schema', 'system_reset'].includes(activeTab)) {
-      setActiveTab('active_users');
-    }
-  };
-
-  const currentOwnerId = !isVendor ? currentOwner?.id : undefined;
+  const currentOwnerId: number | undefined = isStaff
+    ? (currentOwner?.parent_owner_id ? Number(currentOwner.parent_owner_id) : undefined)
+    : (currentOwner?.parent_owner_id || currentOwner?.id
+        ? Number(currentOwner?.parent_owner_id || currentOwner?.id)
+        : undefined);
 
   // Check if current regular owner subscription has expired
   const nowMs = Date.now();
@@ -382,12 +545,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isVendor ? 'bg-indigo-400' : 'bg-emerald-400'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${isVendor ? 'bg-indigo-400' : isStaff ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                   <span>
                     {isVendor
                       ? lang === 'sw'
                         ? 'Akaunti Kuu ya Vendor'
                         : 'Vendor Master Account'
+                      : isStaff
+                      ? lang === 'sw'
+                        ? 'Akaunti ya Mfanyakazi (Staff)'
+                        : 'Staff Workstation'
                       : lang === 'sw'
                       ? 'Akaunti ya Mmiliki'
                       : 'Hotspot Owner Account'}
@@ -403,97 +570,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
 
-              {/* Account Selector - Only Vendor HQ is permitted to switch accounts */}
-              {isVendor ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-                    className="w-full flex items-center justify-between p-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 transition text-left group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs bg-indigo-600 text-white">
-                        HQ
+              {/* Account Profile Card - Strictly Single Authenticated Account (No Switching/Impersonation) */}
+              {isMasterVendor ? (
+                <div className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-left">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs bg-indigo-600 text-white shadow-xs">
+                      HQ
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                        <span className="truncate">{currentOwner?.name || (lang === 'sw' ? 'Msimamizi Mkuu' : 'Vendor Admin')}</span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-white truncate">
-                          {currentOwner?.name || (lang === 'sw' ? 'Msimamizi Mkuu' : 'Vendor Admin')}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate">
-                          {currentOwner?.business_name || 'Vendor HQ Master'}
-                        </div>
+                      <div className="text-[10px] text-slate-400 truncate flex items-center gap-1 font-mono">
+                        <span className="text-indigo-300 font-bold">@{currentOwner?.username || 'admin'}</span>
+                        <span>•</span>
+                        <span className="truncate font-sans">{currentOwner?.business_name || 'Vendor HQ Master'}</span>
                       </div>
                     </div>
-                    <ChevronDown
-                      className={`w-4 h-4 text-slate-400 group-hover:text-white transition-transform ${
-                        isAccountDropdownOpen ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-
-                  {/* Account Dropdown Menu */}
-                  {isAccountDropdownOpen && (
-                    <div className="absolute left-3 right-3 top-20 z-50 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-2 space-y-1 animate-in fade-in zoom-in-95 duration-100 max-h-72 overflow-y-auto">
-                      <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                        {lang === 'sw' ? 'Badilisha Akaunti (Vendor HQ):' : 'Switch Account (Vendor HQ):'}
-                      </div>
-
-                      {owners.map((owner) => {
-                        const isSelected = currentOwner?.id === owner.id;
-                        const isVendorAccount = owner.role === 'VENDOR_ADMIN';
-
-                        return (
-                          <button
-                            key={owner.id}
-                            type="button"
-                            onClick={() => handleSelectAccount(owner)}
-                            className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left text-xs transition ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white font-bold'
-                                : 'text-slate-300 hover:text-white hover:bg-slate-700/80'
-                            }`}
-                          >
-                            <div className="min-w-0 pr-2">
-                              <div className="truncate font-semibold flex items-center gap-1.5">
-                                <span>{owner.name}</span>
-                                {isVendorAccount && (
-                                  <span className="px-1.5 py-0.2 rounded-sm text-[9px] bg-indigo-200 text-indigo-900 font-bold">
-                                    VENDOR
-                                  </span>
-                                )}
-                              </div>
-                              <div
-                                className={`text-[10px] truncate ${
-                                  isSelected ? 'text-indigo-200' : 'text-slate-400'
-                                }`}
-                              >
-                                {owner.business_name}
-                              </div>
-                            </div>
-
-                            {isSelected && <span className="text-emerald-400 font-bold">✓</span>}
-                          </button>
-                        );
-                      })}
-
-                      {onLogout && (
-                        <div className="pt-1.5 mt-1.5 border-t border-slate-700/80">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsAccountDropdownOpen(false);
-                              onLogout();
-                            }}
-                            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-rose-300 hover:text-white hover:bg-rose-900/40 text-xs font-bold transition text-left"
-                          >
-                            <LogOut className="w-4 h-4 text-rose-400 shrink-0" />
-                            <span>{lang === 'sw' ? 'Ondoka Kwenye Mfumo (Log Out)' : 'Sign Out / Log Out'}</span>
-                          </button>
-                        </div>
-                      )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsVendorAccountModalOpen(true)}
+                      className="p-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 border border-indigo-500/40 transition cursor-pointer"
+                      title={lang === 'sw' ? 'Hariri Username & Nenosiri Yako' : 'Edit Username & Password'}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 hidden sm:inline">
+                      VENDOR
+                    </span>
+                  </div>
+                </div>
+              ) : isStaff ? (
+                /* Staff User Card - Linked to Parent Hotspot Owner */
+                <div className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-left">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs bg-amber-500 text-slate-950">
+                      {(currentOwner?.name || 'S').charAt(0).toUpperCase()}
                     </div>
-                  )}
-                </>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                        <span className="truncate">{currentOwner?.name}</span>
+                      </div>
+                      <div className="text-[10px] text-amber-300 truncate font-semibold">
+                        {lang === 'sw' ? 'Chini ya: ' : 'Under: '}
+                        <span className="text-white font-bold">{parentOwner?.business_name || currentOwner?.business_name || 'Hotspot'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsVendorAccountModalOpen(true)}
+                      className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 transition cursor-pointer"
+                      title={lang === 'sw' ? 'Hariri Nenosiri & Akaunti Yako' : 'Edit Account & Password'}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      {currentOwner?.staff_title || currentOwner?.role || 'STAFF'}
+                    </span>
+                  </div>
+                </div>
               ) : (
                 /* Regular Hotspot Owner Profile Card - Completely Isolated */
                 <div className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-left">
@@ -505,19 +644,163 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="text-xs font-bold text-white truncate">
                         {(currentOwner?.name && currentOwner.name !== 'Mteja Mpya') ? currentOwner.name : (currentOwner?.business_name || (lang === 'sw' ? 'Mmiliki wa Hotspot' : 'Hotspot Owner'))}
                       </div>
-                      <div className="text-[10px] text-emerald-400 truncate font-semibold">
-                        {currentOwner?.business_name || 'Biashara ya Wi-Fi'}
+                      <div className="text-[10px] text-emerald-400 truncate font-semibold flex items-center gap-1">
+                        {currentOwner?.username && <span className="font-mono text-emerald-300 font-bold">@{currentOwner.username} •</span>}
+                        <span>{currentOwner?.business_name || 'Biashara ya Wi-Fi'}</span>
                       </div>
                     </div>
                   </div>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 shrink-0">
-                    {lang === 'sw' ? 'Mmiliki' : 'Owner'}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsVendorAccountModalOpen(true)}
+                      className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-500/40 transition cursor-pointer"
+                      title={lang === 'sw' ? 'Hariri Username & Nenosiri Yako' : 'Edit Username & Password'}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-900/60 text-emerald-300 border border-emerald-700/60">
+                      {lang === 'sw' ? 'Mmiliki' : 'Owner'}
+                    </span>
+                  </div>
                 </div>
               )}
+
+              {/* Site / MikroTik Branch Switcher for Multi-Site Management */}
+              <div className="pt-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between px-0.5 mb-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-1.5">
+                    <MapPin className="w-3 h-3 text-cyan-400" />
+                    <span>{lang === 'sw' ? 'Site ya MikroTik' : 'MikroTik Site'}</span>
+                  </span>
+                  {availableRouters.length > 0 && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700 font-mono">
+                      {availableRouters.length} {availableRouters.length === 1 ? 'Site' : 'Sites'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsSiteDropdownOpen(!isSiteDropdownOpen)}
+                    className="w-full flex items-center justify-between p-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-left transition-all group cursor-pointer shadow-xs"
+                    title={lang === 'sw' ? 'Badili Site ya MikroTik unayotaka kuisimamia' : 'Switch active MikroTik site to manage'}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs ${
+                        activeSite ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                      }`}>
+                        {activeSite ? <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" /> : <Server className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-white truncate flex items-center gap-1">
+                          <span className="truncate">
+                            {activeSite ? activeSite.name : (lang === 'sw' ? '🌐 Maeneo Yote (Fleet)' : '🌐 All Sites (Fleet)')}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 truncate flex items-center gap-1.5 font-mono">
+                          {activeSite ? (
+                            <>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeSite.status === 'ONLINE' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                              <span className="truncate">{activeSite.ip_address} • {activeSite.location}</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 truncate">
+                              {availableRouters.length > 0 ? `${availableRouters.length} MikroTiks Zipo` : (lang === 'sw' ? 'Hakuna router bado' : 'No routers')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-cyan-300 shrink-0 transition-transform duration-200 ${isSiteDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                  </button>
+
+                  {/* Site Dropdown Menu */}
+                  {isSiteDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-800/95 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl p-1.5 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                      {/* All Sites Option */}
+                      <button
+                        type="button"
+                        onClick={() => handleSiteChange('ALL')}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition ${
+                          selectedSiteRouterId === 'ALL'
+                            ? 'bg-cyan-600 text-white font-bold'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700/70'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm">🌐</span>
+                          <div className="truncate">
+                            <div className="font-semibold truncate">{lang === 'sw' ? 'Maeneo Yote (Sites Zote)' : 'All Sites (Fleet View)'}</div>
+                            <div className={`text-[10px] truncate ${selectedSiteRouterId === 'ALL' ? 'text-cyan-100' : 'text-slate-400'}`}>
+                              {lang === 'sw' ? 'Simamia router zote kwa pamoja' : 'Manage all connected routers together'}
+                            </div>
+                          </div>
+                        </div>
+                        {selectedSiteRouterId === 'ALL' && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+
+                      {availableRouters.length > 0 && (
+                        <div className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 font-mono border-t border-slate-700/60 mt-1 pt-1">
+                          {lang === 'sw' ? 'Chagua Site Maalum ya MikroTik:' : 'Select Specific MikroTik Site:'}
+                        </div>
+                      )}
+
+                      {/* List of available sites */}
+                      <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
+                        {availableRouters.map((router, index) => {
+                          const isSelected = selectedSiteRouterId === router.id;
+                          return (
+                            <button
+                              key={router.id}
+                              type="button"
+                              onClick={() => handleSiteChange(router.id)}
+                              className={`w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition ${
+                                isSelected
+                                  ? 'bg-cyan-600 text-white font-bold shadow-xs'
+                                  : 'text-slate-200 hover:text-white hover:bg-slate-700/70'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${router.status === 'ONLINE' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                <div className="min-w-0">
+                                  <div className="font-semibold truncate flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-75 font-mono">Site #{index + 1}</span>
+                                    <span className="truncate">{router.name}</span>
+                                  </div>
+                                  <div className={`text-[10px] truncate font-mono ${isSelected ? 'text-cyan-100' : 'text-slate-400'}`}>
+                                    {router.ip_address} • {router.location}
+                                  </div>
+                                </div>
+                              </div>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Action button to Add 2nd / New Site */}
+                      <div className="border-t border-slate-700/60 pt-1 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('routers');
+                            setIsSiteDropdownOpen(false);
+                            setIsMobileSidebarOpen(false);
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 p-1.5 rounded-lg text-[11px] font-bold text-cyan-300 hover:text-white hover:bg-cyan-600/30 transition text-center cursor-pointer"
+                        >
+                          <span>➕ {lang === 'sw' ? 'Unganisha Site ya Pili / Mpya' : 'Link 2nd / New Site'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="w-full flex justify-center">
+            <div className="w-full flex flex-col items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsCollapsed(false)}
@@ -527,6 +810,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 title={lang === 'sw' ? 'Panua Sidebar' : 'Expand Sidebar'}
               >
                 {isVendor ? 'HQ' : currentOwner?.name?.charAt(0) || 'M'}
+              </button>
+
+              {/* Collapsed Site Indicator Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCollapsed(false);
+                  setIsSiteDropdownOpen(true);
+                }}
+                className="w-8 h-8 rounded-xl bg-slate-800 text-cyan-400 border border-slate-700 flex items-center justify-center relative hover:bg-slate-700 transition cursor-pointer"
+                title={activeSite ? `Site: ${activeSite.name} (${activeSite.ip_address})` : 'Maeneo Yote (All Sites)'}
+              >
+                <MapPin className="w-4 h-4" />
+                <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${activeSite?.status === 'ONLINE' ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
               </button>
             </div>
           )}
@@ -730,6 +1027,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
+        {/* If Hotspot Owner has not configured their payment API, show notice to set API first */}
+        {!isVendor && !currentOwner?.dalipay_public_key && !currentOwner?.palmpesa_api_token && (
+          <div className="bg-amber-500 text-slate-950 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-slate-950 shrink-0" />
+              <span>
+                {lang === 'sw'
+                  ? '⚠️ Hujaweka API ya Geti la Malipo! Wateja hawawezi kulipia intaneti kwenye router zako mpaka uweke API yako ya malipo kwanza.'
+                  : '⚠️ Payment Gateway API not configured! Hotspot users cannot purchase plans until you configure your payment API.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('settings');
+                setSettingsSubTab('payment_gateway');
+              }}
+              className="px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-white font-black text-xs transition cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              {lang === 'sw' ? 'Sanidi API Sasa →' : 'Set Up API Now →'}
+            </button>
+          </div>
+        )}
+
         {/* Top Breadcrumb & Mobile Menu Toggle Bar */}
         <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 sticky top-16 z-20 shadow-2xs">
           <div className="flex items-center gap-3">
@@ -755,6 +1076,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Header Active Site Selector Pill */}
+            {availableRouters.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileSidebarOpen(true);
+                  setIsSiteDropdownOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-300 bg-cyan-50/90 hover:bg-cyan-100 text-cyan-950 font-bold text-xs shadow-2xs transition cursor-pointer"
+                title={lang === 'sw' ? 'Badili Site ya MikroTik unayotaka kuisimamia' : 'Switch active MikroTik site'}
+              >
+                <MapPin className="w-3.5 h-3.5 text-cyan-600" />
+                <span className="max-w-[140px] sm:max-w-[200px] truncate">
+                  {activeSite ? activeSite.name : (lang === 'sw' ? '🌐 Maeneo Yote' : '🌐 All Sites')}
+                </span>
+                <ChevronDown className="w-3 h-3 text-cyan-700 shrink-0" />
+              </button>
+            )}
+
             <span
               className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
                 isVendor
@@ -873,58 +1213,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-         {/* Alert Banner for Hotspot Owner who has not configured DaliPay API Keys */}
-          {!isVendor && (!currentOwner?.dalipay_public_key || !currentOwner?.dalipay_secret_key) && activeTab !== 'merchant_settings' && (
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-900/90 via-amber-800/80 to-slate-900 text-white border border-amber-500/50 shadow-lw flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-200">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/30 border border-amber-400/40 flex items-center justify-center font-bold text-xl text-amber-300 shrink-0 shadow-inner">
-                  <CreditCard className="w-6 h-6 text-amber-300" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-md">
-                      {lang === 'sw' ? 'Muhimu Sana' : 'Action Required'}
-                    </span>
-                    <h3 className="font-bold text-sm text-white">
-                      {lang === 'sw'
-                        ? 'Sanidi Njia ya Malipo (DaliPay API Keys)'
-                        : 'Configure Payment Gateway (DaliPay API Keys)'}
-                    </h3>
-                  </div>
-                  <p className="text-xs text-amber-100/90 mt-1 max-w-xl leading-relaxed">
-                    {lang === 'sw'
-                      ? 'Hujaweka funguo zako za DaliPay. Wateja hawataweba kununua vocha kupitia M-Pesa, Airtel Money, au TigoPesa hadi utakapoweka Public Key na Secret Key zako.'
-                      : 'You have not configured your DaliPay API keys yet. Customers will not be able to purchase vouchers via Mobile Money until you set up your credentials.'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSettingsSubTab('payment_gateway');
-                  setActiveTab('merchant_settings');
-                }}
-                className="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 shadow-md transition whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>{lang === 'sw' ? '🔭 Weka DaliPay API Sasa' : '🔭 Set Up DaliPay Keys'}</span>
-              </button>
-            </div>
-          )}
-
           {activeTab === 'overview' && (
             <AdminOverview
               ownerId={currentOwnerId}
               ownerName={!isVendor ? currentOwner?.business_name : undefined}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
+              selectedRouterName={activeSite?.name}
               onNavigateToTab={(tab) => setActiveTab(tab as any)}
+              onClearRouterFilter={() => handleSiteChange('ALL')}
             />
           )}
 
           {activeTab === 'owners' && (
             <OwnerManagement
-              onSwitchToOwner={(owner) => {
-                handleSelectAccount(owner);
-                setActiveTab('active_users');
-              }}
+              onOwnersUpdated={fetchOwners}
+            />
+          )}
+
+          {activeTab === 'vendor_admins' && isVendor && (
+            <VendorAdminManagement
+              currentUser={currentOwner}
+              lang={lang}
+              onOpenAccountModal={() => setIsVendorAccountModalOpen(true)}
               onOwnersUpdated={fetchOwners}
             />
           )}
@@ -934,6 +1244,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab="company_info"
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
@@ -955,16 +1266,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
 
-          {activeTab === 'active_users' && <ActiveHotspotUsers ownerId={currentOwnerId} />}
+          {activeTab === 'active_users' && (
+            <ActiveHotspotUsers
+              ownerId={currentOwnerId}
+              initialRouterId={selectedSiteRouterId}
+              onSelectRouter={handleSiteChange}
+              ownerName={currentOwner?.business_name || currentOwner?.name}
+            />
+          )}
 
           {activeTab === 'plans' && <PlanManagement />}
 
-          {activeTab === 'transactions' && <TransactionLedger ownerId={currentOwnerId} />}
+          {activeTab === 'transactions' && (
+            <TransactionLedger
+              ownerId={currentOwnerId}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
+              selectedRouterName={activeSite?.name}
+              routers={availableRouters}
+              onSelectRouter={(id) => handleSiteChange(id ?? 'ALL')}
+            />
+          )}
 
           {activeTab === 'vouchers' && (
             <VoucherStation
               ownerId={currentOwnerId}
-              businessName={!isVendor ? currentOwner?.business_name : undefined}
+              businessName={currentOwner?.business_name || (isVendor ? 'Vendor HQ Hotspot' : undefined)}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
+              routers={availableRouters}
+              onSelectRouter={(id) => handleSiteChange(id ?? 'ALL')}
             />
           )}
 
@@ -972,13 +1301,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <RouterManagement
               ownerId={currentOwnerId}
               ownerName={!isVendor ? (currentOwner?.business_name || currentOwner?.name) : undefined}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
+              onSelectRouter={handleSiteChange}
             />
           )}
 
           {activeTab === 'portal_customizer' && (
             <CaptivePortalCustomizer
               currentOwner={currentOwner || undefined}
-              routers={routers}
+              routers={availableRouters}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : 'all'}
+              onSelectRouter={(id) => handleSiteChange(id === 'all' ? 'ALL' : id)}
               lang={lang}
             />
           )}
@@ -988,6 +1321,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab={settingsSubTab}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
@@ -1151,6 +1485,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {lang === 'sw' ? 'Mipangilio' : 'Settings'}
                 </span>
               </button>
+
+              {/* Vendor Tab 5: Reset Mfumo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('system_reset');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`flex flex-col items-center justify-center gap-1 h-full cursor-pointer transition ${
+                  activeTab === 'system_reset' ? 'text-rose-600 font-bold' : 'text-slate-500 hover:text-rose-600'
+                }`}
+              >
+                <RotateCcw className={`w-5 h-5 ${activeTab === 'system_reset' ? 'stroke-[2.5]' : ''}`} />
+                <span className="text-[10px] truncate max-w-[64px]">
+                  {lang === 'sw' ? 'Reset' : 'Reset'}
+                </span>
+              </button>
             </>
           ) : (
             <>
@@ -1291,6 +1642,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onOpenAbout={() => {
           setShowPreviewContact(false);
           setShowPreviewAbout(true);
+        }}
+        lang={lang}
+      />
+
+      {/* Vendor & Owner Account Profile & Password Edit Modal */}
+      <VendorAccountEditModal
+        isOpen={isVendorAccountModalOpen}
+        onClose={() => setIsVendorAccountModalOpen(false)}
+        currentUser={currentOwner}
+        onUpdated={(updatedUser) => {
+          setCurrentOwner(updatedUser);
+          if (onSwitchUser) onSwitchUser(updatedUser);
+          fetchOwners();
         }}
         lang={lang}
       />

@@ -18,18 +18,26 @@ import { HotspotOwner, RouterItem } from '../../types/index.ts';
 interface OwnerAllInOneScriptProps {
   currentUser: HotspotOwner | null;
   lang?: 'sw' | 'en';
+  initialRouterId?: number | null;
 }
 
 export const OwnerAllInOneScript: React.FC<OwnerAllInOneScriptProps> = ({
   currentUser,
   lang = 'sw',
+  initialRouterId,
 }) => {
   const [routers, setRouters] = useState<RouterItem[]>([]);
-  const [selectedRouterId, setSelectedRouterId] = useState<number | null>(null);
+  const [selectedRouterId, setSelectedRouterId] = useState<number | null>(initialRouterId ?? null);
   const [scriptContent, setScriptContent] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedTerminalCommand, setCopiedTerminalCommand] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (initialRouterId !== undefined && initialRouterId !== null) {
+      setSelectedRouterId(initialRouterId);
+    }
+  }, [initialRouterId]);
 
   // 1. Fetch Routers belonging to this Hotspot Owner
   useEffect(() => {
@@ -42,11 +50,11 @@ export const OwnerAllInOneScript: React.FC<OwnerAllInOneScriptProps> = ({
           // Filter routers for this owner if not vendor
           const ownerRouters = currentUser?.role === 'VENDOR_ADMIN'
             ? allRouters
-            : allRouters.filter((r) => r.owner_id === currentUser?.id);
+            : allRouters.filter((r) => r.owner_id === currentUser?.id || (currentUser?.assigned_router_ids || []).includes(r.id));
 
           setRouters(ownerRouters);
           if (ownerRouters.length > 0) {
-            setSelectedRouterId(ownerRouters[0].id);
+            setSelectedRouterId((prev) => (prev && ownerRouters.some(r => r.id === prev) ? prev : ownerRouters[0].id));
           } else {
             // If no routers registered yet, fetch generic all-in-one script
             fetchScript();

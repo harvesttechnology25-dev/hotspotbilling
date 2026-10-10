@@ -55,6 +55,8 @@ export interface Voucher {
   password: string;
   plan_id: number;
   router_id?: number;
+  router_name?: string;
+  owner_id?: number | string;
   transaction_id?: number;
   mac_address?: string;
   status: 'AVAILABLE' | 'ACTIVE' | 'EXPIRED' | 'REVOKED';
@@ -159,11 +161,14 @@ export interface UserPrivileges {
   can_manage_payments?: boolean;
   can_manage_gateways?: boolean;
   can_manage_devops?: boolean;
+  can_manage_tenants?: boolean;
+  can_reset_system?: boolean;
 }
 
 export interface HotspotOwner {
   id: number;
   name: string;
+  username?: string;
   business_name: string;
   email: string;
   phone: string;
@@ -171,7 +176,8 @@ export interface HotspotOwner {
   role: UserRole;
   status: 'ACTIVE' | 'SUSPENDED';
   assigned_router_ids: number[];
-  parent_owner_id?: number;
+  parent_owner_id?: number | string;
+  is_sub_user?: boolean;
   staff_title?: string;
   privileges?: UserPrivileges;
   commission_rate?: number;
@@ -256,6 +262,8 @@ export interface VoucherBatch {
   plan_name: string;
   price: number;
   router_id?: number;
+  router_name?: string;
+  router_ip?: string;
   owner_id?: number;
   quantity: number;
   prefix: string;
@@ -385,7 +393,7 @@ export interface SmsGatewayConfig {
 }
 
 export interface GatewaySettings {
-  activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX';
+  activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX' | 'LIVE_SANDBOX';
   subscriptionGateway?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'ACTIVE_DEFAULT';
   subscriptionAggregatorAccount?: string;
   webhookSecret: string;
@@ -413,6 +421,7 @@ export interface RouterConnectionTestResult {
 export interface HotspotUserDetail {
   id: string | number;
   router_id: number;
+  owner_id?: number;
   username: string;
   password?: string;
   is_online: boolean;

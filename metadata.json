@@ -1,5 +1,5 @@
 {
-  "name": "TZ-WiFi: MikroTik Multi-Carrier Hotspot Billing-4",
+  "name": "TZ-WiFi: MikroTik Multi-Carrier Hotspot Billing-8",
   "description": "Automated multi-carrier MikroTik Hotspot Wi-Fi billing system for Tanzania supporting M-Pesa, Tigo Pesa, Airtel Money, and Halopesa USSD push.",
   "requestFramePermissions": [],
   "majorCapabilities": [

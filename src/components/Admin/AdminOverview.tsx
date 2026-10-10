@@ -21,15 +21,27 @@ import {
   BadgeAlert,
   ShieldCheck,
   Receipt,
+  RotateCcw,
+  MapPin,
 } from 'lucide-react';
 
 interface AdminOverviewProps {
   ownerId?: number;
   ownerName?: string;
   onNavigateToTab?: (tab: string) => void;
+  selectedRouterId?: number;
+  selectedRouterName?: string;
+  onClearRouterFilter?: () => void;
 }
 
-export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName, onNavigateToTab }) => {
+export const AdminOverview: React.FC<AdminOverviewProps> = ({
+  ownerId,
+  ownerName,
+  onNavigateToTab,
+  selectedRouterId,
+  selectedRouterName,
+  onClearRouterFilter,
+}) => {
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
@@ -58,6 +70,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName
       setLoading(true);
       const params = new URLSearchParams();
       if (ownerId) params.set('ownerId', String(ownerId));
+      if (selectedRouterId) params.set('routerId', String(selectedRouterId));
       if (activePreset) params.set('preset', activePreset);
       if (activePreset === 'custom') {
         if (start) params.set('startDate', start);
@@ -84,7 +97,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName
       fetchPendingRequests();
     }, 15000);
     return () => clearInterval(interval);
-  }, [ownerId, preset]);
+  }, [ownerId, preset, selectedRouterId]);
 
   const handleSelectPreset = (p: DateRangePreset) => {
     setPreset(p);
@@ -163,6 +176,34 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName
 
   return (
     <div className="space-y-6">
+      {/* Active Site Scope Banner */}
+      {selectedRouterName && (
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-950 text-xs font-medium shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-cyan-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-cyan-700 font-mono">
+                Site Inayotazamwa Sasa (Active Site Scope)
+              </div>
+              <div className="font-bold text-sm text-cyan-950 truncate">
+                {selectedRouterName}
+              </div>
+            </div>
+          </div>
+          {onClearRouterFilter && (
+            <button
+              type="button"
+              onClick={onClearRouterFilter}
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-cyan-100 text-cyan-800 font-bold text-xs border border-cyan-300 transition shadow-2xs shrink-0 cursor-pointer"
+            >
+              🌐 Tazama Maeneo Yote (All Sites)
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
@@ -184,6 +225,17 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {!ownerId && onNavigateToTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('system_reset')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-bold text-rose-700 shadow-2xs transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+              <span>Reset Mfumo (Factory Reset)</span>
+            </button>
+          )}
+
           <a
             href="/api/v1/export/transactions/csv"
             download
@@ -458,7 +510,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ ownerId, ownerName
               </span>
             </div>
             <div className="text-[11px] text-emerald-700">
-              Miamala hii inaingia moja kwa moja kwenye namba yako ya PalmPesa au merchant na kumfungulia mteja intaneti papo hapo.
+              Miamala hii inaingia moja kwa moja kwenye akaunti yako ya malipo au merchant na kumfungulia mteja intaneti papo hapo.
             </div>
           </div>
 

@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Building2,
   FileCode2,
+  User,
 } from 'lucide-react';
 import { HotspotOwner } from '../../types/index.ts';
 import { VpsDevopsManager } from './VpsDevopsManager.tsx';
@@ -17,8 +18,11 @@ import { MySQLSchemaViewer } from './MySQLSchemaViewer.tsx';
 import { SystemResetManager } from './SystemResetManager.tsx';
 import { CompanyInfoSettings } from './CompanyInfoSettings.tsx';
 import { OwnerAllInOneScript } from './OwnerAllInOneScript.tsx';
+import { PaymentConfig } from './PaymentConfig.tsx';
+import { VendorAccountSettingsTab } from './VendorAccountSettingsTab.tsx';
 
 export type SettingsSubTab =
+  | 'account_profile'
   | 'company_info'
   | 'vps_devops'
   | 'all_in_one_script'
@@ -35,6 +39,7 @@ interface SettingsModuleProps {
   onOwnerUpdated?: (updatedOwner: HotspotOwner) => void;
   onPreviewAbout?: () => void;
   onPreviewContact?: () => void;
+  selectedRouterId?: number;
 }
 
 export const SettingsModule: React.FC<SettingsModuleProps> = ({
@@ -45,6 +50,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   onOwnerUpdated,
   onPreviewAbout,
   onPreviewContact,
+  selectedRouterId,
 }) => {
   const isVendor = currentUser?.role === 'VENDOR_ADMIN';
 
@@ -81,6 +87,19 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   }, [isVendor, activeSubTab]);
 
   const subTabs = [
+    // 0. Account Profile & Password (Both Vendor & Owner)
+    {
+      id: 'account_profile' as const,
+      labelSw: isVendor ? 'Akaunti ya Vendor (Username & Nenosiri)' : 'Akaunti Yangu (Username & Nenosiri)',
+      labelEn: isVendor ? 'Vendor Account (Username & Password)' : 'My Account (Username & Password)',
+      descSw: 'Hariri jina la mtumiaji (username), nenosiri na mawasiliano ya akaunti yako',
+      descEn: 'Update your login username, credentials and contact details',
+      icon: User,
+      vendorOnly: false,
+      ownerOnly: false,
+      badge: currentUser?.username ? `@${currentUser.username}` : (isVendor ? '@admin' : 'Profile'),
+      badgeColor: 'bg-indigo-100 text-indigo-800 font-mono',
+    },
     // 1. System Info (Vendor Only)
     {
       id: 'company_info' as const,
@@ -269,6 +288,15 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
 
       {/* Active Submodule Content */}
       <div className="transition-all duration-200">
+        {/* Account Profile & Password (Both Vendor & Owner) */}
+        {activeSubTab === 'account_profile' && (
+          <VendorAccountSettingsTab
+            currentUser={currentUser}
+            onOwnerUpdated={onOwnerUpdated}
+            lang={lang}
+          />
+        )}
+
         {/* 0. System Info (Vendor Only) */}
         {activeSubTab === 'company_info' && isVendor && (
           <CompanyInfoSettings
@@ -283,18 +311,26 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
 
         {/* 2. All-in-One MikroTik Script (Hotspot Owner Only) */}
         {activeSubTab === 'all_in_one_script' && !isVendor && (
-          <OwnerAllInOneScript currentUser={currentUser} lang={lang} />
+          <OwnerAllInOneScript currentUser={currentUser} lang={lang} initialRouterId={selectedRouterId} />
         )}
 
-        {/* 3. Payment Gateway (Both) */}
+        {/* 3. Payment Gateway (Both: PaymentConfig for Vendor, OwnerMerchantSettings for Owner) */}
         {activeSubTab === 'payment_gateway' && (
-          <OwnerMerchantSettings
-            owner={currentUser}
-            onUpdated={(updatedOwner: HotspotOwner) => {
-              if (onOwnerUpdated) onOwnerUpdated(updatedOwner);
-            }}
-            lang={lang}
-          />
+          isVendor ? (
+            <PaymentConfig
+              currentUser={currentUser}
+              onOwnerUpdated={onOwnerUpdated}
+              lang={lang}
+            />
+          ) : (
+            <OwnerMerchantSettings
+              owner={currentUser}
+              onUpdated={(updatedOwner: HotspotOwner) => {
+                if (onOwnerUpdated) onOwnerUpdated(updatedOwner);
+              }}
+              lang={lang}
+            />
+          )
         )}
 
         {/* 4. Email & SMS Gateways (Both, but OTP Toggle is visible only to Vendor) */}

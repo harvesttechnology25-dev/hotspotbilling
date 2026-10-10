@@ -10,16 +10,39 @@ import {
   Clock,
   Code2,
   FileText,
+  MapPin,
 } from 'lucide-react';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
+import { RouterItem } from '../../types/index.ts';
 
-export const TransactionLedger: React.FC<{ ownerId?: number }> = ({ ownerId }) => {
+export const TransactionLedger: React.FC<{
+  ownerId?: number;
+  selectedRouterId?: number;
+  selectedRouterName?: string;
+  routers?: RouterItem[];
+  onSelectRouter?: (id: number | undefined) => void;
+}> = ({
+  ownerId,
+  selectedRouterId,
+  selectedRouterName,
+  routers = [],
+  onSelectRouter,
+}) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [carrierFilter, setCarrierFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [routerFilter, setRouterFilter] = useState<string>(selectedRouterId ? String(selectedRouterId) : '');
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+  useEffect(() => {
+    if (selectedRouterId !== undefined) {
+      setRouterFilter(String(selectedRouterId));
+    } else {
+      setRouterFilter('');
+    }
+  }, [selectedRouterId]);
 
   // Pagination (10, 20, 30, 40, ALL)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -33,6 +56,7 @@ export const TransactionLedger: React.FC<{ ownerId?: number }> = ({ ownerId }) =
       if (carrierFilter) params.append('carrier', carrierFilter);
       if (statusFilter) params.append('status', statusFilter);
       if (ownerId) params.append('ownerId', String(ownerId));
+      if (routerFilter) params.append('routerId', routerFilter);
 
       const res = await fetch(`/api/v1/transactions?${params.toString()}`);
       if (res.ok) {
@@ -48,7 +72,7 @@ export const TransactionLedger: React.FC<{ ownerId?: number }> = ({ ownerId }) =
 
   useEffect(() => {
     fetchTransactions();
-  }, [carrierFilter, statusFilter, ownerId]);
+  }, [carrierFilter, statusFilter, ownerId, routerFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +147,25 @@ export const TransactionLedger: React.FC<{ ownerId?: number }> = ({ ownerId }) =
           <option value="AIRTEL">Airtel Money</option>
           <option value="HALOTEL">Halopesa</option>
         </select>
+
+        {/* Site / Router Filter */}
+        {routers.length > 0 && (
+          <select
+            value={routerFilter}
+            onChange={(e) => {
+              setRouterFilter(e.target.value);
+              onSelectRouter?.(e.target.value ? Number(e.target.value) : undefined);
+            }}
+            className="w-full sm:w-auto text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-cyan-600 text-slate-800"
+          >
+            <option value="">🌐 Sites Zote (All Sites)</option>
+            {routers.map((r) => (
+              <option key={r.id} value={r.id}>
+                📍 {r.name}
+              </option>
+            ))}
+          </select>
+        )}
 
         {/* Status Filter */}
         <select

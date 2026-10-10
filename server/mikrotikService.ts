@@ -209,17 +209,25 @@ export class MikrotikService {
       current.filter((s) => s.username !== username)
     );
 
-    // 2. Remove voucher from database
+    // 2. Remove voucher from database & RADIUS
     db.deleteVoucherByCode(username);
+    db.deleteRadiusUser(username);
 
-    // 3. Queue command to delete from router
-    const removeCmd = `:do { /ip hotspot active remove [find user="${username}"]; } on-error={}; /ip hotspot user remove [find name="${username}"];`;
+    // 3. Queue command to delete from router and remove cookies
+    const removeCmd = `:do { /ip hotspot active remove [find user="${username}"]; } on-error={}; :do { /ip hotspot user remove [find name="${username}"]; } on-error={}; :do { /ip hotspot cookie remove [find user="${username}"]; } on-error={};`;
     console.log(`[RouterOS API Command -> ${router.name}]: ${removeCmd}`);
     this.queueCommand(router.id, removeCmd);
 
+    // Also queue on all routers in case user roamed
+    db.getRouters().forEach((r) => {
+      if (r.id !== router.id) {
+        this.queueCommand(r.id, removeCmd);
+      }
+    });
+
     return {
       success: true,
-      message: `Mtumiaji '${username}' amefutwa kwenye MikroTik (${router.name}) na kwenye mfumo wa data.`,
+      message: `Mtumiaji '${username}' amefutwa kwenye MikroTik (${router.name}), FreeRADIUS na database.`,
     };
   }
 
@@ -270,15 +278,53 @@ export class MikrotikService {
   /**
    * Fetches unified list of all Hotspot users (Online + Offline + Expired)
    */
-  static async getAllHotspotUsers(router: RouterRecord): Promise<HotspotUserDetail[]> {
+  static async getAllHotspotUsers(router: RouterRecord | null, targetOwnerId?: number): Promise<HotspotUserDetail[]> {
     this.initializeSimulatedSessions();
-    const activeSessions = await this.getActiveSessions(router);
+    const activeSessions: HotspotActiveSession[] = [];
+    if (router) {
+      if (!targetOwnerId || !router.owner_id || Number(router.owner_id) === Number(targetOwnerId)) {
+        const s = await this.getActiveSessions(router);
+        activeSessions.push(...s);
+      }
+    } else {
+      let allRouters = db.getRouters();
+      if (targetOwnerId) {
+        allRouters = allRouters.filter((r) => r.owner_id != null && Number(r.owner_id) === Number(targetOwnerId));
+      }
+      for (const r of allRouters) {
+        const s = await this.getActiveSessions(r);
+        activeSessions.push(...s);
+      }
+    }
     const activeMap = new Map<string, HotspotActiveSession>();
     activeSessions.forEach((s) => activeMap.set(s.username.toUpperCase(), s));
 
-    const vouchers = db.getVouchers().filter(
-      (v) => !v.router_id || v.router_id === router.id
-    );
+    let vouchers = db.getVouchers().filter((v) => {
+      if (!router) return true;
+      return !v.router_id || v.router_id === router.id;
+    });
+
+    // Strict Tenant Isolation: If targetOwnerId is specified, ONLY return vouchers belonging to this owner
+    if (targetOwnerId) {
+      const ownerRouters = db.getRouters().filter((r) => r.owner_id != null && Number(r.owner_id) === Number(targetOwnerId));
+      const ownerRouterIds = new Set(ownerRouters.map((r) => r.id));
+
+      vouchers = vouchers.filter((v) => {
+        if (v.owner_id != null && v.owner_id !== '') {
+          return Number(v.owner_id) === Number(targetOwnerId);
+        }
+        if (v.router_id && ownerRouterIds.has(Number(v.router_id))) {
+          return true;
+        }
+        if (v.batch_tag) {
+          const b = db.getVoucherBatchById(v.batch_tag);
+          if (b && b.owner_id != null) {
+            return Number(b.owner_id) === Number(targetOwnerId);
+          }
+        }
+        return false;
+      });
+    }
 
     const plans = db.getPlans();
     const planMap = new Map(plans.map((p) => [p.id, p]));
@@ -309,8 +355,10 @@ export class MikrotikService {
 
       // Usage status detection: UNUSED, USED, ACTIVE, EXPIRED
       const sessionUptime = active ? active.uptime_seconds : 0;
-      const hasUsed = isOnline || (sessionUptime ? sessionUptime > 0 : false) || (v.status as string) === 'USED' || v.status === 'ACTIVE' || !!v.activated_at;
-      const isExpired = v.status === 'EXPIRED' || (v.expires_at && new Date(v.expires_at).getTime() < Date.now());
+      const isActivated = !!v.activated_at || isOnline || (sessionUptime ? sessionUptime > 0 : false) || (v.status as string) === 'ACTIVE' || (v.status as string) === 'USED';
+      const hasUsed = isOnline || (sessionUptime ? sessionUptime > 0 : false) || (v.status as string) === 'USED' || !!v.activated_at;
+      // An unactivated voucher from Voucher Station print is NEVER expired unless explicitly marked EXPIRED
+      const isExpired = (v.status as string) === 'EXPIRED' || (isActivated && v.expires_at && new Date(v.expires_at).getTime() < Date.now());
 
       let voucherStatus: 'UNUSED' | 'USED' | 'EXPIRED' | 'ACTIVE' = 'UNUSED';
       if (isExpired) {
@@ -320,6 +368,7 @@ export class MikrotikService {
       } else if (hasUsed) {
         voucherStatus = 'USED';
       } else {
+        // Fresh voucher created in Voucher Station print: UNUSED / HAIJATUMIKA
         voucherStatus = 'UNUSED';
       }
 
@@ -331,9 +380,14 @@ export class MikrotikService {
         ? 'OFFLINE'
         : 'AVAILABLE';
 
+      const effectiveOwnerId = v.owner_id != null && v.owner_id !== ''
+        ? Number(v.owner_id)
+        : (targetOwnerId || (router?.owner_id ? Number(router.owner_id) : undefined));
+
       usersMap.set(v.code.toUpperCase(), {
         id: v.id,
-        router_id: router.id,
+        router_id: router ? router.id : (v.router_id || 1),
+        owner_id: effectiveOwnerId,
         username: v.code,
         password: v.password || v.code,
         is_online: isOnline,
@@ -365,6 +419,12 @@ export class MikrotikService {
     // 2. Include any active sessions that were provisioned outside vouchers
     for (const s of activeSessions) {
       if (!usersMap.has(s.username.toUpperCase())) {
+        const sessionRouter = db.getRouterById(s.router_id);
+        const sessionOwnerId = sessionRouter?.owner_id != null ? Number(sessionRouter.owner_id) : targetOwnerId;
+        if (targetOwnerId && sessionOwnerId && Number(sessionOwnerId) !== Number(targetOwnerId)) {
+          continue;
+        }
+
         const isPhone =
           s.username.toUpperCase().startsWith('MP-') ||
           s.username.toUpperCase().startsWith('PHO-') ||
@@ -373,7 +433,8 @@ export class MikrotikService {
           /^(255|07|06|\+255)\d+/.test(s.username);
         usersMap.set(s.username.toUpperCase(), {
           id: `active-${s.id}`,
-          router_id: router.id,
+          router_id: router ? router.id : (s.router_id || 1),
+          owner_id: targetOwnerId || sessionOwnerId,
           username: s.username,
           is_online: true,
           status: 'ONLINE',
@@ -391,7 +452,12 @@ export class MikrotikService {
       }
     }
 
-    return Array.from(usersMap.values());
+    let results = Array.from(usersMap.values());
+    if (targetOwnerId) {
+      results = results.filter((u) => u.owner_id == null || Number(u.owner_id) === Number(targetOwnerId));
+    }
+
+    return results;
   }
 
   /**

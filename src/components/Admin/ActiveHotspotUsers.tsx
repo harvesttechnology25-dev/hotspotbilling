@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { RouterItem, Plan, HotspotUserDetail } from '../../types/index.ts';
 import { formatBytes, formatSecondsToTime } from '../../utils/carrierInfo.ts';
 import {
@@ -33,9 +33,43 @@ import {
 
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 
-export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) => {
+export const ActiveHotspotUsers: React.FC<{
+  ownerId?: number;
+  initialRouterId?: number | 'ALL';
+  onSelectRouter?: (id: number | 'ALL') => void;
+  ownerName?: string;
+}> = ({ ownerId, initialRouterId, onSelectRouter, ownerName }) => {
+  const resolvedOwnerId = useMemo(() => {
+    if (ownerId && !isNaN(Number(ownerId))) return Number(ownerId);
+    try {
+      const u = localStorage.getItem('tzwifi_user');
+      if (u) {
+        const parsed = JSON.parse(u);
+        if (parsed.role !== 'VENDOR_ADMIN') {
+          return Number(parsed.parent_owner_id || parsed.id);
+        }
+      }
+    } catch {}
+    return undefined;
+  }, [ownerId]);
+
+  const authHeaders = useMemo<Record<string, string>>(() => {
+    const token = localStorage.getItem('tzwifi_token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (resolvedOwnerId) headers['x-owner-id'] = String(resolvedOwnerId);
+    return headers;
+  }, [resolvedOwnerId]);
+
   const [routers, setRouters] = useState<RouterItem[]>([]);
-  const [selectedRouterId, setSelectedRouterId] = useState<number>(1);
+  const [selectedRouterId, setSelectedRouterId] = useState<number | 'ALL'>(initialRouterId ?? 'ALL');
+
+  useEffect(() => {
+    if (initialRouterId !== undefined) {
+      setSelectedRouterId(initialRouterId);
+    }
+  }, [initialRouterId]);
+
   const [plans, setPlans] = useState<Plan[]>([]);
   const [users, setUsers] = useState<HotspotUserDetail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,34 +106,41 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
 
   // Fetch routers and plans
   useEffect(() => {
-    const url = ownerId ? `/api/v1/routers?ownerId=${ownerId}` : '/api/v1/routers';
-    fetch(url)
+    const url = resolvedOwnerId ? `/api/v1/routers?ownerId=${resolvedOwnerId}` : '/api/v1/routers';
+    fetch(url, { headers: authHeaders })
       .then((res) => res.json())
       .then((data: RouterItem[]) => {
         setRouters(data);
-        if (data.length > 0) {
-          setSelectedRouterId(data[0].id);
-        } else {
-          setSelectedRouterId(0);
-          setUsers([]);
-        }
       })
       .catch((err) => console.error(err));
 
-    fetch('/api/v1/plans')
+    fetch('/api/v1/plans', { headers: authHeaders })
       .then((res) => res.json())
       .then((data: Plan[]) => setPlans(data))
       .catch((err) => console.error(err));
-  }, [ownerId]);
+  }, [resolvedOwnerId]);
 
   const fetchUsers = async () => {
-    if (!selectedRouterId) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/v1/routers/${selectedRouterId}/all-users`);
+      const targetRouter = selectedRouterId === 'ALL' ? 'all' : selectedRouterId;
+      const q = resolvedOwnerId ? `?ownerId=${resolvedOwnerId}` : '';
+      const res = await fetch(`/api/v1/routers/${targetRouter}/all-users${q}`, {
+        headers: authHeaders,
+      });
       if (res.ok) {
         const data = await res.json();
-        setUsers(data);
+        if (resolvedOwnerId && Array.isArray(data)) {
+          const ownerRouterIds = new Set(routers.map((r) => r.id));
+          const strictlyScoped = data.filter((u: HotspotUserDetail) => {
+            if (u.owner_id != null) return Number(u.owner_id) === resolvedOwnerId;
+            if (u.router_id && ownerRouterIds.size > 0) return ownerRouterIds.has(Number(u.router_id));
+            return true;
+          });
+          setUsers(strictlyScoped);
+        } else {
+          setUsers(Array.isArray(data) ? data : []);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch all users:', err);
@@ -112,7 +153,7 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
     fetchUsers();
     const interval = setInterval(fetchUsers, 5000);
     return () => clearInterval(interval);
-  }, [selectedRouterId]);
+  }, [selectedRouterId, resolvedOwnerId]);
 
   const showNotification = (text: string, type: 'success' | 'error' = 'success') => {
     setActionMessage({ text, type });
@@ -145,15 +186,27 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
     )
       return;
 
+    // Optimistic UI update: Remove user from table immediately
+    setUsers((prev) => prev.filter((u) => u.username !== username));
+
     try {
-      const res = await fetch(`/api/v1/routers/${selectedRouterId}/users/${username}`, {
+      const targetRouterId = selectedRouterId || 1;
+      const res = await fetch(`/api/v1/routers/${targetRouterId}/users/${encodeURIComponent(username)}`, {
         method: 'DELETE',
       });
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+      if (!res.ok) throw new Error(data.error || 'Imeshindwa kufuta mtumiaji.');
+
       showNotification(data.message || `Mtumiaji '${username}' amefutwa.`);
       fetchUsers();
     } catch (err: any) {
       showNotification(err.message, 'error');
+      fetchUsers();
     }
   };
 
@@ -217,9 +270,9 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
 
   // Helper to check if voucher is unused
   const checkIsUnused = (u: HotspotUserDetail) => {
-    if (u.voucher_status === 'UNUSED') return true;
+    if (u.voucher_status === 'UNUSED' || u.status === 'AVAILABLE') return true;
     if (u.is_online) return false;
-    if (u.status === 'EXPIRED') return false;
+    if (u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED') return false;
     const hasData = (u.bytes_in && u.bytes_in > 0) || (u.bytes_out && u.bytes_out > 0);
     const hasUptime = u.uptime_seconds && u.uptime_seconds > 0;
     return !hasData && !hasUptime && u.voucher_status !== 'USED';
@@ -235,9 +288,10 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
 
     setSavingUser(true);
     try {
-      const res = await fetch(`/api/v1/routers/${selectedRouterId}/users`, {
+      const targetRouter = selectedRouterId !== 'ALL' ? selectedRouterId : (routers[0]?.id || 1);
+      const res = await fetch(`/api/v1/routers/${targetRouter}/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify(newUserData),
       });
 
@@ -262,7 +316,7 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
     }
   };
 
-  const selectedRouter = routers.find((r) => r.id === selectedRouterId);
+  const selectedRouter = selectedRouterId !== 'ALL' ? routers.find((r) => r.id === selectedRouterId) : undefined;
 
   // Filtered users
   const filteredUsers = users.filter((u) => {
@@ -342,12 +396,14 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-black text-slate-900">
-              MikroTik Cloud Remote Control & Hotspot Users
+              {ownerName ? `Watumiaji & Remote: ${ownerName}` : 'MikroTik Cloud Remote Control & Hotspot Users'}
             </h2>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Dhibiti router yako ukiwa mbali: Tazama watumiaji walioko Online na Offline, tengeneza vocha, futa watumiaji, na tuma amri za mbali
+            {resolvedOwnerId
+              ? `Takwimu na watumiaji wa akaunti ya ${ownerName || 'Hotspot Owner'} pekee: Tazama waliopo Online na Offline, vocha zilizopo na dhibiti router.`
+              : 'Dhibiti router yako ukiwa mbali: Tazama watumiaji walioko Online na Offline, tengeneza vocha, futa watumiaji, na tuma amri za mbali.'}
           </p>
         </div>
 
@@ -355,9 +411,14 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
           {/* Router selector */}
           <select
             value={selectedRouterId}
-            onChange={(e) => setSelectedRouterId(Number(e.target.value))}
+            onChange={(e) => {
+              const val = e.target.value === 'ALL' ? 'ALL' : Number(e.target.value);
+              setSelectedRouterId(val);
+              onSelectRouter?.(val);
+            }}
             className="text-xs font-bold px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 shadow-2xs"
           >
+            <option value="ALL">🌐 Vifaa Vyote & Vocha Zote (All Routers & Vouchers)</option>
             {routers.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name} ({r.ip_address})
@@ -408,8 +469,19 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
         </div>
       )}
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Statistics Cards - Strictly Scoped to Hotspot Owner Account */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Jumla ya Watumiaji</span>
+            <Users className="w-3.5 h-3.5 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900">{users.length}</div>
+          <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">
+            {resolvedOwnerId ? 'Akaunti hii pekee' : 'Watumiaji wote'}
+          </p>
+        </div>
+
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider">Online Sasa</span>
@@ -434,7 +506,7 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
             <Users className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-2xl font-black text-slate-900">{offlineCount}</div>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Walioshatumia lakini wametoka hewani</p>
+          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Walioshatumia lakini wametoka</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
@@ -451,7 +523,7 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
             <span className="text-[11px] font-bold uppercase tracking-wider">Live Traffic (In/Out)</span>
             <Activity className="w-3.5 h-3.5 text-indigo-500" />
           </div>
-          <div className="text-base font-black text-indigo-900">
+          <div className="text-xs font-black text-indigo-900 truncate" title={`${formatBytes(totalDownloadBytes)} / ${formatBytes(totalUploadBytes)}`}>
             {formatBytes(totalDownloadBytes)} / {formatBytes(totalUploadBytes)}
           </div>
           <p className="text-[10px] text-indigo-600 font-medium mt-0.5">Jumla ya matumizi ya data</p>
@@ -973,9 +1045,14 @@ export const ActiveHotspotUsers: React.FC<{ ownerId?: number }> = ({ ownerId }) 
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           ONLINE
                         </span>
-                      ) : u.status === 'EXPIRED' ? (
+                      ) : u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED' ? (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                           EXPIRED
+                        </span>
+                      ) : isUnused ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                          <Ticket className="w-3 h-3 text-indigo-500" />
+                          HAIJATUMIKA
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">

@@ -37,6 +37,7 @@ export interface CaptivePortalProps {
   customTheme?: PortalThemeConfig;
   previewMode?: boolean;
   previewDevice?: 'mobile' | 'desktop';
+  currentOwnerId?: number;
 }
 
 export const CaptivePortal: React.FC<CaptivePortalProps> = ({
@@ -44,6 +45,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   customTheme,
   previewMode = false,
   previewDevice,
+  currentOwnerId,
 }) => {
   const [serverTheme, setServerTheme] = useState<PortalThemeConfig | null>(null);
   const activeTheme: PortalThemeConfig = customTheme || serverTheme || DEFAULT_PORTAL_THEME;
@@ -95,6 +97,8 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     routerId?: number;
     ownerId?: number;
     ownerBusinessName?: string;
+    hasPaymentGateway?: boolean;
+    gatewayWarning?: string | null;
   }>({
     brandName: 'Kariakoo Cyber & WiFi Point',
     ssid: 'KARIAKOO-FREE-WIFI',
@@ -103,9 +107,28 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
 
   useEffect(() => {
     const p = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const rId = p?.get('routerId') || p?.get('router_id');
-    const oId = p?.get('ownerId') || p?.get('owner_id');
+    let rId = p?.get('routerId') || p?.get('router_id');
+    let oId = p?.get('ownerId') || p?.get('owner_id');
     const ip = p?.get('ip') || mikrotikParams.ip;
+
+    if (!oId && currentOwnerId) {
+      oId = String(currentOwnerId);
+    }
+    // Detect logged in Hotspot Owner (e.g. Japhet) if testing portal from inside session
+    if (!oId && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('tzwifi_user');
+        if (saved) {
+          const u = JSON.parse(saved);
+          if (u && u.id && u.role === 'HOTSPOT_OWNER') {
+            oId = String(u.id);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     const query = new URLSearchParams();
     if (rId) query.set('routerId', rId);
     if (oId) query.set('ownerId', oId);
@@ -122,6 +145,8 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
             routerId: data.routerId,
             ownerId: data.ownerId,
             ownerBusinessName: data.ownerBusinessName,
+            hasPaymentGateway: data.hasPaymentGateway,
+            gatewayWarning: data.gatewayWarning,
           });
           if (data.portalTheme) {
             setServerTheme(data.portalTheme);
@@ -190,11 +215,11 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
 
   // Handle initiate payment with automatic carrier detection
   const handleInitiatePayment = async () => {
-    if (portalInfo.hasPaymentApi === false) {
+    if (portalInfo.hasPaymentGateway === false) {
       setInitiationError(
         lang === 'sw'
-          ? 'Huduma ya malipo ya mtandaoni haijawashwa na msimamizi wa mtandao huu. Tafazali wasiliana na mwhudumu au weka vocha ya karatasi.'
-          : 'Online payments are not configured for this hotspot. Please contact the administrator or enter a paper voucher.'
+          ? 'Mmiliki wa mtandao huu bado hajaweka geti la malipo. Tafadhali weka API ya malipo kwanza kwenye dashibodi ya mmiliki ili wateja waweze kulipia.'
+          : 'Payment gateway API is not configured by the hotspot owner. Please set up API in the dashboard first.'
       );
       return;
     }
@@ -538,6 +563,24 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       {/* TAB CONTENT: BUY PACKAGE */}
       {activeTab === 'buy' && (
         <div className="space-y-4">
+          {portalInfo.hasPaymentGateway === false && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-start gap-2.5 shadow-xs">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-900">
+                  {lang === 'sw'
+                    ? '⚠️ Malipo ya Simu Yanasubiri Kuamilishwa'
+                    : '⚠️ Mobile Payments Pending Setup'}
+                </p>
+                <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
+                  {lang === 'sw'
+                    ? 'Mmiliki wa mtandao huu bado hajaweka API ya malipo. Kama una vocha ya karatasi, bofya "Weka Vocha" hapo juu ili kujiunga mara moja.'
+                    : 'The hotspot owner has not configured their payment API yet. If you have a paper voucher, click "Enter Voucher" above to connect.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Package Grid */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -700,6 +743,22 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
 
             {/* Body */}
             <div className="p-5 sm:p-6 space-y-4">
+              {portalInfo.hasPaymentGateway === false && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-start gap-2 shadow-2xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block text-amber-900">
+                      {lang === 'sw' ? 'Geti la Malipo Halijawekwa' : 'Payment API Not Configured'}
+                    </span>
+                    <span className="text-[11px] text-amber-800 block mt-0.5 leading-relaxed">
+                      {lang === 'sw'
+                        ? 'Mmiliki wa mtandao huu bado hajaweka API ya malipo. Tafadhali weka API kwanza au tumia vocha ya karatasi hapo chini.'
+                        : 'The hotspot owner has not configured their payment API yet. Please set up API in dashboard or enter a voucher.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Phone Input with Live Carrier Detection */}
               <div className="space-y-2">
                 <PhoneInputWithDetection
@@ -734,23 +793,6 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
                 )}
               </div>
 
-              {/* No Payment API Configured Warning */}
-              {portalInfo.hasPaymentApi === false && (
-                <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-2xl flex items-start gap-2.5">
-                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold">
-                      {lang === 'sw' ? 'Malipo ya Mtandaoni Hayapatikani' : 'Online Payments Unavailable'}
-                    </p>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      {lang === 'sw'
-                        ? 'Msimamizi wa eneo hili bado hajaweka API ya malipo. Tafazali nunua au weka vocha ya karatasi kuputia kitufe kilicho chini.'
-                        : 'The hotspot owner has not configured payment APIs yet. Please enter a paper voucher using the button below.'}
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Error Message */}
               {initiationError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
@@ -762,7 +804,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
               {/* Pay Button */}
               <button
                 type="button"
-                disabled={initiatingPayment || !phoneNumber.trim() }
+                disabled={initiatingPayment || !phoneNumber.trim()}
                 onClick={handleInitiatePayment}
                 className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-98 disabled:opacity-50 text-white font-extrabold text-sm shadow-lg shadow-indigo-600/25 transition flex items-center justify-center gap-2"
               >

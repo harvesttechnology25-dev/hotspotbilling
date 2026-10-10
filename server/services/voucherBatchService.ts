@@ -11,7 +11,8 @@ export interface GenerateBatchOptions {
   planId: number;
   quantity: number;
   routerId?: number;
-  ownerId?: number;
+  ownerId?: number | string;
+  owner_id?: number | string;
   prefix?: string;
   codeLength?: number;
   printFormat?: 'A4_GRID' | 'THERMAL_58MM' | 'THERMAL_80MM';
@@ -67,7 +68,11 @@ export class VoucherBatchService {
 
     const newVouchers: VoucherRecord[] = [];
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + (plan.validity_period || 86400) * 1000).toISOString();
+    // Vouchers in printed batches are shelf-stable (1 year) until scratched & activated by user
+    const shelfLifeSeconds = 365 * 86400;
+    const expiresAt = new Date(now.getTime() + shelfLifeSeconds * 1000).toISOString();
+
+    const router = routerId ? db.getRouterById(Number(routerId)) : undefined;
 
     for (let i = 0; i < quantity; i++) {
       let code = '';
@@ -96,7 +101,8 @@ export class VoucherBatchService {
         password: pinOnly,
         plan_id: plan.id,
         router_id: routerId,
-        owner_id: ownerId,
+        router_name: router ? router.name : undefined,
+        owner_id: options.owner_id || options.ownerId || ownerId,
         status: 'AVAILABLE',
         batch_tag: batchId,
         expires_at: expiresAt,
@@ -121,7 +127,9 @@ export class VoucherBatchService {
       plan_name: plan.name,
       price: plan.price,
       router_id: routerId,
-      owner_id: ownerId,
+      router_name: router ? router.name : undefined,
+      router_ip: router ? router.ip_address : undefined,
+      owner_id: options.owner_id || options.ownerId || ownerId,
       quantity,
       prefix,
       code_length: codeLength,

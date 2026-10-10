@@ -163,9 +163,16 @@ interface VpnScriptBundle {
   master: string;
 }
 
-export const RouterManagement: React.FC<{ ownerId?: number; ownerName?: string }> = ({
+export const RouterManagement: React.FC<{
+  ownerId?: number;
+  ownerName?: string;
+  selectedRouterId?: number;
+  onSelectRouter?: (id: number) => void;
+}> = ({
   ownerId,
   ownerName,
+  selectedRouterId,
+  onSelectRouter,
 }) => {
   const [routers, setRouters] = useState<RouterItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -992,11 +999,16 @@ export const RouterManagement: React.FC<{ ownerId?: number; ownerName?: string }
             const isTesting = testingId === router.id;
             const currentTest = testResult?.routerId === router.id ? testResult : null;
             const profile = DEVICE_PROFILES[router.device_type || 'MIKROTIK'] || DEVICE_PROFILES.MIKROTIK;
+            const isSelectedSite = selectedRouterId === router.id;
 
             return (
               <div
                 key={router.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4 hover:border-slate-300 transition"
+                className={`bg-white rounded-2xl border p-5 shadow-xs space-y-4 transition ${
+                  isSelectedSite
+                    ? 'border-cyan-400 ring-2 ring-cyan-500/40 bg-cyan-50/10'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -1016,6 +1028,22 @@ export const RouterManagement: React.FC<{ ownerId?: number; ownerName?: string }
                         <h3 className="font-black text-base text-slate-900 leading-tight">
                           {router.brand_name || router.name}
                         </h3>
+                        {isSelectedSite ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-600 text-white flex items-center gap-1 shadow-2xs">
+                            <MapPin className="w-3 h-3" />
+                            <span>SITE INAYOSIMAMIWA (ACTIVE)</span>
+                          </span>
+                        ) : onSelectRouter ? (
+                          <button
+                            type="button"
+                            onClick={() => onSelectRouter(router.id)}
+                            className="px-2 py-0.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-800 text-[10px] font-bold border border-cyan-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="Washa kifaa hiki kuwa site inayotazamwa sasa kwenye sidebar (Switch Site)"
+                          >
+                            <MapPin className="w-3 h-3 text-cyan-600" />
+                            <span>Simamia Site Hii</span>
+                          </button>
+                        ) : null}
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border flex items-center gap-1 ${profile.color}`}>
                           <span>{profile.icon}</span>
                           <span>{profile.name}</span>

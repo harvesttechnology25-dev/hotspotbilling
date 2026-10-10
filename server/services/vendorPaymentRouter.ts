@@ -65,44 +65,42 @@ export class VendorPaymentRouterService {
     const defaultSettings = db.getSettings();
     const adminPalmpesa = defaultSettings.palmpesa;
 
-    // PalmPesa Credentials Resolution Hierarchy:
-    // 1. Router Override (if configured)
-    // 2. Hotspot Owner Account (if configured for this client)
-    // 3. Platform Admin Default (USER ID: 770)
+    // PalmPesa Credentials Resolution:
+    // Hotspot Owner must have configured their own credentials.
+    // Admin API is NEVER used as a default gateway for customer hotspot purchases.
     const palmpesaUserId = String(
       targetRouter?.palmpesa_user_id ||
       targetOwner?.palmpesa_user_id ||
-      adminPalmpesa?.userId ||
-      '770'
-    );
+      ''
+    ).trim();
 
     const palmpesaUserRef = String(
       targetRouter?.palmpesa_user_ref ||
       targetOwner?.palmpesa_user_ref ||
-      adminPalmpesa?.userRef ||
-      'USR-B2510CD582DF'
-    );
+      ''
+    ).trim();
 
     const palmpesaApiToken = String(
       targetRouter?.palmpesa_api_token ||
       targetOwner?.palmpesa_api_token ||
-      adminPalmpesa?.apiToken ||
       ''
-    );
+    ).trim();
+
+    if (!palmpesaUserId || !palmpesaApiToken) {
+      const ownerName = targetOwner ? `${targetOwner.business_name || targetOwner.name}` : 'Mmiliki wa Hotspot';
+      throw new Error(
+        `Mmiliki wa mtandao huu (${ownerName}) bado hajaweka API ya malipo. Tafadhali weka kwanza API ya malipo kwenye dashibodi ili wateja waweze kulipia intaneti.`
+      );
+    }
 
     const palmpesaAcceptStk =
       targetRouter?.palmpesa_accept_stk !== undefined
         ? targetRouter.palmpesa_accept_stk
         : targetOwner?.palmpesa_accept_stk !== undefined
         ? targetOwner.palmpesa_accept_stk
-        : adminPalmpesa?.acceptHotspotStk !== undefined
-        ? adminPalmpesa.acceptHotspotStk
         : true;
 
-    const isCustomOwnerPalmpesa = Boolean(
-      (targetRouter?.palmpesa_user_id && targetRouter.palmpesa_user_id !== adminPalmpesa?.userId) ||
-      (targetOwner?.palmpesa_user_id && targetOwner.palmpesa_user_id !== adminPalmpesa?.userId)
-    );
+    const isCustomOwnerPalmpesa = true;
 
     const vendorName =
       targetRouter?.vendor_name ||

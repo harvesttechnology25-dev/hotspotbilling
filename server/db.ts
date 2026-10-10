@@ -23,6 +23,7 @@ import {
   CompanyPublicInfo,
   DEFAULT_COMPANY_INFO,
 } from './types.js';
+import { mysqlService } from './mysqlService.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
@@ -201,6 +202,132 @@ class PersistentDatabase {
         } else {
           // Ensure passwords, monthly_fee, and vendor fields exist
           let updated = false;
+
+          // Backfill default demo hotspot owners if missing
+          if (!this.owners.some((o) => o.id === 2)) {
+            this.owners.push({
+              id: 2,
+              name: 'Japhet',
+              business_name: 'Japhet Hotspot',
+              email: 'harvesttechnology25@gmail.com',
+              phone: '0623887886',
+              password: '1234',
+              role: 'HOTSPOT_OWNER',
+              status: 'ACTIVE',
+              assigned_router_ids: [1],
+              commission_rate: 5,
+              monthly_fee: 15000,
+              subscription_fee: 15000,
+              subscription_status: 'ACTIVE',
+              subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            updated = true;
+          }
+          if (!this.owners.some((o) => o.id === 3)) {
+            this.owners.push({
+              id: 3,
+              name: 'Juma Hasani',
+              business_name: 'mbezi',
+              email: 'harvesttechnology27@gmail.com',
+              phone: '0623887889',
+              password: '1234',
+              role: 'HOTSPOT_OWNER',
+              status: 'ACTIVE',
+              assigned_router_ids: [2],
+              commission_rate: 5,
+              monthly_fee: 15000,
+              subscription_fee: 15000,
+              subscription_status: 'ACTIVE',
+              subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            updated = true;
+          }
+
+          // Backfill default routers if empty
+          if (this.routers.length === 0) {
+            this.routers = [
+              {
+                id: 1,
+                name: 'MikroTik Hotspot Gateway (Kariakoo)',
+                model_name: 'MikroTik RB750Gr3 / hEX',
+                brand_name: 'Japhet Hotspot',
+                ssid: 'JAPHET-HOTSPOT-WIFI',
+                ip_address: '192.168.88.1',
+                api_port: 8728,
+                api_username: 'admin',
+                api_password_hash: '',
+                location: 'Kariakoo, Dar es Salaam',
+                hotspot_server_name: 'hotspot1',
+                dns_name: 'wifi.japhet.hotspot',
+                status: 'ONLINE',
+                owner_id: 2,
+                owner_name: 'Japhet',
+                vpn_assigned_ip: '100.108.0.2',
+                radius_secret: 'radius_secret_2026',
+                vendor_name: 'PalmPesa',
+                vendor_merchant_id: 'PP-MERCHANT-10002',
+                platform_commission_percent: 5.0,
+                payout_channel: 'PALMPESA',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              {
+                id: 2,
+                name: 'MikroTik Hotspot Gateway (Mbezi Beach)',
+                model_name: 'MikroTik CCR2004-16G-2S+',
+                brand_name: 'mbezi',
+                ssid: 'MBEZI-HOTSPOT-WIFI',
+                ip_address: '192.168.89.1',
+                api_port: 8728,
+                api_username: 'admin',
+                api_password_hash: '',
+                location: 'Mbezi Beach, Dar es Salaam',
+                hotspot_server_name: 'hotspot2',
+                dns_name: 'wifi.mbezi.hotspot',
+                status: 'ONLINE',
+                owner_id: 3,
+                owner_name: 'Juma Hasani',
+                vpn_assigned_ip: '100.108.0.3',
+                radius_secret: 'radius_secret_2026',
+                vendor_name: 'PalmPesa',
+                vendor_merchant_id: 'PP-MERCHANT-10003',
+                platform_commission_percent: 5.0,
+                payout_channel: 'PALMPESA',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              {
+                id: 3,
+                name: 'MikroTik Hotspot Gateway (Mwenge Bus Stand)',
+                model_name: 'MikroTik hAP ac3 / CCR',
+                brand_name: 'Japhet Hotspot - Mwenge',
+                ssid: 'JAPHET-MWENGE-WIFI',
+                ip_address: '192.168.90.1',
+                api_port: 8728,
+                api_username: 'admin',
+                api_password_hash: '',
+                location: 'Mwenge Kituo cha Mabasi, Dar es Salaam',
+                hotspot_server_name: 'hotspot3',
+                dns_name: 'wifi.mwenge.hotspot',
+                status: 'ONLINE',
+                owner_id: 2,
+                owner_name: 'Japhet',
+                vpn_assigned_ip: '100.108.0.4',
+                radius_secret: 'radius_secret_2026',
+                vendor_name: 'PalmPesa',
+                vendor_merchant_id: 'PP-MERCHANT-10002',
+                platform_commission_percent: 5.0,
+                payout_channel: 'PALMPESA',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            ];
+            updated = true;
+          }
           for (const o of this.owners) {
             if (!o.password) {
               o.password = o.role === 'VENDOR_ADMIN' ? 'admin123' : '123456';
@@ -255,6 +382,54 @@ class PersistentDatabase {
             if (!r.ssid) {
               r.ssid = `${(r.brand_name || r.name).replace(/[^a-zA-Z0-9]/g, '-').toUpperCase().slice(0, 16)}-WIFI`;
               updated = true;
+            }
+          }
+
+          // Strict Multi-Tenant Backfill & Router Sync:
+          for (const o of this.owners) {
+            if (o.role === 'HOTSPOT_OWNER' && Array.isArray(o.assigned_router_ids)) {
+              for (const rId of o.assigned_router_ids) {
+                const matchedRouter = this.routers.find((r) => r.id === Number(rId));
+                if (matchedRouter && matchedRouter.owner_id !== o.id) {
+                  matchedRouter.owner_id = o.id;
+                  updated = true;
+                }
+              }
+            }
+          }
+
+          for (const b of this.voucherBatches) {
+            if (b.owner_id == null && b.router_id) {
+              const matchedRouter = this.routers.find((r) => r.id === b.router_id);
+              if (matchedRouter?.owner_id) {
+                b.owner_id = matchedRouter.owner_id;
+                updated = true;
+              }
+            }
+          }
+          for (const v of this.vouchers) {
+            // Unactivated vouchers from printed batches retain full shelf-life until scratched/activated
+            if (!v.activated_at && (v.status === 'AVAILABLE' || (v.status as string) === 'UNUSED')) {
+              if (v.expires_at && new Date(v.expires_at).getTime() < Date.now()) {
+                v.expires_at = new Date(Date.now() + 365 * 86400000).toISOString();
+                updated = true;
+              }
+            }
+            if (v.owner_id == null) {
+              if (v.batch_tag) {
+                const matchedBatch = this.voucherBatches.find((b) => b.batch_id === v.batch_tag || (b as any).batch_tag === v.batch_tag);
+                if (matchedBatch?.owner_id) {
+                  v.owner_id = matchedBatch.owner_id;
+                  updated = true;
+                }
+              }
+              if (v.owner_id == null && v.router_id) {
+                const matchedRouter = this.routers.find((r) => r.id === v.router_id);
+                if (matchedRouter?.owner_id) {
+                  v.owner_id = matchedRouter.owner_id;
+                  updated = true;
+                }
+              }
             }
           }
 
@@ -620,9 +795,11 @@ class PersistentDatabase {
     const mergedDalipay: DaliPayConfig = {
       ...currentDalipay,
       ...(newSettings.dalipay || {}),
-      keyId: newSettings.dalipay?.keyId || currentDalipay.keyId,
-      publicKey: newSettings.dalipay?.publicKey || currentDalipay.publicKey,
-      secretKey: newSettings.dalipay?.secretKey || currentDalipay.secretKey,
+      keyId: newSettings.dalipay?.keyId ?? currentDalipay.keyId,
+      publicKey: newSettings.dalipay?.publicKey ?? currentDalipay.publicKey,
+      secretKey: newSettings.dalipay?.secretKey ?? currentDalipay.secretKey,
+      apiEndpoint: newSettings.dalipay?.apiEndpoint ?? currentDalipay.apiEndpoint,
+      webhookSecret: newSettings.dalipay?.webhookSecret ?? currentDalipay.webhookSecret,
       isSandbox: newSettings.dalipay?.isSandbox ?? currentDalipay.isSandbox,
     };
 
@@ -686,6 +863,7 @@ const mergedEmail: EmailGatewayConfig = {
       this.owners.push(owner);
     }
     this.saveToDisk();
+    mysqlService.syncOwner(owner);
     return owner;
   }
 
@@ -730,7 +908,21 @@ const mergedEmail: EmailGatewayConfig = {
       if (!router.created_at) router.created_at = new Date().toISOString();
       this.routers.push(router);
     }
+    // Auto-link any existing batch vouchers created by this owner before router was added
+    if (router.owner_id) {
+      for (const v of this.vouchers) {
+        if (Number(v.owner_id) === Number(router.owner_id) && !v.router_id) {
+          v.router_id = router.id;
+        }
+      }
+      for (const b of this.voucherBatches) {
+        if (Number(b.owner_id) === Number(router.owner_id) && !b.router_id) {
+          b.router_id = router.id;
+        }
+      }
+    }
     this.saveToDisk();
+    mysqlService.syncRouter(router);
     return router;
   }
 
@@ -809,6 +1001,7 @@ const mergedEmail: EmailGatewayConfig = {
       this.transactions.push(tx);
     }
     this.saveToDisk();
+    mysqlService.syncTransaction(tx);
     return tx;
   }
 
@@ -859,12 +1052,17 @@ const mergedEmail: EmailGatewayConfig = {
       this.vouchers.push(v);
     }
     this.saveToDisk();
+    mysqlService.syncVoucher(v);
     return v;
   }
 
-  deleteVoucher(id: number): boolean {
+  deleteVoucher(id: number | string): boolean {
+    const idStr = String(id).trim();
+    const idNum = Number(id);
     const initialLen = this.vouchers.length;
-    this.vouchers = this.vouchers.filter((v) => v.id !== id);
+    this.vouchers = this.vouchers.filter(
+      (v) => String(v.id).trim() !== idStr && (!isNaN(idNum) ? Number(v.id) !== idNum : true)
+    );
     if (this.vouchers.length !== initialLen) {
       this.saveToDisk();
       return true;
@@ -873,9 +1071,11 @@ const mergedEmail: EmailGatewayConfig = {
   }
 
   deleteVoucherByCode(code: string): boolean {
+    if (!code) return false;
+    const target = String(code).trim().toUpperCase();
     const initialLen = this.vouchers.length;
     this.vouchers = this.vouchers.filter(
-      (v) => v.code.toUpperCase() !== code.trim().toUpperCase()
+      (v) => (v.code ? String(v.code).trim().toUpperCase() : '') !== target
     );
     if (this.vouchers.length !== initialLen) {
       this.saveToDisk();
@@ -904,6 +1104,7 @@ const mergedEmail: EmailGatewayConfig = {
       preset?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'this_year' | 'all' | 'custom';
       startDate?: string;
       endDate?: string;
+      routerId?: number;
     }
   ) {
     let transactions = [...this.transactions];
@@ -911,12 +1112,30 @@ const mergedEmail: EmailGatewayConfig = {
     const plansMap = new Map(this.plans.map((p) => [p.id, p]));
 
     if (ownerId) {
-      const owner = this.getOwnerById(ownerId);
-      if (owner && owner.role === 'HOTSPOT_OWNER') {
-        const allowedRouters = new Set(owner.assigned_router_ids);
-        transactions = transactions.filter((t) => t.router_id && allowedRouters.has(t.router_id));
-        vouchers = vouchers.filter((v) => v.router_id && allowedRouters.has(v.router_id));
-      }
+      const targetOwnerId = Number(ownerId);
+      const owner = this.getOwnerById(targetOwnerId);
+      const allowedRouters = new Set([
+        ...(owner?.assigned_router_ids || []),
+        ...this.routers.filter((r) => r.owner_id != null && Number(r.owner_id) === targetOwnerId).map((r) => r.id),
+      ]);
+      transactions = transactions.filter((t) => {
+        if (t.owner_id != null) return Number(t.owner_id) === targetOwnerId;
+        return t.router_id != null && allowedRouters.has(t.router_id);
+      });
+      vouchers = vouchers.filter((v) => {
+        if (v.owner_id != null) return Number(v.owner_id) === targetOwnerId;
+        if (v.batch_tag) {
+          const b = this.voucherBatches.find((batch) => batch.batch_id === v.batch_tag);
+          if (b && b.owner_id != null) return Number(b.owner_id) === targetOwnerId;
+        }
+        return v.router_id != null && allowedRouters.has(v.router_id);
+      });
+    }
+
+    if (options?.routerId) {
+      const targetRouterId = Number(options.routerId);
+      transactions = transactions.filter((t) => t.router_id === targetRouterId);
+      vouchers = vouchers.filter((v) => v.router_id === targetRouterId);
     }
 
     // Determine timestamp bounds
@@ -1080,15 +1299,31 @@ const mergedEmail: EmailGatewayConfig = {
   }
 
   deleteVoucherBatch(batchId: string): boolean {
+    const rawBatchId = String(batchId).trim();
     const prevBatches = this.voucherBatches.length;
-    this.voucherBatches = this.voucherBatches.filter((b) => b.batch_id !== batchId && b.batch_tag !== batchId);
-    const vouchersToRemove = this.vouchers.filter((v) => v.batch_tag === batchId);
+    const matchedBatch = this.voucherBatches.find(
+      (b) => b.batch_id === rawBatchId || (b as any).batch_tag === rawBatchId
+    );
+    const validTags = new Set<string>([rawBatchId]);
+    if (matchedBatch) {
+      if (matchedBatch.batch_id) validTags.add(matchedBatch.batch_id);
+      if ((matchedBatch as any).batch_tag) validTags.add((matchedBatch as any).batch_tag);
+    }
+
+    this.voucherBatches = this.voucherBatches.filter(
+      (b) => !validTags.has(b.batch_id) && !validTags.has((b as any).batch_tag)
+    );
+
+    const prevVouchersLen = this.vouchers.length;
+    const vouchersToRemove = this.vouchers.filter((v) => v.batch_tag && validTags.has(v.batch_tag));
     vouchersToRemove.forEach((v) => {
-      this.deleteRadiusUser(v.code);
+      if (v.code) {
+        this.deleteRadiusUser(v.code);
+      }
     });
-    this.vouchers = this.vouchers.filter((v) => v.batch_tag !== batchId);
+    this.vouchers = this.vouchers.filter((v) => !v.batch_tag || !validTags.has(v.batch_tag));
     this.saveToDisk();
-    return this.voucherBatches.length < prevBatches;
+    return this.voucherBatches.length < prevBatches || this.vouchers.length < prevVouchersLen;
   }
 
   // --- FreeRADIUS AAA Methods ---
@@ -1170,6 +1405,16 @@ const mergedEmail: EmailGatewayConfig = {
     }
 
     this.saveToDisk();
+
+    // Sync FreeRADIUS records directly to MySQL radcheck & radreply tables
+    const userChecks = this.radcheck.filter((r) => r.username === username);
+    for (const rc of userChecks) {
+      mysqlService.syncRadCheck(rc);
+    }
+    const userReplies = this.radreply.filter((r) => r.username === username);
+    for (const rr of userReplies) {
+      mysqlService.syncRadReply(rr);
+    }
   }
 
   getRadiusUser(username: string): { check: RadCheckRecord[]; reply: RadReplyRecord[] } | null {
@@ -1183,6 +1428,7 @@ const mergedEmail: EmailGatewayConfig = {
     this.radcheck = this.radcheck.filter((r) => r.username !== username);
     this.radreply = this.radreply.filter((r) => r.username !== username);
     this.saveToDisk();
+    mysqlService.deleteRadUser(username);
   }
 
   getNasList(): NasRecord[] {
@@ -1270,8 +1516,9 @@ const mergedEmail: EmailGatewayConfig = {
     voucher?: VoucherRecord;
     error?: string;
   }> {
-    // 1. Verify if free trial is currently enabled
-    if (!this.freeTrialConfig.enabled) {
+    try {
+      // 1. Verify if free trial is currently enabled
+      if (!this.freeTrialConfig.enabled) {
       return {
         success: false,
         error: 'Majaribio ya bure yamezimwa na msimamizi kwa sasa. Tafadhali chagua kifurushi cha kulipia.',
@@ -1441,7 +1688,7 @@ const mergedEmail: EmailGatewayConfig = {
 
     // 4. Record permanent claim or update existing
     const nextClaimId = this.freeTrialClaims.reduce((max, c) => (c.id > max ? c.id : max), 0) + 1;
-    const claim: FreeTrialClaimRecord = {
+    const newClaim: FreeTrialClaimRecord = {
       id: nextClaimId,
       mac_address: normalizedMac,
       user_ip: ip,
@@ -1458,7 +1705,7 @@ const mergedEmail: EmailGatewayConfig = {
     this.freeTrialClaims = this.freeTrialClaims.filter(
       (c) => this.normalizeMac(c.mac_address) !== normalizedMac
     );
-    this.freeTrialClaims.push(claim);
+    this.freeTrialClaims.push(newClaim);
     this.saveToDisk();
 
     // 5. Audit log
@@ -1480,9 +1727,16 @@ const mergedEmail: EmailGatewayConfig = {
 
     return {
       success: true,
-      claim,
+      claim: newClaim,
       voucher,
     };
+  } catch (err: any) {
+    console.error('[FreeTrial] Failed to process claim:', err);
+      return {
+        success: false,
+        error: err.message || 'Hitilafu ya kusajili majaribio ya bure. Tafadhali jaribu tena.',
+      };
+    }
   }
 
   public getDataSummary() {

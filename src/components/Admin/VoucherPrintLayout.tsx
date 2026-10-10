@@ -24,6 +24,7 @@ interface VoucherPrintLayoutProps {
   batchId?: string;
   hotspotName?: string;
   portalUrl?: string;
+  siteName?: string;
 }
 
 export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
@@ -34,6 +35,7 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
   batchId,
   hotspotName = 'INFOTECH WiFi HIGH-SPEED',
   portalUrl = 'http://192.168.88.1/login',
+  siteName,
 }) => {
   const [printFormat, setPrintFormat] = useState<'A4_GRID' | 'THERMAL_58MM' | 'THERMAL_80MM'>('A4_GRID');
   const [qrMap, setQrMap] = useState<Record<string, string>>({});
@@ -160,6 +162,11 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
               </div>
               <p className="text-xs text-slate-500 font-mono">
                 Batch: {batchId || 'Ad-Hoc Selection'} • Plan: {voucherPlan?.name || 'Standard'}
+                {(siteName || vouchers[0]?.router_name) && (
+                  <span className="text-cyan-700 font-bold ml-1.5">
+                    • Site: {siteName || vouchers[0]?.router_name}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -285,7 +292,7 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
                               {hotspotName}
                             </div>
                             <div className="text-[9px] text-slate-500 font-mono">
-                              High-Speed Wi-Fi Hotspot
+                              {(siteName || voucher.router_name) ? `📍 Site: ${siteName || voucher.router_name}` : 'High-Speed Wi-Fi Hotspot'}
                             </div>
                           </div>
                         </div>
@@ -350,7 +357,7 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
                       {hotspotName}
                     </div>
                     <div className="text-[9px] text-slate-600">
-                      High-Speed Wi-Fi Hotspot
+                      {(siteName || voucher.router_name) ? `📍 Site: ${siteName || voucher.router_name}` : 'High-Speed Wi-Fi Hotspot'}
                     </div>
                     <div className="border-t border-b border-black py-1 my-1">
                       <div className="text-[9px] uppercase font-bold text-slate-600">
@@ -403,7 +410,7 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
                       <span>{hotspotName}</span>
                     </div>
                     <div className="text-[10px] text-slate-600">
-                      MikroTik Multi-Carrier Wireless Hotspot
+                      {(siteName || voucher.router_name) ? `📍 Site: ${siteName || voucher.router_name}` : 'MikroTik Multi-Carrier Wireless Hotspot'}
                     </div>
 
                     <div className="bg-slate-100 border border-slate-300 py-1.5 px-2 rounded-lg my-1 print:bg-white print:border-black">

@@ -41,11 +41,10 @@ import { HotspotOwner, RouterItem, UserRole, ManualSubscriptionRequest } from '.
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 
 interface OwnerManagementProps {
-  onSwitchToOwner?: (owner: HotspotOwner) => void;
   onOwnersUpdated?: () => void;
 }
 
-export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwner, onOwnersUpdated }) => {
+export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdated }) => {
   const [owners, setOwners] = useState<HotspotOwner[]>([]);
   const [routers, setRouters] = useState<RouterItem[]>([]);
   const [manualRequests, setManualRequests] = useState<ManualSubscriptionRequest[]>([]);
@@ -116,6 +115,11 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
     palmpesa_user_ref: '',
     palmpesa_api_token: '',
     palmpesa_accept_stk: true,
+    dalipay_key_id: '',
+    dalipay_public_key: '',
+    dalipay_secret_key: '',
+    dalipay_api_endpoint: 'https://app.dalipay.co.tz',
+    payout_channel: 'DALIPAY' as 'DALIPAY' | 'PALMPESA',
   });
 
   const fetchOtpPolicy = async () => {
@@ -308,6 +312,11 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
       palmpesa_user_ref: '',
       palmpesa_api_token: '',
       palmpesa_accept_stk: true,
+      dalipay_key_id: '',
+      dalipay_public_key: '',
+      dalipay_secret_key: '',
+      dalipay_api_endpoint: 'https://app.dalipay.co.tz',
+      payout_channel: 'DALIPAY',
     });
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -332,6 +341,11 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
       palmpesa_user_ref: owner.palmpesa_user_ref || '',
       palmpesa_api_token: owner.palmpesa_api_token || '',
       palmpesa_accept_stk: owner.palmpesa_accept_stk !== false,
+      dalipay_key_id: owner.dalipay_key_id || '',
+      dalipay_public_key: owner.dalipay_public_key || '',
+      dalipay_secret_key: owner.dalipay_secret_key || '',
+      dalipay_api_endpoint: owner.dalipay_api_endpoint || 'https://app.dalipay.co.tz',
+      payout_channel: (owner.payout_channel === 'PALMPESA' ? 'PALMPESA' : 'DALIPAY'),
     });
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -471,6 +485,11 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
         palmpesa_user_ref: formState.palmpesa_user_ref ? formState.palmpesa_user_ref.trim() : undefined,
         palmpesa_api_token: formState.palmpesa_api_token ? formState.palmpesa_api_token.trim() : undefined,
         palmpesa_accept_stk: formState.palmpesa_accept_stk,
+        dalipay_key_id: formState.dalipay_key_id ? formState.dalipay_key_id.trim() : undefined,
+        dalipay_public_key: formState.dalipay_public_key ? formState.dalipay_public_key.trim() : undefined,
+        dalipay_secret_key: formState.dalipay_secret_key ? formState.dalipay_secret_key.trim() : undefined,
+        dalipay_api_endpoint: formState.dalipay_api_endpoint ? formState.dalipay_api_endpoint.trim() : undefined,
+        payout_channel: formState.payout_channel,
       };
 
       const res = await fetch(url, {
@@ -554,8 +573,24 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
   };
 
   const filteredOwners = owners.filter((o) => {
-    // Exclude only the master vendor admin account (ID 1 / VENDOR_ADMIN)
+    // 1. Exclude the master vendor admin account (ID 1 / VENDOR_ADMIN)
     if (o.role === 'VENDOR_ADMIN' || o.id === 1) return false;
+
+    // 2. Exclude sub-users / cashiers / staff / technicians / managers:
+    // They are staff working under an owner, NOT independent hotspot owners!
+    if (
+      o.is_sub_user ||
+      o.parent_owner_id != null ||
+      String(o.role || '').toUpperCase() === 'CASHIER' ||
+      String(o.role || '').toUpperCase() === 'MANAGER' ||
+      String(o.role || '').toUpperCase() === 'TECHNICIAN' ||
+      String(o.role || '').toUpperCase() === 'OPERATOR' ||
+      String(o.role || '').toUpperCase() === 'STAFF' ||
+      String(o.role || '').toUpperCase() === 'VIEWER'
+    ) {
+      return false;
+    }
+
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -852,23 +887,6 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                 {copiedCreds ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedCreds ? 'Imenakiliwa!' : 'Nakili Ujumbe wa Mteja'}</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const targetOwner = owners.find(
-                    (o) => o.phone === newCredentials.phone || o.email === newCredentials.email
-                  );
-                  if (targetOwner && onSwitchToOwner) {
-                    onSwitchToOwner(targetOwner);
-                  }
-                  setNewCredentials(null);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-emerald-950 hover:bg-emerald-100 font-bold text-xs shadow-sm transition"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Ingia Kwenye Akaunti Yake Sasa</span>
-              </button>
             </div>
           </div>
         </div>
@@ -1145,17 +1163,6 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {onSwitchToOwner && (
-                                <button
-                                  type="button"
-                                  onClick={() => onSwitchToOwner(owner)}
-                                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer"
-                                  title="Ingia kwenye akaunti ya mmiliki huyu"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  <span>Ingia</span>
-                                </button>
-                              )}
                               <button
                                 type="button"
                                 onClick={() => handleOpenEdit(owner)}
@@ -1524,21 +1531,6 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                     <span className="text-[10px] text-slate-400">
                       Akaunti: {owner.status === 'ACTIVE' ? '🟢 Hai' : '🔴 Imesitishwa'}
                     </span>
-
-                    {onSwitchToOwner && (
-                      <button
-                        type="button"
-                        onClick={() => onSwitchToOwner(owner)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition shadow-xs ${
-                          isVendor
-                            ? 'bg-slate-900 text-white hover:bg-slate-800'
-                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        }`}
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>{isVendor ? 'Fungua Vendor HQ' : 'Ingia kama Mmiliki huyu'}</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -1912,89 +1904,187 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onSwitchToOwne
                 </span>
               </div>
 
-              {/* PalmPesa Account Settings */}
-              <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-2xl space-y-3">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <div>
-                    <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider">
-                      PalmPesa Gateway ya Mteja Huyu (Hiari)
-                    </h4>
-                    <p className="text-[10px] text-emerald-800">
-                      Weka User ID na token ya PalmPesa ya mteja huyu ili pesa za vocha ziende moja kwa moja kwenye akaunti yake.
-                    </p>
+              {/* Payment Gateway Account Settings (DaliPay or PalmPesa) */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                        Akaunti ya Malipo ya Mmiliki (Gateway & Payout)
+                      </h4>
+                      <p className="text-[10px] text-slate-500">
+                        Chagua njia ya malipo ili pesa za wateja ziende moja kwa moja kwenye akaunti ya mmiliki huyu.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 pt-1">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      PalmPesa User ID
-                    </label>
-                    <input
-                      type="text"
-                      value={formState.palmpesa_user_id}
-                      onChange={(e) =>
-                        setFormState({ ...formState, palmpesa_user_id: e.target.value })
-                      }
-                      placeholder="Ingiza User ID..."
-                      className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                      User Reference
-                    </label>
-                    <input
-                      type="text"
-                      value={formState.palmpesa_user_ref}
-                      onChange={(e) =>
-                        setFormState({ ...formState, palmpesa_user_ref: e.target.value })
-                      }
-                      placeholder="Ingiza Public User Ref..."
-                      className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
-                    />
-                  </div>
+                {/* Gateway Type Selector */}
+                <div className="grid grid-cols-2 gap-2 bg-slate-200/60 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFormState({ ...formState, payout_channel: 'DALIPAY' })}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all ${
+                      formState.payout_channel === 'DALIPAY'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    DaliPay Aggregator
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormState({ ...formState, payout_channel: 'PALMPESA' })}
+                    className={`py-1.5 px-3 rounded-lg text-xs font-black transition-all ${
+                      formState.payout_channel === 'PALMPESA'
+                        ? 'bg-white text-emerald-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    PalmPesa Gateway
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
-                    PalmPesa API Token (Secret Token)
-                  </label>
-                  <div className="relative">
-                    <Key className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      value={formState.palmpesa_api_token}
-                      onChange={(e) =>
-                        setFormState({ ...formState, palmpesa_api_token: e.target.value })
-                      }
-                      placeholder="Weka Token ya PalmPesa ya huyu mmiliki"
-                      className="w-full text-xs pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">
-                    Ufunguo wa siri unaoidhinisha kutuma STK Push kwenda kwenye akaunti ya mteja huyu. Ikiachwa wazi, itatumia token kuu ya Admin.
-                  </span>
-                </div>
+                {formState.payout_channel === 'DALIPAY' ? (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          DaliPay Key ID
+                        </label>
+                        <input
+                          type="text"
+                          value={formState.dalipay_key_id}
+                          onChange={(e) =>
+                            setFormState({ ...formState, dalipay_key_id: e.target.value })
+                          }
+                          placeholder="Mfano: y3hT9bs505Z6"
+                          className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          DaliPay API Endpoint
+                        </label>
+                        <input
+                          type="text"
+                          value={formState.dalipay_api_endpoint}
+                          onChange={(e) =>
+                            setFormState({ ...formState, dalipay_api_endpoint: e.target.value })
+                          }
+                          placeholder="https://app.dalipay.co.tz"
+                          className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono bg-white"
+                        />
+                      </div>
+                    </div>
 
-                <div className="pt-1 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700">
-                    ACCEPT HOTSPOT STK (Washa USSD Push ya Simu)
-                  </span>
-                  <label className="flex items-center gap-1.5 text-xs text-slate-700 font-bold cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formState.palmpesa_accept_stk}
-                      onChange={(e) =>
-                        setFormState({ ...formState, palmpesa_accept_stk: e.target.checked })
-                      }
-                      className="rounded text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span>{formState.palmpesa_accept_stk ? 'YES (Ndio)' : 'NO (Hapana)'}</span>
-                  </label>
-                </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                        DaliPay Public Key
+                      </label>
+                      <input
+                        type="text"
+                        value={formState.dalipay_public_key}
+                        onChange={(e) =>
+                          setFormState({ ...formState, dalipay_public_key: e.target.value })
+                        }
+                        placeholder="DaliPay Public Key ya mmiliki..."
+                        className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                        DaliPay Secret Key
+                      </label>
+                      <div className="relative">
+                        <Key className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          value={formState.dalipay_secret_key}
+                          onChange={(e) =>
+                            setFormState({ ...formState, dalipay_secret_key: e.target.value })
+                          }
+                          placeholder="DaliPay Secret Key ya mmiliki..."
+                          className="w-full text-xs pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-mono bg-white"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Ufunguo wa siri wa DaliPay. Pesa zote za router za mmiliki huyu zitaingia kwenye akaunti hii ya DaliPay moja kwa moja.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          PalmPesa User ID
+                        </label>
+                        <input
+                          type="text"
+                          value={formState.palmpesa_user_id}
+                          onChange={(e) =>
+                            setFormState({ ...formState, palmpesa_user_id: e.target.value })
+                          }
+                          placeholder="Ingiza User ID..."
+                          className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                          User Reference
+                        </label>
+                        <input
+                          type="text"
+                          value={formState.palmpesa_user_ref}
+                          onChange={(e) =>
+                            setFormState({ ...formState, palmpesa_user_ref: e.target.value })
+                          }
+                          placeholder="Ingiza Public User Ref..."
+                          className="w-full text-xs p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                        PalmPesa API Token (Secret Token)
+                      </label>
+                      <div className="relative">
+                        <Key className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="password"
+                          value={formState.palmpesa_api_token}
+                          onChange={(e) =>
+                            setFormState({ ...formState, palmpesa_api_token: e.target.value })
+                          }
+                          placeholder="Weka Token ya PalmPesa ya huyu mmiliki"
+                          className="w-full text-xs pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-mono bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-1 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">
+                        ACCEPT HOTSPOT STK (Washa USSD Push ya Simu)
+                      </span>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-700 font-bold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formState.palmpesa_accept_stk}
+                          onChange={(e) =>
+                            setFormState({ ...formState, palmpesa_accept_stk: e.target.checked })
+                          }
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span>{formState.palmpesa_accept_stk ? 'YES (Ndio)' : 'NO (Hapana)'}</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Notice that router will be added inside their account */}

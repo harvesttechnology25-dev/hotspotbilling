@@ -118,7 +118,7 @@ export default function App() {
             lang={lang}
           />
         ) : viewMode === 'portal' && currentUser ? (
-          <CaptivePortal lang={lang} />
+          <CaptivePortal lang={lang} currentOwnerId={currentUser.id} />
         ) : !currentUser ? (
           <LoginPage
             onLoginSuccess={handleLoginSuccess}

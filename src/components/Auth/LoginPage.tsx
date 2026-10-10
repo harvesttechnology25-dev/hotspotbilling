@@ -140,9 +140,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           cleanUser === 'superadmin' ||
           cleanUser === 'vendor' ||
           cleanUser === 'vendor@tzwifi.co.tz' ||
-          cleanUser.includes('harvesttechnology25') ||
-          cleanPass === 'admin123' ||
-          cleanPass === 'admin'
+          cleanUser === '0754111222' ||
+          cleanPass === 'admin123'
         ) {
           loggedInUser = {
             id: 1,
@@ -155,48 +154,60 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             status: 'ACTIVE' as const,
             assigned_router_ids: [1, 2],
           };
-        } else if (cleanUser === '0623887886' || cleanUser.includes('mmasa')) {
-          loggedInUser = {
-            id: 1,
-            name: 'Omary Athumani Mmasa',
-            username: '0623887886',
-            email: 'omary@infotechwifi.com',
-            phone: '0623887886',
-            role: 'HOTSPOT_OWNER' as const,
-            ownerId: 1,
-            businessName: 'Mwatulole Hotspot',
-            subscriptionStatus: 'ACTIVE' as const,
-          };
-        } else if (cleanUser === '0778985565' || cleanUser.includes('salumu')) {
+        } else if (
+          cleanUser === '0623887886' ||
+          cleanUser === 'japhet' ||
+          cleanUser.includes('harvesttechnology25')
+        ) {
           loggedInUser = {
             id: 2,
-            name: 'SALUMU SALIM',
-            username: '0778985565',
-            email: 'salumu@infotechwifi.com',
-            phone: '0778985565',
+            name: 'Japhet',
+            business_name: 'Japhet Hotspot',
+            username: '0623887886',
+            email: 'harvesttechnology25@gmail.com',
+            phone: '0623887886',
             role: 'HOTSPOT_OWNER' as const,
-            ownerId: 2,
-            businessName: 'CASHEW NUTS Hotspot',
-            subscriptionStatus: 'ACTIVE' as const,
+            status: 'ACTIVE' as const,
+            subscription_status: 'ACTIVE' as const,
+            assigned_router_ids: [1],
+          };
+        } else if (
+          cleanUser === '0623887889' ||
+          cleanUser === 'juma' ||
+          cleanUser.includes('harvesttechnology27')
+        ) {
+          loggedInUser = {
+            id: 3,
+            name: 'Juma Hasani',
+            business_name: 'mbezi',
+            username: '0623887889',
+            email: 'harvesttechnology27@gmail.com',
+            phone: '0623887889',
+            role: 'HOTSPOT_OWNER' as const,
+            status: 'ACTIVE' as const,
+            subscription_status: 'ACTIVE' as const,
+            assigned_router_ids: [2],
           };
         } else {
           // Default authenticated owner fallback
+          const newId = 100 + Math.abs(cleanUser.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 900);
           loggedInUser = {
-            id: Date.now(),
+            id: newId,
             name: usernameOrEmail,
             username: usernameOrEmail,
             email: usernameOrEmail.includes('@') ? usernameOrEmail : `${usernameOrEmail}@infotechwifi.com`,
             role: 'HOTSPOT_OWNER' as const,
-            ownerId: 1,
-            businessName: `${usernameOrEmail} Hotspot`,
-            subscriptionStatus: 'ACTIVE' as const,
+            business_name: `${usernameOrEmail} Hotspot`,
+            subscription_status: 'ACTIVE' as const,
+            status: 'ACTIVE' as const,
           };
         }
       }
 
       if (loggedInUser) {
         localStorage.setItem('tzwifi_user', JSON.stringify(loggedInUser));
-        localStorage.setItem('tzwifi_token', 'active-session-token');
+        // Always set a fresh, dedicated token for the current user to prevent cross-tenant leakage
+        localStorage.setItem('tzwifi_token', `tzwifi_tok_${loggedInUser.id}_${Date.now()}`);
         onLoginSuccess(loggedInUser);
       }
     } catch (err: any) {

@@ -385,9 +385,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   } | null>(null);
   const [copiedCreds, setCopiedCreds] = useState(false);
 
+  const isVendor = currentUser?.role === 'VENDOR_ADMIN';
+  const [allHotspotOwners, setAllHotspotOwners] = useState<HotspotOwner[]>([]);
+  const [selectedOwnerFilter, setSelectedOwnerFilter] = useState<string>('ALL');
+
   // Form State for Adding / Editing User
   const [userForm, setUserForm] = useState({
     name: '',
+    username: '',
     business_name: '',
     staff_title: '',
     phone: '',
@@ -398,25 +403,42 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     assigned_router_ids: [] as number[],
     monthly_fee: 0,
     commission_rate: 0,
-    parent_owner_id: currentUser?.role === 'HOTSPOT_OWNER' ? currentUser.id : undefined,
+    parent_owner_id: (!isVendor && currentUser ? (currentUser.parent_owner_id || currentUser.id) : undefined) as number | string | undefined,
   });
 
-  const isVendor = currentUser?.role === 'VENDOR_ADMIN';
+  const authHeaders = useMemo<Record<string, string>>(() => {
+    const token = localStorage.getItem('tzwifi_token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (currentUser?.id) headers['x-owner-id'] = String(currentUser.id);
+    return headers;
+  }, [currentUser?.id]);
 
   // Fetch Users & Routers
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      let url = '/api/v1/owners';
+      let url = '/api/v1/owners?includeSubUsers=true';
       if (!isVendor && currentUser) {
-        // Hotspot Owner mode: load owner and all their team members
-        url = `/api/v1/owners?parentOwnerId=${currentUser.id}`;
+        // Hotspot Owner mode: load owner and all their team members strictly
+        url = `/api/v1/owners?parentOwnerId=${currentUser.parent_owner_id || currentUser.id}`;
       }
 
-      const [usersRes, routersRes] = await Promise.all([
-        fetch(url),
-        fetch(isVendor ? '/api/v1/routers' : `/api/v1/routers?ownerId=${currentUser?.id || ''}`),
-      ]);
+      const promises: Promise<Response>[] = [
+        fetch(url, { headers: authHeaders }),
+        fetch(
+          isVendor
+            ? '/api/v1/routers'
+            : `/api/v1/routers?ownerId=${currentUser?.parent_owner_id || currentUser?.id || ''}`,
+          { headers: authHeaders }
+        ),
+      ];
+
+      if (isVendor) {
+        promises.push(fetch('/api/v1/owners', { headers: authHeaders }));
+      }
+
+      const [usersRes, routersRes, ownersRes] = await Promise.all(promises);
 
       if (usersRes.ok) {
         const uData = await usersRes.json();
@@ -425,6 +447,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       if (routersRes.ok) {
         const rData = await routersRes.json();
         setRouters(Array.isArray(rData) ? rData : []);
+      }
+      if (ownersRes && ownersRes.ok) {
+        const oData = await ownersRes.json();
+        setAllHotspotOwners(Array.isArray(oData) ? oData.filter((o: HotspotOwner) => o.role === 'HOTSPOT_OWNER') : []);
       }
     } catch (err) {
       console.error('Failed to load user management data:', err);
@@ -445,12 +471,27 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     }, 4500);
   };
 
-  // Filter Users
+  // Filter Users with Strict Multi-Tenant Isolation
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      // Hotspot Owners are managed in 'Hotspot Owners' module; staff/privileges only shows team & staff
+      // Hotspot Owners and Vendor Admin are excluded from staff management
       if (u.role === 'HOTSPOT_OWNER' || u.role === 'VENDOR_ADMIN') {
         return false;
+      }
+
+      // Hotspot Owner isolation: only see their own staff members
+      if (!isVendor && currentUser) {
+        const myParentId = Number(currentUser.parent_owner_id || currentUser.id);
+        if (Number(u.parent_owner_id) !== myParentId) {
+          return false;
+        }
+      }
+
+      // Vendor Admin specific owner filter
+      if (isVendor && selectedOwnerFilter !== 'ALL') {
+        if (String(u.parent_owner_id) !== String(selectedOwnerFilter)) {
+          return false;
+        }
       }
 
       // Search
@@ -472,7 +513,31 @@ export const UserManagement: React.FC<UserManagementProps> = ({
 
       return matchSearch && matchRole && matchStatus;
     });
-  }, [users, searchQuery, roleFilter, statusFilter]);
+  }, [users, searchQuery, roleFilter, statusFilter, isVendor, currentUser, selectedOwnerFilter]);
+
+  // Scoped Staff / Team Members strictly for the Current Account
+  const targetParentOwnerId = useMemo(() => {
+    if (!isVendor && currentUser) {
+      return Number(currentUser.parent_owner_id || currentUser.id);
+    }
+    if (isVendor && selectedOwnerFilter !== 'ALL') {
+      return Number(selectedOwnerFilter);
+    }
+    return undefined;
+  }, [isVendor, currentUser, selectedOwnerFilter]);
+
+  const scopedStaffUsers = useMemo(() => {
+    return users.filter((u) => {
+      // Exclude top-level hotspot owners and vendor admin
+      if (u.role === 'HOTSPOT_OWNER' || u.role === 'VENDOR_ADMIN') return false;
+
+      if (targetParentOwnerId !== undefined) {
+        return Number(u.parent_owner_id) === targetParentOwnerId;
+      }
+
+      return true;
+    });
+  }, [users, targetParentOwnerId]);
 
   // Paginated Users
   const paginatedUsers = useMemo(() => {
@@ -485,19 +550,25 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   // Open Add Modal
   const handleOpenAdd = () => {
     setEditingUser(null);
+    const defaultParentId = !isVendor && currentUser
+      ? (currentUser.parent_owner_id || currentUser.id)
+      : (selectedOwnerFilter !== 'ALL' ? Number(selectedOwnerFilter) : undefined);
+    const defaultParentOwner = defaultParentId ? allHotspotOwners.find((o) => o.id === defaultParentId) : undefined;
+
     setUserForm({
       name: '',
-      business_name: currentUser?.business_name || '',
+      username: '',
+      business_name: defaultParentOwner?.business_name || (!isVendor ? (currentUser?.business_name || '') : ''),
       staff_title: '',
       phone: '',
       email: '',
       password: '123456',
-      role: 'MANAGER',
+      role: 'CASHIER',
       status: 'ACTIVE',
-      assigned_router_ids: routers.map((r) => r.id),
-      monthly_fee: isVendor ? 15000 : 0,
+      assigned_router_ids: defaultParentOwner?.assigned_router_ids || routers.map((r) => r.id),
+      monthly_fee: 0,
       commission_rate: 0,
-      parent_owner_id: !isVendor && currentUser ? currentUser.id : undefined,
+      parent_owner_id: defaultParentId,
     });
     setTempPrivileges({
       can_generate_vouchers: true,
@@ -514,6 +585,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     setEditingUser(user);
     setUserForm({
       name: user.name,
+      username: user.username || '',
       business_name: user.business_name || '',
       staff_title: user.staff_title || '',
       phone: user.phone,
@@ -569,6 +641,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       return;
     }
 
+    if (isVendor && !userForm.parent_owner_id) {
+      showToast('error', 'Chagua Mmiliki', 'Tafadhali chagua Mmiliki wa Hotspot ambaye mfanyakazi huyu anafanya kazi kwake!');
+      return;
+    }
+
     setSaveStatus('saving');
 
     try {
@@ -580,7 +657,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({
         ...userForm,
         privileges: tempPrivileges,
         parent_owner_id:
-          !isVendor && currentUser ? currentUser.id : userForm.parent_owner_id,
+          !isVendor && currentUser ? (currentUser.parent_owner_id || currentUser.id) : userForm.parent_owner_id,
+        is_sub_user: true,
       };
 
       const res = await fetch(url, {
@@ -841,29 +919,37 @@ Tovuti: ${window.location.origin}`;
           </div>
         </div>
 
-        {/* Quick Metrics Bar */}
+        {/* Quick Metrics Bar - Strictly Scoped to Hotspot Owner Account */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10 text-xs">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-xs">
             <div className="text-slate-400 font-medium">{lang === 'sw' ? 'Jumla ya Watumiaji' : 'Total Accounts'}</div>
-            <div className="text-2xl font-black text-white mt-1">{users.length}</div>
+            <div className="text-2xl font-black text-white mt-1">{scopedStaffUsers.length}</div>
+            <div className="text-[10px] text-slate-300 mt-0.5">
+              {targetParentOwnerId !== undefined
+                ? (lang === 'sw' ? 'Akaunti hii pekee' : 'This account only')
+                : (lang === 'sw' ? 'Wafanyakazi wote' : 'All accounts')}
+            </div>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-xs">
             <div className="text-slate-400 font-medium">{lang === 'sw' ? 'Walio Kazini (Active)' : 'Active Status'}</div>
             <div className="text-2xl font-black text-emerald-400 mt-1">
-              {users.filter((u) => u.status === 'ACTIVE').length}
+              {scopedStaffUsers.filter((u) => u.status === 'ACTIVE').length}
             </div>
+            <div className="text-[10px] text-emerald-300 mt-0.5">{lang === 'sw' ? 'Wafanyakazi wanaoendelea' : 'Active team'}</div>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-xs">
             <div className="text-slate-400 font-medium">{lang === 'sw' ? 'Wauza Vocha (POS)' : 'Cashiers / POS'}</div>
             <div className="text-2xl font-black text-amber-400 mt-1">
-              {users.filter((u) => u.role === 'CASHIER').length}
+              {scopedStaffUsers.filter((u) => u.role === 'CASHIER').length}
             </div>
+            <div className="text-[10px] text-amber-300 mt-0.5">{lang === 'sw' ? 'Wauza vocha wako' : 'Your cashiers'}</div>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-xs">
             <div className="text-slate-400 font-medium">{lang === 'sw' ? 'Mameneja & Mafundi' : 'Managers & Techs'}</div>
             <div className="text-2xl font-black text-indigo-300 mt-1">
-              {users.filter((u) => u.role === 'MANAGER' || u.role === 'TECHNICIAN').length}
+              {scopedStaffUsers.filter((u) => u.role === 'MANAGER' || u.role === 'TECHNICIAN').length}
             </div>
+            <div className="text-[10px] text-indigo-200 mt-0.5">{lang === 'sw' ? 'Viongozi & mafundi wako' : 'Your team leaders'}</div>
           </div>
         </div>
       </div>
@@ -949,6 +1035,28 @@ Tovuti: ${window.location.origin}`;
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          {/* Owner Filter for Vendor Admin */}
+          {isVendor && (
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <span className="text-slate-400">🏢</span>
+              <select
+                value={selectedOwnerFilter}
+                onChange={(e) => {
+                  setSelectedOwnerFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent border-none focus:ring-0 text-xs font-semibold text-slate-800 cursor-pointer max-w-[200px] truncate"
+              >
+                <option value="ALL">{lang === 'sw' ? 'Wamiliki Wote (All Owners)' : 'All Hotspot Owners'}</option>
+                {allHotspotOwners.map((owner) => (
+                  <option key={owner.id} value={String(owner.id)}>
+                    {owner.business_name} ({owner.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Role Filter */}
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 text-xs font-semibold text-slate-700">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
@@ -1065,13 +1173,18 @@ Tovuti: ${window.location.origin}`;
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-1.5 mt-0.5">
                               {user.staff_title ? (
                                 <span className="font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100">
                                   {user.staff_title}
                                 </span>
                               ) : (
                                 <span>{user.business_name || 'TZ-WiFi Hotspot'}</span>
+                              )}
+                              {isVendor && (
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                                  🏢 {allHotspotOwners.find((o) => o.id === Number(user.parent_owner_id))?.business_name || user.business_name || 'Mmiliki hajatambuliwa'}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -1473,25 +1586,74 @@ Tovuti: ${window.location.origin}`;
                 </div>
               </div>
 
-              {/* Business Name (Vendor only or readonly) */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">
-                  {lang === 'sw' ? 'Jina la Hotspot / Biashara' : 'Hotspot Business Name'}
-                </label>
-                <input
-                  type="text"
-                  value={userForm.business_name}
-                  onChange={(e) => setUserForm({ ...userForm, business_name: e.target.value })}
-                  placeholder="mfano: KILIMANJARO FREE WIFI"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 font-medium"
-                />
-              </div>
-
-              {/* Phone & Email */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Business / Hotspot Owner Selection */}
+              {isVendor ? (
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">
-                    {lang === 'sw' ? 'Nambari ya Simu (Login Username) *' : 'Phone Number (Username) *'}
+                    {lang === 'sw' ? 'Mmiliki wa Hotspot (Hotspot Owner Biashara) *' : 'Hotspot Owner Account *'}
+                  </label>
+                  <select
+                    required
+                    value={userForm.parent_owner_id ? String(userForm.parent_owner_id) : ''}
+                    onChange={(e) => {
+                      const pid = e.target.value ? Number(e.target.value) : undefined;
+                      const pOwner = allHotspotOwners.find((o) => o.id === pid);
+                      setUserForm({
+                        ...userForm,
+                        parent_owner_id: pid,
+                        business_name: pOwner?.business_name || '',
+                        assigned_router_ids: pOwner?.assigned_router_ids || [],
+                      });
+                    }}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 font-bold bg-white text-slate-800"
+                  >
+                    <option value="">{lang === 'sw' ? '-- Chagua Mmiliki wa Hotspot --' : '-- Select Hotspot Owner --'}</option>
+                    {allHotspotOwners.map((owner) => (
+                      <option key={owner.id} value={owner.id}>
+                        {owner.business_name} ({owner.name} - {owner.phone})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {lang === 'sw'
+                      ? 'Mfanyakazi huyu ataunganishwa na biashara hii pekee, ataona vocha na router zake tu.'
+                      : 'This staff user will be strictly linked to this owner and can only access their vouchers.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                      {lang === 'sw' ? 'Biashara ya Hotspot' : 'Hotspot Business'}
+                    </div>
+                    <div className="text-xs font-black text-indigo-900">
+                      {currentUser?.business_name || currentUser?.name}
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-200 text-indigo-800">
+                    {lang === 'sw' ? 'Ofisi Yako' : 'Your Team'}
+                  </span>
+                </div>
+              )}
+
+              {/* Username, Phone & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {lang === 'sw' ? 'Username (Hiari)' : 'Username (Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={userForm.username}
+                    onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                    placeholder="mfano: cashier1"
+                    className="w-full p-2.5 font-mono rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {lang === 'sw' ? 'Nambari ya Simu *' : 'Phone Number *'}
                   </label>
                   <input
                     type="tel"

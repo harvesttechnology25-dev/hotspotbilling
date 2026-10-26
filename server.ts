@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { apiRouter } from './server/routes.js';
+import { OmadaAdoptionService } from './server/services/omadaAdoptionService.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -49,14 +50,11 @@ async function startServer() {
   });
 
   // Omada Controller Inform discovery / heartbeat handler
-  app.all('/inform', (_req, res) => {
-    res.json({
-      success: true,
-      result: 0,
-      msg: 'success',
-      controller: 'TZ-WIFI-OMADA-CONTROLLER',
-      timestamp: Date.now(),
-    });
+  app.all(['/inform', '/api/v1/omada/inform', '/api/omada/inform'], (req, res) => {
+    const payload = req.body && Object.keys(req.body).length > 0 ? req.body : req.query;
+    const clientIp = (req.ip || req.socket.remoteAddress || '192.168.0.254').replace(/^::ffff:/, '');
+    const result = OmadaAdoptionService.recordIncomingInform(payload, clientIp, req.method);
+    res.json(result);
   });
 
   if (!isProd) {

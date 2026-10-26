@@ -6,6 +6,10 @@ export interface Plan {
   id: number;
   name: string;
   type: PlanType;
+  owner_id?: number;
+  owner_name?: string;
+  router_id?: number | null;
+  router_name?: string | null;
   limit_uptime: number | null;
   limit_bytes_total: number | null;
   rate_limit: string;
@@ -439,6 +443,7 @@ export interface HotspotUserDetail {
   plan_name?: string;
   plan_price?: number;
   created_at?: string;
+  activated_at?: string;
   expires_at?: string;
   login_method?: 'PHONE' | 'MANUAL';
   phone_number?: string;

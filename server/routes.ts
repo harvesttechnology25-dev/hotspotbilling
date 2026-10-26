@@ -2,7 +2,12 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { detectCarrier } from './carrierDetector.js';
-import { PaymentGatewayService } from './paymentGateway.js';
+import {
+  PaymentGatewayService,
+  formatDaliPayProvider,
+  formatDaliPayAccountNumber,
+  getDaliPayCollectionsUrl,
+} from './paymentGateway.js';
 import { MikrotikService } from './mikrotikService.js';
 import { VoucherBatchService } from './services/voucherBatchService.js';
 import { VendorPaymentRouterService } from './services/vendorPaymentRouter.js';
@@ -10,6 +15,7 @@ import { ScriptGeneratorService } from './services/scriptGenerator.js';
 import { OmadaAdoptionService } from './services/omadaAdoptionService.js';
 import { EmailService } from './emailService.js';
 import { db } from './db.js';
+import { generateFullDatabaseSQL, parseSQLDumpToSnapshot } from './sqlBackup.js';
 import {
   InitiatePaymentPayload,
   WebhookPayload,
@@ -104,37 +110,53 @@ const handleIncomingWebhook = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid HMAC signature header.' });
     }
 
-    const rawStatus = String(req.body.status || req.body.result || req.body.state || '').toUpperCase();
-    const isSuccess =
-      rawStatus === 'SUCCESS' ||
-      rawStatus === 'COMPLETED' ||
-      rawStatus === 'PAID' ||
-      req.body.success === true ||
-      req.body.status === 1 ||
-      req.body.status === '1';
+    // Support both DaliPay event format ({ event: 'collection.success', data: { ... } }) and standard formats
+    const isDaliPayEvent = Boolean(req.body?.event && req.body?.data);
+    const daliData = isDaliPayEvent ? req.body.data : null;
+
+    const rawStatus = isDaliPayEvent
+      ? String(daliData?.status || '').toUpperCase()
+      : String(req.body.status || req.body.result || req.body.state || '').toUpperCase();
+
+    const isSuccess = isDaliPayEvent
+      ? (req.body.event === 'collection.success' && (rawStatus === 'SUCCESS' || !daliData?.status))
+      : (rawStatus === 'SUCCESS' ||
+         rawStatus === 'COMPLETED' ||
+         rawStatus === 'PAID' ||
+         req.body.success === true ||
+         req.body.status === 1 ||
+         req.body.status === '1');
+
+    const extRef =
+      daliData?.external_id ||
+      daliData?.externalReference ||
+      req.body.externalReference ||
+      req.body.reference ||
+      req.body.external_id ||
+      req.body.ref ||
+      req.body.bill_ref ||
+      req.body.user_ref;
+
+    const txId =
+      daliData?.uuid ||
+      daliData?.reference ||
+      req.body.transactionId ||
+      req.body.trans_id ||
+      req.body.transaction_id ||
+      req.body.receipt ||
+      req.body.receipt_no ||
+      `MNO-${Date.now()}`;
 
     const webhookPayload: WebhookPayload = {
-      externalReference:
-        req.body.externalReference ||
-        req.body.reference ||
-        req.body.external_reference ||
-        req.body.ref ||
-        req.body.bill_ref ||
-        req.body.user_ref,
-      transactionId:
-        req.body.transactionId ||
-        req.body.trans_id ||
-        req.body.transaction_id ||
-        req.body.receipt ||
-        req.body.receipt_no ||
-        `MNO-${Date.now()}`,
+      externalReference: extRef,
+      transactionId: txId,
       status: isSuccess ? 'SUCCESS' : 'FAILED',
-      amount: Number(req.body.amount || req.body.trans_amount || 0),
-      currency: req.body.currency || 'TZS',
-      phoneNumber: req.body.phoneNumber || req.body.msisdn || req.body.phone || '',
-      carrier: req.body.carrier || req.body.operator || req.body.network || '',
+      amount: Number(daliData?.amount || req.body.amount || req.body.trans_amount || 0),
+      currency: daliData?.currency || req.body.currency || 'TZS',
+      phoneNumber: daliData?.account_number || req.body.phoneNumber || req.body.msisdn || req.body.phone || '',
+      carrier: daliData?.provider || req.body.carrier || req.body.operator || req.body.network || '',
       timestamp: req.body.timestamp || new Date().toISOString(),
-      message: req.body.message || req.body.desc,
+      message: req.body.message || (isDaliPayEvent ? `Event: ${req.body.event}` : req.body.desc),
     };
 
     if (!webhookPayload.externalReference) {
@@ -147,7 +169,10 @@ const handleIncomingWebhook = async (req: Request, res: Response) => {
       rawBody
     );
 
-    res.status(result.success ? 200 : 400).json(result);
+    res.status(result.success ? 200 : 400).json({
+      received: true,
+      ...result,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Internal webhook error.' });
   }
@@ -169,43 +194,48 @@ apiRouter.post('/payments/dalipay/test-push', async (req: Request, res: Response
     const effectiveOwnerId = ownerId ? Number(ownerId) : router?.owner_id;
     const owner = effectiveOwnerId ? db.getOwnerById(effectiveOwnerId) : undefined;
 
-    const activeKeyId = (keyId || router?.dalipay_key_id || owner?.dalipay_key_id || settings.dalipay?.keyId || 'y3hT9bs505Z6').trim();
-    const activePublicKey = (publicKey || router?.dalipay_public_key || owner?.dalipay_public_key || settings.dalipay?.publicKey || '').trim();
-    const activeSecretKey = (secretKey || router?.dalipay_secret_key || owner?.dalipay_secret_key || settings.dalipay?.secretKey || '').trim();
-    const activeEndpoint = (apiEndpoint || router?.dalipay_api_endpoint || owner?.dalipay_api_endpoint || settings.dalipay?.apiEndpoint || 'https://app.dalipay.co.tz').trim();
+    const activeKeyId = (keyId || router?.dalipay_key_id || owner?.dalipay_key_id || settings.dalipay?.keyId || process.env.DALIPAY_KEY_ID || '').trim();
+    const activePublicKey = (publicKey || router?.dalipay_public_key || owner?.dalipay_public_key || settings.dalipay?.publicKey || process.env.DALIPAY_PUBLIC_KEY || '').trim();
+    const activeSecretKey = (secretKey || router?.dalipay_secret_key || owner?.dalipay_secret_key || settings.dalipay?.secretKey || process.env.DALIPAY_SECRET_KEY || '').trim();
+    const activeEndpoint = (apiEndpoint || router?.dalipay_api_endpoint || owner?.dalipay_api_endpoint || settings.dalipay?.apiEndpoint || process.env.DALIPAY_ENDPOINT || 'https://app.dalipay.co.tz').trim();
 
     const isOwnerAccount = Boolean(owner && (owner.dalipay_key_id || owner.dalipay_public_key || keyId));
     const testRef = `DALI-TEST-${Date.now().toString().slice(-6)}`;
-    const txId = `GW-TX-${activeKeyId}-${Date.now().toString().slice(-6)}`;
+    let txId = `GW-TX-${activeKeyId || 'DALI'}-${Date.now().toString().slice(-6)}`;
 
     // If live/sandbox keys are provided, attempt real push to DaliPay API:
     let livePushSent = false;
     let pushErrorMsg = '';
-    if (activePublicKey || activeSecretKey) {
+    if (activePublicKey && activeSecretKey) {
       try {
-        const pushRes = await fetch(`${activeEndpoint}/checkout/push`, {
+        const collectionsUrl = getDaliPayCollectionsUrl(activeEndpoint);
+        const dalipayProvider = formatDaliPayProvider(carrier);
+        const dalipayAccount = formatDaliPayAccountNumber(phoneNumber);
+
+        const pushRes = await fetch(collectionsUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-KEY': activeSecretKey,
-            'X-PUBLIC-KEY': activePublicKey,
-            'X-KEY-ID': activeKeyId,
-            Authorization: `Bearer ${activeSecretKey}`,
+            'X-Public-Key': activePublicKey,
+            'X-Secret-Key': activeSecretKey,
+            ...(activeKeyId ? { 'X-Key-Id': activeKeyId } : {}),
           },
           body: JSON.stringify({
-            key_id: activeKeyId,
-            phone_number: phoneNumber,
+            account_number: dalipayAccount,
             amount: Number(amount),
-            carrier,
-            reference: testRef,
             currency: 'TZS',
-            callback_url: `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
+            provider: dalipayProvider,
+            external_id: testRef.slice(0, 30),
+            customer_name: `Jaribio la ${owner?.business_name || 'Admin'}`,
           }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(10000),
         });
         const pushData: any = await pushRes.json().catch(() => ({}));
         if (pushRes.ok) {
           livePushSent = true;
+          if (pushData.data?.uuid || pushData.data?.reference) {
+            txId = pushData.data.uuid || pushData.data.reference;
+          }
         } else {
           pushErrorMsg = pushData.message || pushData.error || `HTTP ${pushRes.status}`;
         }
@@ -355,14 +385,178 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
 });
 
 // =============================================================================
-// Plans Endpoints (CRUD)
+// Plans Endpoints (Strict Multi-Tenant Isolation per Hotspot Owner & Router Assignment)
 // =============================================================================
-apiRouter.get('/plans', (_req: Request, res: Response) => {
-  res.json(db.getPlans());
+apiRouter.get('/plans', (req: Request, res: Response) => {
+  const caller = getRequestUser(req);
+  const ownerIdQuery = req.query.ownerId ? Number(req.query.ownerId) : undefined;
+  const routerIdQuery = req.query.routerId ? String(req.query.routerId).trim() : undefined;
+  const strictRouter = req.query.strictRouter === 'true';
+
+  // Exclude unowned sample plans
+  const allPlans = db.getPlans().filter((p) => !(p.owner_name === 'Japhet Hotspot' && (!p.owner_id || p.owner_id === 2)));
+
+  let resultPlans: PlanRecord[] = [];
+
+  // 1. If a specific ownerId was requested (e.g. from Captive Portal of that router or Admin filter)
+  if (ownerIdQuery) {
+    resultPlans = allPlans.filter((p) => p.owner_id != null && Number(p.owner_id) === Number(ownerIdQuery));
+  } else if (caller && req.query.all !== 'true') {
+    // 2. If caller is authenticated (Hotspot Owner, Staff, or Vendor Admin specific view):
+    const effectiveOwnerId = Number(caller.parent_owner_id || caller.id);
+    resultPlans = allPlans.filter((p) => p.owner_id != null && Number(p.owner_id) === effectiveOwnerId);
+  } else if (caller && caller.role === 'VENDOR_ADMIN' && req.query.all === 'true') {
+    // 3. If explicit ?all=true is passed by Master Admin:
+    resultPlans = allPlans.filter((p) => p.owner_id != null);
+  } else {
+    // Unauthenticated general query: return empty to prevent data leak
+    return res.json([]);
+  }
+
+  // Filter by router if requested
+  if (routerIdQuery && routerIdQuery !== 'ALL') {
+    const targetRouterId = Number(routerIdQuery);
+    if (!isNaN(targetRouterId)) {
+      if (strictRouter) {
+        resultPlans = resultPlans.filter((p) => p.router_id != null && Number(p.router_id) === targetRouterId);
+      } else {
+        // Includes router-specific plans for this router, plus general packages applicable to all routers (router_id == null)
+        resultPlans = resultPlans.filter((p) => p.router_id == null || Number(p.router_id) === targetRouterId);
+      }
+    }
+  }
+
+  // Enrich with router_name if missing
+  const routersMap = new Map(db.getRouters().map((r) => [r.id, r]));
+  const enriched = resultPlans.map((p) => {
+    if (p.router_id && !p.router_name) {
+      const r = routersMap.get(Number(p.router_id));
+      if (r) return { ...p, router_name: r.name };
+    }
+    return p;
+  });
+
+  res.json(enriched);
+});
+
+// Clone/import starter packages for a hotspot owner
+apiRouter.post('/plans/clone-defaults', (req: Request, res: Response) => {
+  try {
+    const caller = getRequestUser(req);
+    const { owner_id, router_id } = req.body;
+    let targetOwnerId: number | undefined = owner_id ? Number(owner_id) : undefined;
+    if (!targetOwnerId && caller) {
+      targetOwnerId = caller.role === 'VENDOR_ADMIN' ? undefined : (caller.parent_owner_id || caller.id);
+    }
+
+    if (!targetOwnerId) {
+      return res.status(400).json({ error: 'Tafadhali chagua mmiliki wa hotspot (owner_id is required).' });
+    }
+
+    const owner = db.getOwnerById(targetOwnerId);
+    let resolvedRouterId: number | null = null;
+    let resolvedRouterName: string | null = null;
+    if (router_id && router_id !== 'ALL' && !isNaN(Number(router_id))) {
+      resolvedRouterId = Number(router_id);
+      const r = db.getRouterById(resolvedRouterId);
+      if (r) resolvedRouterName = r.name;
+    }
+
+    const starterTemplates = [
+      {
+        name: 'Masaa 2 - Kasi ya Juu',
+        type: 'TIME_BASED' as const,
+        limit_uptime: 7200,
+        limit_bytes_total: null,
+        rate_limit: '2M/4M',
+        price: 500,
+        validity_period: 7200,
+        shared_users: 1,
+        is_active: true,
+        badge: 'NONE' as const,
+        features: ['Masaa 2 bila kikomo cha MB', 'Kasi ya 4 Mbps'],
+        description_sw: 'Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps',
+        description_en: '2 Hours unlimited browsing at 4Mbps peak speed',
+      },
+      {
+        name: 'Masaa 6 - Standard',
+        type: 'TIME_BASED' as const,
+        limit_uptime: 21600,
+        limit_bytes_total: null,
+        rate_limit: '3M/6M',
+        price: 1000,
+        validity_period: 21600,
+        shared_users: 1,
+        is_active: true,
+        badge: 'POPULAR' as const,
+        badge_text: 'Inapendwa Zaidi',
+        features: ['Masaa 6 ya kazi & masomo', 'Kasi ya 6 Mbps', 'YouTube & TikTok bila kukwama'],
+        description_sw: 'Masaa 6 ya kazi, video na kupakua maudhui mtandaoni',
+        description_en: '6 Hours for remote work, streaming, and downloads',
+      },
+      {
+        name: 'Masaa 24 (Siku 1) - Unlimited',
+        type: 'TIME_BASED' as const,
+        limit_uptime: 86400,
+        limit_bytes_total: null,
+        rate_limit: '3M/8M',
+        price: 1500,
+        validity_period: 86400,
+        shared_users: 1,
+        is_active: true,
+        badge: 'BEST_VALUE' as const,
+        badge_text: 'Thamani Bora',
+        features: ['Saa 24 (siku 1) mfululizo', 'Kasi ya 8 Mbps', 'Inafaa kwa kupakua na simu'],
+        description_sw: 'Siku 1 kamili (masaa 24) intaneti mfululizo bila kikomo',
+        description_en: 'Full 24-hour unlimited connection at high speed',
+      },
+      {
+        name: 'Siku 7 (Wiki 1) - Kasi Kubwa',
+        type: 'TIME_BASED' as const,
+        limit_uptime: 604800,
+        limit_bytes_total: null,
+        rate_limit: '4M/10M',
+        price: 5000,
+        validity_period: 604800,
+        shared_users: 1,
+        is_active: true,
+        badge: 'SUPER_FAST' as const,
+        badge_text: 'Kasi Kubwa',
+        features: ['Siku 7 mfululizo bila kikomo', 'Kasi kubwa 10 Mbps', 'QoS prioritization kwa kazi'],
+        description_sw: 'Wiki nzima (siku 7) intaneti kasi kubwa bila kukatika',
+        description_en: '7 Days continuous broadband internet with QoS',
+      },
+    ];
+
+    const createdPlans: PlanRecord[] = [];
+    for (const tpl of starterTemplates) {
+      const plan: PlanRecord = {
+        ...tpl,
+        id: db.getNextPlanId(),
+        owner_id: targetOwnerId,
+        owner_name: owner?.business_name || owner?.name,
+        router_id: resolvedRouterId,
+        router_name: resolvedRouterName,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      db.savePlan(plan);
+      createdPlans.push(plan);
+    }
+
+    return res.json({
+      success: true,
+      message: `Vifurushi ${createdPlans.length} vimeongezwa kwenye akaunti ya ${owner?.business_name || 'Owner'}.`,
+      plans: createdPlans,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 apiRouter.post('/plans', (req: Request, res: Response) => {
   try {
+    const caller = getRequestUser(req);
     const {
       name,
       type = 'TIME_BASED',
@@ -377,16 +571,41 @@ apiRouter.post('/plans', (req: Request, res: Response) => {
       features = [],
       description_sw = '',
       description_en = '',
+      owner_id,
+      router_id,
     } = req.body;
 
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Jina la kifurushi na bei vinahitajika.' });
     }
 
+    let effectiveOwnerId: number | undefined = owner_id ? Number(owner_id) : undefined;
+    if (!effectiveOwnerId && caller) {
+      effectiveOwnerId = caller.role === 'VENDOR_ADMIN' ? undefined : (caller.parent_owner_id || caller.id);
+    }
+    const ownerRecord = effectiveOwnerId ? db.getOwnerById(effectiveOwnerId) : undefined;
+
+    let targetRouterId: number | null = null;
+    let targetRouterName: string | null = null;
+    if (router_id !== undefined && router_id !== null && router_id !== 'ALL' && router_id !== '' && router_id !== 0) {
+      const rNum = Number(router_id);
+      if (!isNaN(rNum)) {
+        targetRouterId = rNum;
+        const matchedRouter = db.getRouterById(rNum);
+        if (matchedRouter) {
+          targetRouterName = matchedRouter.name;
+        }
+      }
+    }
+
     const newPlan: PlanRecord = {
       id: db.getNextPlanId(),
       name,
       type,
+      owner_id: effectiveOwnerId,
+      owner_name: ownerRecord?.business_name || ownerRecord?.name,
+      router_id: targetRouterId,
+      router_name: targetRouterName,
       limit_uptime: limit_uptime ? Number(limit_uptime) : null,
       limit_bytes_total: limit_bytes_total ? Number(limit_bytes_total) : null,
       rate_limit,
@@ -411,16 +630,45 @@ apiRouter.post('/plans', (req: Request, res: Response) => {
 });
 
 apiRouter.put('/plans/:id', (req: Request, res: Response) => {
+  const caller = getRequestUser(req);
   const id = Number(req.params.id);
   const existing = db.getPlanById(id);
   if (!existing) {
     return res.status(404).json({ error: 'Plan not found.' });
   }
 
+  // Security check: If caller is a Hotspot Owner, ensure they can only edit their own packages!
+  if (caller && caller.role !== 'VENDOR_ADMIN' && (caller.role as string) !== 'admin') {
+    const callerOwnerId = caller.parent_owner_id || caller.id;
+    if (existing.owner_id && existing.owner_id !== callerOwnerId) {
+      return res.status(403).json({ error: 'Huruhusiwi kubadilisha kifurushi cha mmiliki mwingine.' });
+    }
+  }
+
+  let updatedRouterId = existing.router_id ?? null;
+  let updatedRouterName = existing.router_name ?? null;
+
+  if (req.body.router_id !== undefined) {
+    if (req.body.router_id === null || req.body.router_id === 'ALL' || req.body.router_id === '' || req.body.router_id === 0) {
+      updatedRouterId = null;
+      updatedRouterName = null;
+    } else {
+      const rNum = Number(req.body.router_id);
+      if (!isNaN(rNum)) {
+        updatedRouterId = rNum;
+        const r = db.getRouterById(rNum);
+        updatedRouterName = r ? r.name : (req.body.router_name || null);
+      }
+    }
+  }
+
   const updated: PlanRecord = {
     ...existing,
     ...req.body,
     id,
+    owner_id: existing.owner_id !== undefined ? existing.owner_id : (req.body.owner_id ? Number(req.body.owner_id) : undefined),
+    router_id: updatedRouterId,
+    router_name: updatedRouterName,
     price: req.body.price !== undefined ? Number(req.body.price) : existing.price,
     features: req.body.features !== undefined ? (Array.isArray(req.body.features) ? req.body.features : []) : existing.features,
     updated_at: new Date().toISOString(),
@@ -431,7 +679,21 @@ apiRouter.put('/plans/:id', (req: Request, res: Response) => {
 });
 
 apiRouter.delete('/plans/:id', (req: Request, res: Response) => {
+  const caller = getRequestUser(req);
   const id = Number(req.params.id);
+  const existing = db.getPlanById(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Plan not found.' });
+  }
+
+  // Security check: If caller is a Hotspot Owner, ensure they can only delete their own packages!
+  if (caller && caller.role !== 'VENDOR_ADMIN' && (caller.role as string) !== 'admin') {
+    const callerOwnerId = caller.parent_owner_id || caller.id;
+    if (existing.owner_id && existing.owner_id !== callerOwnerId) {
+      return res.status(403).json({ error: 'Huruhusiwi kufuta kifurushi cha mmiliki mwingine.' });
+    }
+  }
+
   const ok = db.deletePlan(id);
   res.json({ success: ok });
 });
@@ -510,19 +772,35 @@ apiRouter.get("/vouchers", (req: Request, res: Response) => {
 
   const plansMap = new Map(db.getPlans().map((p) => [p.id, p]));
   const routersMap = new Map(db.getRouters().map((r: any) => [r.id, r]));
+  const trialConfig = db.getFreeTrialConfig();
   const enriched = vouchers.map((v) => {
     const router = v.router_id ? routersMap.get(Number(v.router_id)) : undefined;
+    const isTrial = Boolean(
+      v.code?.toUpperCase().startsWith('FREE-') ||
+      (v.batch_tag && v.batch_tag.toUpperCase().includes('FREE_TRIAL'))
+    );
+    const plan = isTrial
+      ? {
+          id: 0,
+          name: trialConfig?.name || 'Majaribio ya Bure (Free Trial)',
+          price: 0,
+          type: 'TIME_BASED',
+          rate_limit: trialConfig?.rate_limit || '2M/4M',
+          limit_uptime: (trialConfig?.duration_minutes || 15) * 60,
+        }
+      : plansMap.get(v.plan_id);
+
     return {
       ...v,
       router_name: router ? router.name : (v.router_name || undefined),
-      plan: plansMap.get(v.plan_id),
+      plan,
     };
   });
   return res.json(enriched);
 });
 
 apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
-  const { code, macAddress } = req.body;
+  const { code, macAddress, planId, selectedPlanId, routerId } = req.body;
   if (!code) {
     return res.status(400).json({ error: 'Tafadhali weka nambari ya vocha (Voucher code is required).' });
   }
@@ -537,6 +815,53 @@ apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
   }
 
   const plan = db.getPlanById(voucher.plan_id);
+
+  // Strict Router Isolation / Lock ("Kusiwe na kushare vocha"):
+  const requestedRouterId = routerId ? Number(routerId) : undefined;
+  if (voucher.router_id && requestedRouterId && Number(voucher.router_id) !== requestedRouterId) {
+    const voucherRouter = db.getRouterById(Number(voucher.router_id));
+    const currentRouter = db.getRouterById(requestedRouterId);
+    const voucherRouterName = voucherRouter ? voucherRouter.name : (voucher.router_name || `Router #${voucher.router_id}`);
+    const currentRouterName = currentRouter ? currentRouter.name : `Router #${requestedRouterId}`;
+
+    return res.status(400).json({
+      error: `Kosa: Vocha hii (${voucher.code}) imetengwa kwa ajili ya "${voucherRouterName}". Hairuhusiwi kutumika au kusharewa kwenye mtandao huu wa "${currentRouterName}"!`,
+      voucherRouterId: voucher.router_id,
+      voucherRouterName,
+      currentRouterId: requestedRouterId,
+      currentRouterName,
+    });
+  }
+
+  // Also verify plan router isolation if plan is dedicated to a specific router:
+  if (plan?.router_id && requestedRouterId && Number(plan.router_id) !== requestedRouterId) {
+    const planRouter = db.getRouterById(Number(plan.router_id));
+    const currentRouter = db.getRouterById(requestedRouterId);
+    const planRouterName = planRouter ? planRouter.name : (plan.router_name || `Router #${plan.router_id}`);
+    const currentRouterName = currentRouter ? currentRouter.name : `Router #${requestedRouterId}`;
+
+    return res.status(400).json({
+      error: `Kosa: Kifurushi hiki (${plan.name}) ni mahsusi kwa ajili ya "${planRouterName}", hakiwezi kutumika kwenye mtandao huu wa "${currentRouterName}"!`,
+    });
+  }
+
+  // Strict package mismatch validation:
+  // e.g., if a 6-hour manual voucher is entered for a 12-hour package, reject with a clear error
+  const requestedPlanId = planId ? Number(planId) : selectedPlanId ? Number(selectedPlanId) : undefined;
+  if (requestedPlanId && voucher.plan_id && Number(voucher.plan_id) !== requestedPlanId) {
+    const requestedPlan = db.getPlanById(requestedPlanId);
+    const actualPlanName = plan?.name || `Kifurushi cha Masaa ${Math.round((plan?.limit_uptime || 0) / 3600)}`;
+    const expectedPlanName = requestedPlan?.name || `Kifurushi cha Masaa ${Math.round((requestedPlan?.limit_uptime || 0) / 3600)}`;
+
+    return res.status(400).json({
+      error: `Kifurushi siyo sahihi! Vocha hii ni ya '${actualPlanName}', haiwezi kutumika kwenye '${expectedPlanName}'. Tafadhali chagua kifurushi sahihi cha vocha yako au weka vocha inayolingana.`,
+      voucherPlanId: voucher.plan_id,
+      voucherPlanName: actualPlanName,
+      requestedPlanId,
+      requestedPlanName: expectedPlanName,
+    });
+  }
+
   let router = voucher.router_id ? db.getRouterById(voucher.router_id) : undefined;
   if (!router && voucher.owner_id) {
     router = db.getRouters().find((r) => Number(r.owner_id) === Number(voucher.owner_id));
@@ -840,6 +1165,128 @@ apiRouter.delete('/vouchers/code/:code', async (req: Request, res: Response) => 
     try { await MikrotikService.deleteUser(router, rawCode); } catch (e) {}
   }
   return res.json({ success: true, message: `Vocha '${rawCode}' imefutwa kikamilifu.` });
+});
+
+// Bulk delete vouchers by status (AVAILABLE, ACTIVE, EXPIRED, ALL), router, or batch
+apiRouter.post(['/vouchers/bulk-delete', '/vouchers/bulk'], async (req: Request, res: Response) => {
+  try {
+    const caller = getRequestUser(req);
+    const reqOwnerId = req.body?.ownerId ?? req.query?.ownerId;
+    const parsedOwnerId = reqOwnerId ? Number(reqOwnerId) : undefined;
+    let targetOwnerId =
+      caller && caller.role !== 'VENDOR_ADMIN'
+        ? Number(caller.parent_owner_id || caller.id)
+        : parsedOwnerId;
+
+    const rawStatus = String(req.body?.status || req.query?.status || 'ALL').trim().toUpperCase();
+    let normalizedStatus: 'AVAILABLE' | 'ACTIVE' | 'EXPIRED' | 'USED' | 'ALL' = 'ALL';
+    if (rawStatus === 'AVAILABLE' || rawStatus === 'UNUSED' || rawStatus === 'ZILIZOPO') {
+      normalizedStatus = 'AVAILABLE';
+    } else if (rawStatus === 'ACTIVE' || rawStatus === 'ZINAZOTUMIKA') {
+      normalizedStatus = 'ACTIVE';
+    } else if (rawStatus === 'EXPIRED' || rawStatus === 'ZILIZOKWISHA') {
+      normalizedStatus = 'EXPIRED';
+    } else if (rawStatus === 'USED' || rawStatus === 'ZILIZOTUMIKA') {
+      normalizedStatus = 'USED';
+    } else {
+      normalizedStatus = 'ALL';
+    }
+
+    const rawRouterId = req.body?.routerId ?? req.query?.routerId;
+    const targetRouterId =
+      rawRouterId && rawRouterId !== 'ALL' && !isNaN(Number(rawRouterId))
+        ? Number(rawRouterId)
+        : undefined;
+
+    const batchTag = req.body?.batchTag ? String(req.body.batchTag).trim() : undefined;
+
+    const allVouchers = db.getVouchers();
+    const toDelete = allVouchers.filter((v) => {
+      if (targetOwnerId !== undefined && Number(v.owner_id) !== targetOwnerId) {
+        return false;
+      }
+      if (targetRouterId !== undefined && Number(v.router_id) !== targetRouterId) {
+        return false;
+      }
+      if (batchTag && v.batch_tag !== batchTag) {
+        return false;
+      }
+      if (normalizedStatus === 'AVAILABLE' && v.status !== 'AVAILABLE') {
+        return false;
+      }
+      if (normalizedStatus === 'ACTIVE' && v.status !== 'ACTIVE') {
+        return false;
+      }
+      if (normalizedStatus === 'EXPIRED' && v.status !== 'EXPIRED') {
+        return false;
+      }
+      if (normalizedStatus === 'USED' && !(v.status === 'EXPIRED' || v.status === 'ACTIVE' || (v as any).status === 'USED' || !!v.activated_at)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (toDelete.length === 0) {
+      return res.json({
+        success: true,
+        count: 0,
+        message: 'Hakuna vocha zilizokidhi vigezo vya kufutwa.',
+      });
+    }
+
+    const targetRouter = targetRouterId ? db.getRouterById(targetRouterId) : undefined;
+    for (const v of toDelete) {
+      db.deleteVoucher(v.id);
+      if (v.code) {
+        db.deleteRadiusUser(v.code);
+        db.deleteVoucherByCode(v.code);
+        const r = v.router_id ? db.getRouterById(v.router_id) : targetRouter;
+        if (r) {
+          try {
+            await MikrotikService.deleteUser(r, v.code);
+          } catch {}
+        }
+      }
+    }
+
+    // Clean up empty batches if all vouchers in those batches were deleted
+    if (normalizedStatus === 'ALL' || batchTag) {
+      const remainingVouchers = db.getVouchers();
+      const remainingTags = new Set(remainingVouchers.map((v) => v.batch_tag).filter(Boolean));
+      const batches = db.getVoucherBatches(targetOwnerId);
+      for (const b of batches) {
+        if (!remainingTags.has(b.batch_id) && !remainingTags.has((b as any).batch_tag)) {
+          if (batchTag && (b.batch_id === batchTag || (b as any).batch_tag === batchTag)) {
+            db.deleteVoucherBatch(b.batch_id);
+          } else if (normalizedStatus === 'ALL') {
+            db.deleteVoucherBatch(b.batch_id);
+          }
+        }
+      }
+    }
+
+    const statusLabel =
+      normalizedStatus === 'AVAILABLE'
+        ? 'zisizotumika (unused)'
+        : normalizedStatus === 'ACTIVE'
+        ? 'zinazotumika (active)'
+        : normalizedStatus === 'EXPIRED'
+        ? 'zilizokwisha muda (expired)'
+        : normalizedStatus === 'USED'
+        ? 'zilizotumika (used)'
+        : 'zote';
+
+    return res.json({
+      success: true,
+      count: toDelete.length,
+      status: normalizedStatus,
+      routerId: targetRouterId || 'ALL',
+      message: `Jumla ya vocha ${toDelete.length} (${statusLabel}) zimefutwa kikamilifu.`,
+    });
+  } catch (err: any) {
+    console.error('Bulk voucher delete error:', err);
+    return res.status(500).json({ error: err.message || 'Hitilafu ya kufuta vocha kwa pamoja.' });
+  }
 });
 
 // Add single voucher
@@ -1650,15 +2097,14 @@ apiRouter.post('/owners', (req: Request, res: Response) => {
 
     let resolvedBusinessName = business_name;
     let resolvedParentId = parent_owner_id ? Number(parent_owner_id) : undefined;
-    let resolvedRouters = Array.isArray(assigned_router_ids) ? assigned_router_ids.map(Number) : [];
+    let resolvedRouters = Array.isArray(assigned_router_ids)
+      ? assigned_router_ids.map(Number).filter((id) => id !== 3 && db.getRouterById(id) != null)
+      : [];
 
     if (resolvedParentId && !resolvedBusinessName) {
       const parent = db.getOwnerById(resolvedParentId);
       if (parent) {
         resolvedBusinessName = parent.business_name;
-        if (resolvedRouters.length === 0) {
-          resolvedRouters = [...parent.assigned_router_ids];
-        }
       }
     }
 
@@ -1749,7 +2195,7 @@ apiRouter.post('/owners', (req: Request, res: Response) => {
     db.saveOwner(owner);
 
     // Sync assigned routers with owner info
-    for (const rId of owner.assigned_router_ids) {
+    for (const rId of (owner.assigned_router_ids || [])) {
       const r = db.getRouterById(rId);
       if (r) {
         if (!r.owner_id || owner.role === 'HOTSPOT_OWNER') {
@@ -1918,11 +2364,207 @@ apiRouter.put('/owners/:id/privileges', (req: Request, res: Response) => {
   });
 });
 
+apiRouter.post('/owners/:id/toggle-subscription', (req: Request, res: Response) => {
+  try {
+    const ownerId = Number(req.params.id);
+    const { action, isExpired, days = 30 } = req.body || {};
+    const owner = db.getOwnerById(ownerId);
+    if (!owner) {
+      return res.status(404).json({ success: false, error: 'Mtumiaji/Mmiliki wa Hotspot hajapatikana.' });
+    }
+
+    if (owner.role === 'VENDOR_ADMIN' || owner.id === 1) {
+      return res.status(400).json({ success: false, error: 'Huwezi kusitisha subscription ya Vendor Master HQ!' });
+    }
+
+    const shouldExpire = action === 'expire' || isExpired === true;
+
+    if (shouldExpire) {
+      owner.subscription_status = 'EXPIRED';
+      owner.subscription_expires_at = new Date(Date.now() - 3600000).toISOString();
+    } else {
+      const daysToAdd = Math.max(1, Number(days) || 30);
+      owner.subscription_status = 'ACTIVE';
+      owner.subscription_expires_at = new Date(Date.now() + daysToAdd * 86400000).toISOString();
+    }
+    owner.updated_at = new Date().toISOString();
+    const updated = db.saveOwner(owner);
+
+    db.saveAuditLog({
+      id: Date.now(),
+      external_reference: `SUB-TOGGLE-${owner.id}-${Date.now()}`,
+      event_type: shouldExpire ? 'ADMIN_FORCE_EXPIRED_USER_SUBSCRIPTION' : 'ADMIN_RESTORED_USER_SUBSCRIPTION_ACTIVE',
+      payload_json: {
+        adminAction: shouldExpire ? 'FORCE_EXPIRE' : 'ACTIVATE',
+        ownerId: owner.id,
+        businessName: owner.business_name,
+        newStatus: owner.subscription_status,
+        expiresAt: owner.subscription_expires_at,
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      owner: updated,
+      message: shouldExpire
+        ? `Subscription ya ${owner.business_name} (${owner.name}) imesitishwa (EXPIRED)!`
+        : `Subscription ya ${owner.business_name} (${owner.name}) imewashwa (ACTIVE)!`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kubadili hali ya subscription.' });
+  }
+});
+
+// =============================================================================
+// Monthly Subscription Ledger & Reporting Module Endpoints
+// =============================================================================
+apiRouter.get('/subscriptions/report', (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, status, search } = req.query;
+    const allOwners = db.getOwners().filter(
+      (o) => o.role === 'HOTSPOT_OWNER' && !o.is_sub_user && !o.parent_owner_id
+    );
+    const allRouters = db.getRouters();
+    const allTransactions = db.getTransactions();
+
+    const now = Date.now();
+    const startMs = startDate ? new Date(String(startDate)).getTime() : null;
+    const endMs = endDate ? new Date(String(endDate) + 'T23:59:59.999Z').getTime() : null;
+
+    const items = allOwners.map((owner) => {
+      const ownerRouters = allRouters.filter((r) => r.owner_id === owner.id);
+      const monthlyFee = Number(owner.monthly_fee || owner.subscription_fee || 15000);
+
+      const expiresAt = owner.subscription_expires_at ? new Date(owner.subscription_expires_at) : null;
+      const expiresAtMs = expiresAt ? expiresAt.getTime() : 0;
+
+      // Find subscription transactions for this owner
+      const subTxs = allTransactions
+        .filter(
+          (t) =>
+            t.owner_id === owner.id &&
+            (t.external_reference?.startsWith('SUB-') ||
+              t.external_reference?.startsWith('MAN-SUB-') ||
+              t.external_reference?.startsWith('BULK-SUB-') ||
+              !t.router_id) &&
+            t.status === 'SUCCESS'
+        )
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const lastPayment = subTxs[0] || null;
+
+      // Filter payments within the specified date range
+      const rangePayments = subTxs.filter((t) => {
+        const txTime = new Date(t.created_at).getTime();
+        if (startMs && txTime < startMs) return false;
+        if (endMs && txTime > endMs) return false;
+        return true;
+      });
+
+      const totalPaidInRange = rangePayments.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      // Determine payment status
+      let isPaid = false;
+      if (startMs || endMs) {
+        if (rangePayments.length > 0) {
+          isPaid = true;
+        } else if (
+          owner.subscription_status === 'ACTIVE' &&
+          expiresAtMs >= (startMs || 0) &&
+          expiresAtMs > now
+        ) {
+          isPaid = true;
+        } else {
+          isPaid = false;
+        }
+      } else {
+        isPaid =
+          (owner.subscription_status === 'ACTIVE' || owner.subscription_status === 'TRIAL') &&
+          (expiresAtMs > now || !owner.subscription_expires_at);
+      }
+
+      const daysRemaining = expiresAtMs > now ? Math.ceil((expiresAtMs - now) / 86400000) : 0;
+      const daysOverdue = expiresAtMs < now && expiresAtMs > 0 ? Math.ceil((now - expiresAtMs) / 86400000) : 0;
+
+      return {
+        id: owner.id,
+        name: owner.name,
+        business_name: owner.business_name || 'Hotspot Business',
+        email: owner.email,
+        phone: owner.phone,
+        router_count: ownerRouters.length,
+        monthly_fee: monthlyFee,
+        subscription_status: owner.subscription_status || 'EXPIRED',
+        subscription_expires_at: owner.subscription_expires_at,
+        is_paid: isPaid,
+        days_remaining: daysRemaining,
+        days_overdue: daysOverdue,
+        last_payment_date: lastPayment ? lastPayment.created_at : null,
+        last_payment_amount: lastPayment ? lastPayment.amount : null,
+        last_payment_reference: lastPayment ? lastPayment.external_reference : null,
+        total_paid_in_range: totalPaidInRange,
+        payment_count_in_range: rangePayments.length,
+        created_at: owner.created_at,
+        history: subTxs.slice(0, 5),
+      };
+    });
+
+    let filtered = items;
+    if (status === 'PAID') {
+      filtered = filtered.filter((i) => i.is_paid);
+    } else if (status === 'UNPAID' || status === 'EXPIRED') {
+      filtered = filtered.filter((i) => !i.is_paid);
+    }
+
+    if (search) {
+      const q = String(search).toLowerCase().trim();
+      filtered = filtered.filter(
+        (i) =>
+          i.name.toLowerCase().includes(q) ||
+          i.business_name.toLowerCase().includes(q) ||
+          i.phone.toLowerCase().includes(q) ||
+          (i.email && i.email.toLowerCase().includes(q))
+      );
+    }
+
+    const totalOwners = items.length;
+    const paidCount = items.filter((i) => i.is_paid).length;
+    const unpaidCount = totalOwners - paidCount;
+    const totalCollected = items
+      .filter((i) => i.is_paid)
+      .reduce((sum, i) => sum + (i.total_paid_in_range > 0 ? i.total_paid_in_range : i.monthly_fee), 0);
+    const totalPending = items.filter((i) => !i.is_paid).reduce((sum, i) => sum + i.monthly_fee, 0);
+
+    return res.json({
+      summary: {
+        total_owners: totalOwners,
+        paid_count: paidCount,
+        unpaid_count: unpaidCount,
+        total_collected_tzs: totalCollected,
+        total_pending_tzs: totalPending,
+      },
+      owners: filtered,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Hitilafu ya kupakia ripoti ya subscription.' });
+  }
+});
+
 apiRouter.delete('/owners/:id', (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  if (id === 1) {
-    return res.status(403).json({ error: 'Akaunti Kuu ya Msimamizi Mkuu wa Mfumo (Root Master ID #1) haiwezi kufutwa.' });
+  const targetOwner = db.getOwnerById(id);
+  if (!targetOwner) {
+    return res.status(404).json({ error: 'Mmiliki hakupatikana kwenye mfumo.' });
   }
+
+  // Prevent deleting the main system vendor admin account
+  if (targetOwner.role === 'VENDOR_ADMIN' && targetOwner.id === 1) {
+    return res.status(403).json({
+      error: 'Akaunti Kuu ya Msimamizi Mkuu wa Mfumo (Vendor Admin HQ) haiwezi kufutwa.',
+    });
+  }
+
   const ok = db.deleteOwner(id);
   res.json({ success: ok });
 });
@@ -1932,12 +2574,16 @@ apiRouter.delete('/owners/:id', (req: Request, res: Response) => {
 // =============================================================================
 apiRouter.get('/routers', (req: Request, res: Response) => {
   const ownerId = req.query.ownerId ? Number(req.query.ownerId) : null;
-  const routers = db.getRouters();
+  const routers = db.getRouters().filter(
+    (r) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge') && !r.location?.toLowerCase().includes('mwenge')
+  );
   if (ownerId) {
     const owner = db.getOwnerById(ownerId);
-    if (owner && owner.role === 'HOTSPOT_OWNER') {
-      return res.json(routers.filter((r) => r.owner_id === ownerId || owner.assigned_router_ids.includes(r.id)));
+    if (owner) {
+      const assigned = owner.assigned_router_ids || [];
+      return res.json(routers.filter((r) => r.owner_id === ownerId || assigned.includes(r.id)));
     }
+    return res.json(routers.filter((r) => r.owner_id === ownerId));
   }
   res.json(routers);
 });
@@ -1978,59 +2624,126 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
 
   const routers = db.getRouters();
   const owners = db.getOwners();
-  let matched = routers[0];
 
-  if (routerId) {
-    const found = routers.find((r) => r.id === routerId);
-    if (found) matched = found;
-  } else if (ownerId) {
-    const found = routers.find((r) => r.owner_id === ownerId);
-    if (found) matched = found;
-  } else if (ip) {
-    const found = routers.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
-    if (found) matched = found;
+  // If ownerId is provided, resolve the owner directly
+  const owner = ownerId ? db.getOwnerById(ownerId) : undefined;
+  let matched: RouterRecord | undefined = undefined;
+
+  if (owner) {
+    const isVendor = owner.role === 'VENDOR_ADMIN';
+    const assigned = owner.assigned_router_ids || [];
+
+    // Strict tenant router isolation:
+    // Vendor Admin can ONLY see routers specifically registered to Vendor HQ (r.owner_id === owner.id)
+    // Hotspot Owner can ONLY see routers specifically owned by or assigned to them
+    const allowedRouters = routers.filter((r) => Number(r.owner_id) === Number(owner.id) || assigned.includes(r.id));
+
+    if (routerId) {
+      matched = allowedRouters.find((r) => r.id === routerId);
+    } else if (ip) {
+      matched = allowedRouters.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
+    }
+
+    if (!matched && allowedRouters.length > 0) {
+      matched = allowedRouters[0];
+    }
+  } else {
+    // Unauthenticated client connecting via Hotspot IP or direct routerId
+    if (routerId) {
+      matched = routers.find((r) => r.id === routerId);
+    } else if (ip) {
+      matched = routers.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
+    }
   }
 
-  // Resolve effective owner
-  const owner = (ownerId ? db.getOwnerById(ownerId) : undefined) || (matched?.owner_id ? db.getOwnerById(matched.owner_id) : undefined);
+  // If no router belongs to this owner or found, NEVER fall back to another owner's router!
+  if (!matched) {
+    const isVendor = owner?.role === 'VENDOR_ADMIN';
+    const brandName = isVendor
+      ? (owner.business_name || 'INFOTECH WiFi (Vendor HQ)')
+      : (owner?.business_name || owner?.name || 'Hotspot Yako');
+
+    const activeTheme: PortalThemeConfig = {
+      ...DEFAULT_SERVER_PORTAL_THEME,
+      brandName,
+      supportPhone: owner?.phone || '+255 754 000 111',
+      ...(owner?.portal_theme || {}),
+    };
+
+    return res.json({
+      platformName: 'INFOTECH WiFi',
+      hasRouter: false,
+      router: null,
+      routerId: null,
+      siteName: '',
+      routerName: '',
+      ownerId: owner?.id || ownerId || null,
+      ownerName: owner?.name || (isVendor ? 'Vendor HQ' : ''),
+      ownerBusinessName: owner?.business_name || brandName,
+      brandName,
+      ssid: isVendor ? 'VENDOR-HQ-WIFI' : '',
+      location: isVendor ? 'Vendor HQ Platform' : '',
+      hasPaymentGateway: false,
+      gatewayWarning: null,
+      message: isVendor
+        ? 'Huna router iliyosajiliwa moja kwa moja kwenye akaunti ya Vendor HQ bado.'
+        : 'Huna router iliyounganishwa kwenye akaunti hii bado.',
+      supportPhone: owner?.phone || '+255 754 000 111',
+      portalTheme: activeTheme,
+      routers: [],
+    });
+  }
+
+  // A valid matched router belongs strictly to this owner/setup
+  const effectiveOwner = owner || (matched.owner_id ? db.getOwnerById(matched.owner_id) : undefined);
+  const effectiveOwnerRouters = effectiveOwner
+    ? routers.filter((r) => r.owner_id === effectiveOwner.id || (effectiveOwner.assigned_router_ids || []).includes(r.id))
+    : [matched];
 
   // Check if payment API has been configured by this owner or router
   const hasDaliPay = Boolean(
-    (owner?.dalipay_key_id && owner?.dalipay_public_key && owner?.dalipay_secret_key) ||
+    (effectiveOwner?.dalipay_key_id && effectiveOwner?.dalipay_public_key && effectiveOwner?.dalipay_secret_key) ||
     (matched?.dalipay_key_id && matched?.dalipay_public_key && matched?.dalipay_secret_key)
   );
   const hasPalmPesa = Boolean(
-    (owner?.palmpesa_user_id && owner?.palmpesa_api_token) ||
+    (effectiveOwner?.palmpesa_user_id && effectiveOwner?.palmpesa_api_token) ||
     (matched?.palmpesa_user_id && matched?.palmpesa_api_token)
   );
   const hasPaymentGateway = Boolean(hasDaliPay || hasPalmPesa);
 
-  const brandName = matched?.brand_name || owner?.business_name || matched?.name || 'INFOTECH WiFi';
-  const ssid = matched?.ssid || `${brandName.replace(/[^a-zA-Z0-9]/g, '-').toUpperCase().slice(0, 16)}-WIFI`;
+  const siteName = matched.name;
+  const brandName = matched.brand_name || matched.name || effectiveOwner?.business_name || 'INFOTECH WiFi';
+  const ssid = matched.ssid || `${matched.name.replace(/[^a-zA-Z0-9]/g, '-').toUpperCase().slice(0, 16)}-WIFI`;
+  const location = matched.location || 'Tanzania';
 
   const activeTheme: PortalThemeConfig = {
     ...DEFAULT_SERVER_PORTAL_THEME,
+    supportPhone: effectiveOwner?.phone || matched.ip_address || '+255 754 000 111',
+    ...(effectiveOwner?.portal_theme || {}),
+    ...(matched.portal_theme || {}),
+    // Ensure the router's site name / brand name takes precedence
     brandName,
-    supportPhone: owner?.phone || matched?.ip_address || '+255 754 000 111',
-    ...(owner?.portal_theme || matched?.portal_theme || {}),
   };
 
   res.json({
     platformName: 'INFOTECH WiFi',
+    hasRouter: true,
     router: matched,
-    routerId: matched?.id,
-    ownerId: owner?.id || matched?.owner_id,
+    routerId: matched.id,
+    siteName,
+    routerName: matched.name,
+    ownerId: effectiveOwner?.id || matched.owner_id,
     hasPaymentGateway,
     gatewayWarning: hasPaymentGateway
       ? null
       : 'Mmiliki wa mtandao huu bado hajaweka geti la malipo (Payment API). Tafadhali weka kwanza API ya malipo kwenye dashibodi ili kuruhusu wateja kulipia intaneti.',
     brandName,
     ssid,
-    ownerBusinessName: owner?.business_name || brandName,
-    location: matched?.location || 'Tanzania',
-    supportPhone: owner?.phone || '+255 754 000 111',
+    ownerBusinessName: effectiveOwner?.business_name || brandName,
+    location: matched.location || 'Tanzania',
+    supportPhone: effectiveOwner?.phone || '+255 754 000 111',
     portalTheme: activeTheme,
-    routers: routers.map((r) => ({
+    routers: effectiveOwnerRouters.map((r) => ({
       id: r.id,
       name: r.name,
       brand_name: r.brand_name || r.name,
@@ -2245,6 +2958,21 @@ apiRouter.get('/portal/theme', (req: Request, res: Response) => {
 
   let theme: PortalThemeConfig = { ...DEFAULT_SERVER_PORTAL_THEME };
 
+  if (routerId) {
+    const router = db.getRouterById(routerId);
+    if (router) {
+      const owner = router.owner_id ? db.getOwnerById(router.owner_id) : (ownerId ? db.getOwnerById(ownerId) : undefined);
+      if (owner?.portal_theme) {
+        theme = { ...theme, ...owner.portal_theme };
+      }
+      if (router.portal_theme) {
+        theme = { ...theme, ...router.portal_theme };
+      }
+      theme.brandName = router.brand_name || router.name || owner?.business_name || theme.brandName;
+      return res.json({ success: true, theme, routerName: router.name, siteName: router.name });
+    }
+  }
+
   if (ownerId) {
     const owner = db.getOwnerById(ownerId);
     if (owner) {
@@ -2253,15 +2981,6 @@ apiRouter.get('/portal/theme', (req: Request, res: Response) => {
       } else {
         theme.brandName = owner.business_name;
         theme.supportPhone = owner.phone;
-      }
-    }
-  } else if (routerId) {
-    const router = db.getRouterById(routerId);
-    if (router) {
-      if (router.portal_theme) {
-        theme = { ...theme, ...router.portal_theme };
-      } else {
-        theme.brandName = router.brand_name || router.name;
       }
     }
   }
@@ -2294,7 +3013,7 @@ apiRouter.put('/portal/theme', (req: Request, res: Response) => {
       // Also propagate to their assigned routers if router doesn't have custom override
       const routers = db.getRouters();
       for (const r of routers) {
-        if (r.owner_id === owner.id || owner.assigned_router_ids.includes(r.id)) {
+        if (r.owner_id === owner.id || (owner.assigned_router_ids || []).includes(r.id)) {
           r.portal_theme = owner.portal_theme;
           if (theme.brandName) r.brand_name = theme.brandName;
           db.saveRouter(r);
@@ -2388,16 +3107,20 @@ function resolveVendorAggregatorForSubscription(): {
 
   if (gateway === 'DALIPAY') {
     const dali = settings.dalipay;
-    const keyId = dali?.keyId || 'y3hT9bs505Z6';
-    const isConfigured = Boolean(dali?.publicKey && dali?.secretKey);
+    const keyId = (dali?.keyId || process.env.DALIPAY_KEY_ID || '').trim();
+    const publicKey = (dali?.publicKey || process.env.DALIPAY_PUBLIC_KEY || '').trim();
+    const secretKey = (dali?.secretKey || process.env.DALIPAY_SECRET_KEY || '').trim();
+    const isConfigured = Boolean(publicKey && secretKey);
     return {
       gateway: 'DALIPAY' as any,
-      aggregatorName: `DaliPay Aggregator (Key: ${keyId})`,
+      aggregatorName: keyId ? `DaliPay Aggregator (Key: ${keyId})` : 'DaliPay Aggregator',
       merchantId: keyId,
-      receivingAccount: dali?.publicKey || 'gw_pk_test_EoDvAZ',
+      receivingAccount: publicKey,
       isConfigured,
       isSandbox: Boolean(dali?.isSandbox),
-      destinationSummary: `Akaunti ya DaliPay ya Vendor (Key ID: ${keyId}, Environment: ${dali?.isSandbox ? 'Test Sandbox' : 'Live'})`,
+      destinationSummary: isConfigured
+        ? `Akaunti ya DaliPay ya Vendor (Key ID: ${keyId || 'N/A'}, Environment: ${dali?.isSandbox ? 'Test Sandbox' : 'Live'})`
+        : 'Akaunti ya DaliPay haijasanidiwa bado (Weka API Key kwanza)',
     };
   }
 
@@ -2994,9 +3717,14 @@ apiRouter.post('/routers', (req: Request, res: Response) => {
     // If assigned to owner, add to owner's router list
     if (router.owner_id) {
       const owner = db.getOwnerById(router.owner_id);
-      if (owner && !owner.assigned_router_ids.includes(router.id)) {
-        owner.assigned_router_ids.push(router.id);
-        db.saveOwner(owner);
+      if (owner) {
+        if (!Array.isArray(owner.assigned_router_ids)) {
+          owner.assigned_router_ids = [];
+        }
+        if (!owner.assigned_router_ids.includes(router.id)) {
+          owner.assigned_router_ids.push(router.id);
+          db.saveOwner(owner);
+        }
       }
     }
 
@@ -3164,14 +3892,52 @@ apiRouter.post('/omada/forget/:id', (req: Request, res: Response) => {
   res.json(result);
 });
 
-// 7. Omada AP Inform Heartbeat Endpoint
-apiRouter.post('/omada/inform', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    result: 0,
-    msg: 'success',
-    timestamp: Date.now(),
-  });
+// 7. Get All Discovered Omada / Pharos APs that have contacted Controller
+apiRouter.get('/omada/discovered', (_req: Request, res: Response) => {
+  const discovered = OmadaAdoptionService.getDiscoveredAps();
+  res.json({ success: true, count: discovered.length, discovered });
+});
+
+// 8. Test Live Omada / Pharos AP Reachability & Inform Status
+apiRouter.post('/omada/test-device', async (req: Request, res: Response) => {
+  try {
+    const { ipAddress, port = 80, macAddress } = req.body;
+    if (!ipAddress && !macAddress) {
+      return res.status(400).json({ error: 'Tafadhali weka IP Address au MAC Address ya kifaa unachotaka kupima.' });
+    }
+    const result = await OmadaAdoptionService.testDeviceReachability(
+      ipAddress || '192.168.0.254',
+      Number(port) || 80,
+      macAddress
+    );
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, reachable: false, error: err.message });
+  }
+});
+
+// 9. Simulate Device Inform Packet for Testing
+apiRouter.post('/omada/simulate-inform', (req: Request, res: Response) => {
+  try {
+    const { macAddress, ipAddress, modelName, firmware } = req.body;
+    const result = OmadaAdoptionService.simulateDeviceInform({
+      macAddress,
+      ipAddress,
+      modelName,
+      firmware,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 10. Omada AP Inform Heartbeat Endpoint
+apiRouter.all(['/omada/inform', '/omada/inform-heartbeat'], (req: Request, res: Response) => {
+  const payload = req.body && Object.keys(req.body).length > 0 ? req.body : req.query;
+  const clientIp = (req.ip || req.socket.remoteAddress || '192.168.0.254').replace(/^::ffff:/, '');
+  const result = OmadaAdoptionService.recordIncomingInform(payload, clientIp, req.method);
+  res.json(result);
 });
 
 
@@ -3285,7 +4051,7 @@ apiRouter.post('/routers/:id/users', async (req: Request, res: Response) => {
     plan_id: plan?.id || 1,
     router_id: routerId,
     owner_id: router?.owner_id,
-    status: 'ACTIVE',
+    status: 'AVAILABLE',
     batch_tag: comment || 'REMOTE_ADMIN',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -3497,7 +4263,7 @@ apiRouter.get('/transactions', (req: Request, res: Response) => {
   if (ownerId) {
     const owner = db.getOwnerById(Number(ownerId));
     if (owner && owner.role === 'HOTSPOT_OWNER') {
-      const allowed = new Set(owner.assigned_router_ids);
+      const allowed = new Set(owner.assigned_router_ids || []);
       txs = txs.filter((t) => (t.router_id && allowed.has(t.router_id)) || t.owner_id === owner.id);
     }
   }
@@ -3682,9 +4448,62 @@ apiRouter.get('/system/data-summary', (_req: Request, res: Response) => {
   res.json(db.getDataSummary());
 });
 
-// Download full backup JSON with single click
-apiRouter.get('/system/backup-download', (_req: Request, res: Response) => {
+// Download full SQL Database Backup (.sql) for system updates & disaster recovery
+apiRouter.get(['/system/sql-backup-download', '/system/backup/sql'], (req: Request, res: Response) => {
   try {
+    const isPreview = req.query.preview === 'true';
+    const sqlDump = generateFullDatabaseSQL();
+    const dateTag = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `tz_wifi_database_backup_${dateTag}.sql`;
+
+    if (isPreview) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.send(sqlDump);
+    }
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+    res.send(sqlDump);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to generate SQL backup' });
+  }
+});
+
+// SQL Backup Preview and Meta Summary for UI
+apiRouter.get('/system/sql-backup-preview', (_req: Request, res: Response) => {
+  try {
+    const sqlDump = generateFullDatabaseSQL();
+    const summary = db.getDataSummary();
+    const dateTag = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `tz_wifi_database_backup_${dateTag}.sql`;
+    const sizeBytes = Buffer.byteLength(sqlDump, 'utf8');
+
+    res.json({
+      success: true,
+      filename,
+      sizeBytes,
+      sizeKb: Math.round((sizeBytes / 1024) * 10) / 10,
+      summary,
+      sqlPreview: sqlDump.slice(0, 4000) + (sqlDump.length > 4000 ? '\n\n-- ... [Data zingine zimehifadhiwa kwenye faili kamili la .sql] ...' : ''),
+      fullSql: sqlDump,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Download full backup JSON with single click (supports ?format=sql as well)
+apiRouter.get('/system/backup-download', (req: Request, res: Response) => {
+  try {
+    if (req.query.format === 'sql') {
+      const sqlDump = generateFullDatabaseSQL();
+      const dateTag = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `tz_wifi_database_backup_${dateTag}.sql`;
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+      return res.send(sqlDump);
+    }
+
     const summary = db.getDataSummary();
     const backupData = {
       version: '2026.10',
@@ -3703,6 +4522,140 @@ apiRouter.get('/system/backup-download', (_req: Request, res: Response) => {
     res.send(JSON.stringify(backupData, null, 2));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Upload Backup File (.sql or .json) and Preview Its Contents Before Restoring
+apiRouter.post('/system/backup/upload-preview', (req: Request, res: Response) => {
+  try {
+    const { fileContent, filename } = req.body || {};
+    if (!fileContent || typeof fileContent !== 'string') {
+      return res.status(400).json({ error: 'Hakuna maudhui ya faili (fileContent) yaliyotumwa.' });
+    }
+
+    const trimmed = fileContent.trim();
+    const isJson = trimmed.startsWith('{') || (filename && filename.toLowerCase().endsWith('.json'));
+
+    let previewSnapshot: any = {};
+    let format: 'SQL' | 'JSON' = 'SQL';
+
+    if (isJson) {
+      format = 'JSON';
+      const parsed = JSON.parse(trimmed);
+      previewSnapshot = {
+        owners: parsed.owners || [],
+        routers: parsed.routers || [],
+        plans: parsed.plans || [],
+        vouchers: parsed.vouchers || [],
+        transactions: parsed.transactions || [],
+        auditLogs: parsed.audit_logs || parsed.auditLogs || [],
+        voucherBatches: parsed.voucherBatches || parsed.voucher_batches || [],
+        freeTrialClaims: parsed.freeTrialClaims || parsed.free_trial_claims || [],
+        settings: parsed.settings,
+        companyInfo: parsed.companyInfo || parsed.company_info,
+        freeTrialConfig: parsed.freeTrialConfig || parsed.free_trial_config,
+      };
+    } else {
+      format = 'SQL';
+      previewSnapshot = parseSQLDumpToSnapshot(trimmed);
+    }
+
+    const stats = {
+      format,
+      filename: filename || (format === 'SQL' ? 'backup.sql' : 'backup.json'),
+      sizeBytes: Buffer.byteLength(trimmed, 'utf8'),
+      sizeKb: Math.round((Buffer.byteLength(trimmed, 'utf8') / 1024) * 10) / 10,
+      ownersCount: previewSnapshot.owners?.length || 0,
+      routersCount: previewSnapshot.routers?.length || 0,
+      plansCount: previewSnapshot.plans?.length || 0,
+      vouchersCount: previewSnapshot.vouchers?.length || 0,
+      transactionsCount: previewSnapshot.transactions?.length || 0,
+      auditLogsCount: previewSnapshot.auditLogs?.length || 0,
+      voucherBatchesCount: previewSnapshot.voucherBatches?.length || 0,
+      freeTrialClaimsCount: previewSnapshot.freeTrialClaims?.length || 0,
+      hasSettings: Boolean(previewSnapshot.settings),
+      hasCompanyInfo: Boolean(previewSnapshot.companyInfo),
+      hasFreeTrialConfig: Boolean(previewSnapshot.freeTrialConfig),
+    };
+
+    res.json({
+      success: true,
+      stats,
+      sampleOwners: (previewSnapshot.owners || []).slice(0, 5).map((o: any) => ({
+        id: o.id,
+        name: o.name,
+        business_name: o.business_name,
+        email: o.email,
+        phone: o.phone,
+      })),
+      sampleRouters: (previewSnapshot.routers || []).slice(0, 5).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        ip_address: r.ip_address,
+        device_type: r.device_type,
+        location: r.location,
+      })),
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: 'Imeshindwa kusoma faili la backup: ' + (err.message || String(err)) });
+  }
+});
+
+// Execute Backup Restore from uploaded SQL or JSON content
+apiRouter.post('/system/backup/restore', (req: Request, res: Response) => {
+  try {
+    const { fileContent, filename, confirmationWord } = req.body || {};
+    if (!fileContent || typeof fileContent !== 'string') {
+      return res.status(400).json({ error: 'Faili la backup halikupatikana.' });
+    }
+
+    const cleanWord = String(confirmationWord || '').trim().toUpperCase();
+    if (cleanWord !== 'RESTORE' && cleanWord !== 'REJESHA' && cleanWord !== 'CONFIRM') {
+      return res.status(400).json({
+        error: 'Tafadhali andika "RESTORE" au "REJESHA" kuthibitisha kurejesha database.',
+      });
+    }
+
+    const trimmed = fileContent.trim();
+    const isJson = trimmed.startsWith('{') || (filename && filename.toLowerCase().endsWith('.json'));
+
+    let snapshot: any = {};
+    let format: 'SQL' | 'JSON' = 'SQL';
+
+    if (isJson) {
+      format = 'JSON';
+      const parsed = JSON.parse(trimmed);
+      snapshot = {
+        owners: parsed.owners || [],
+        routers: parsed.routers || [],
+        plans: parsed.plans || [],
+        vouchers: parsed.vouchers || [],
+        transactions: parsed.transactions || [],
+        auditLogs: parsed.audit_logs || parsed.auditLogs || [],
+        voucherBatches: parsed.voucherBatches || parsed.voucher_batches || [],
+        freeTrialClaims: parsed.freeTrialClaims || parsed.free_trial_claims || [],
+        settings: parsed.settings,
+        companyInfo: parsed.companyInfo || parsed.company_info,
+        freeTrialConfig: parsed.freeTrialConfig || parsed.free_trial_config,
+      };
+    } else {
+      format = 'SQL';
+      snapshot = parseSQLDumpToSnapshot(trimmed);
+    }
+
+    const result = db.restoreFromSnapshot(snapshot);
+
+    res.json({
+      success: true,
+      message: `Database imerejeshwa kikamilifu kutoka kwenye faili la ${format}!`,
+      stats: {
+        format,
+        ...result,
+        restoredAt: new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Hitilafu ya kurejesha backup: ' + (err.message || String(err)) });
   }
 });
 
@@ -4106,11 +5059,11 @@ apiRouter.post('/admin/settings/dalipay', (req: Request, res: Response) => {
   settings.activeGateway = 'DALIPAY';
   settings.dalipay = {
     ...settings.dalipay,
-    keyId: (keyId || settings.dalipay?.keyId || 'y3hT9bs505Z6').trim(),
-    publicKey: (publicKey || '').trim(),
-    secretKey: (secretKey || '').trim(),
-    apiEndpoint: apiEndpoint || 'https://app.dalipay.co.tz',
-    webhookSecret: webhookSecret || settings.dalipay?.webhookSecret || 'gw_wh_test_secret_dalipay',
+    keyId: (keyId ?? settings.dalipay?.keyId ?? process.env.DALIPAY_KEY_ID ?? '').trim(),
+    publicKey: (publicKey ?? settings.dalipay?.publicKey ?? process.env.DALIPAY_PUBLIC_KEY ?? '').trim(),
+    secretKey: (secretKey ?? settings.dalipay?.secretKey ?? process.env.DALIPAY_SECRET_KEY ?? '').trim(),
+    apiEndpoint: (apiEndpoint || settings.dalipay?.apiEndpoint || process.env.DALIPAY_ENDPOINT || 'https://app.dalipay.co.tz').trim(),
+    webhookSecret: (webhookSecret ?? settings.dalipay?.webhookSecret ?? process.env.DALIPAY_WEBHOOK_SECRET ?? '').trim(),
     isSandbox: Boolean(isSandbox),
   };
 

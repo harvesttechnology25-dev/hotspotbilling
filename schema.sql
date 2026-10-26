@@ -112,12 +112,14 @@ CREATE TABLE IF NOT EXISTS `plans` (
   `price` DECIMAL(12, 2) NOT NULL DEFAULT 0.00 COMMENT 'Price in TZS (Tanzanian Shilling)',
   `validity_period` INT UNSIGNED NOT NULL DEFAULT 86400 COMMENT 'Validity window in seconds after activation',
   `shared_users` TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'Concurrent devices allowed',
-  `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
+  `owner_id` INT UNSIGNED NULL COMMENT 'Hotspot owner who created this plan',
+  `router_id` INT UNSIGNED NULL COMMENT 'Specific router locked to this plan (NULL for all routers)',
   `description_sw` VARCHAR(255) NULL COMMENT 'Swahili description for captive portal',
   `description_en` VARCHAR(255) NULL COMMENT 'English description for captive portal',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `idx_plans_active_price` (`is_active`, `price`)
+  INDEX `idx_plans_active_price` (`is_active`, `price`),
+  INDEX `idx_plans_owner_router` (`owner_id`, `router_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
@@ -385,12 +387,6 @@ VALUES
 ('0.0.0.0/0', 'universal-aps', 'other', 'radius_secret_2026', 'Universal Access Point Client (Ruijie, Omada, Cudy, UniFi)'),
 ('100.108.0.0/18', 'vpn-fleet', 'mikrotik', 'radius_secret_2026', 'OpenVPN / SSTP MikroTik Fleet Subnet')
 ON DUPLICATE KEY UPDATE `secret` = VALUES(`secret`);
-
--- 2. Seed Default Hotspot Owner (Bwana Juma)
-INSERT INTO `hotspot_owners` (`id`, `name`, `business_name`, `email`, `phone`, `role`, `status`, `commission_rate`, `payout_channel`, `wallet_account_number`, `palmpesa_user_id`, `palmpesa_user_ref`, `palmpesa_api_token`)
-VALUES 
-(1, 'Juma Rashid', 'Kariakoo Express Wi-Fi', 'juma@kariakoowifi.co.tz', '255754000111', 'HOTSPOT_OWNER', 'ACTIVE', 5.00, 'PALMPESA', '255754000111', '770', 'USR-B2510CD582DF', '1NhdI6PhhHHY9kYmnSoUUszx7qm8nSYrnewbfxeDYyONiMzGGTdRhIJjj2Hq')
-ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 3. Seed Default Hardware Devices (Ruijie AP and MikroTik Router)
 INSERT INTO `routers` (`id`, `name`, `device_type`, `model_name`, `brand_name`, `ssid`, `ip_address`, `api_port`, `api_username`, `api_password_hash`, `radius_secret`, `location`, `hotspot_server_name`, `dns_name`, `status`, `owner_id`)

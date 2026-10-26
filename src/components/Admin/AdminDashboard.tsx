@@ -20,7 +20,9 @@ import { VendorAccountEditModal } from './VendorAccountEditModal.tsx';
 import { AboutUsModal } from '../Modals/AboutUsModal.tsx';
 import { ContactUsModal } from '../Modals/ContactUsModal.tsx';
 import { SubscriptionGate } from '../Subscription/SubscriptionGate.tsx';
+import { SubscriptionManagement } from './SubscriptionManagement.tsx';
 import {
+  CalendarCheck,
   LayoutDashboard,
   Wifi,
   Package,
@@ -69,6 +71,10 @@ export interface AdminDashboardProps {
   onSwitchUser?: (user: HotspotOwner) => void;
   onNavigatePortal?: () => void;
   lang?: 'sw' | 'en';
+  initialTab?: string;
+  selectedSiteRouterId?: number | 'ALL';
+  onSiteChange?: (siteId: number | 'ALL') => void;
+  onClearInitialTab?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -77,6 +83,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSwitchUser,
   onNavigatePortal,
   lang = 'en',
+  initialTab,
+  selectedSiteRouterId: propSelectedSiteRouterId,
+  onSiteChange,
+  onClearInitialTab,
 }) => {
   const [owners, setOwners] = useState<HotspotOwner[]>([]);
   const [routers, setRouters] = useState<RouterItem[]>([]);
@@ -86,10 +96,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [showPreviewAbout, setShowPreviewAbout] = useState(false);
   const [showPreviewContact, setShowPreviewContact] = useState(false);
 
-  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('payment_gateway');
+  const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>(() => {
+    try {
+      const saved = localStorage.getItem('tzwifi_settings_sub_tab');
+      if (saved) return saved as SettingsSubTab;
+    } catch {}
+    return 'payment_gateway';
+  });
+
   const [activeTab, setActiveTab] = useState<
     | 'overview'
     | 'owners'
+    | 'subscriptions'
     | 'vendor_admins'
     | 'company_info'
     | 'user_management'
@@ -99,13 +117,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | 'vouchers'
     | 'routers'
     | 'schema'
-        | 'merchant_settings'
+    | 'merchant_settings'
     | 'vps_devops'
     | 'portal_customizer'
     | 'email_config'
     | 'system_reset'
     | 'settings'
-  >('active_users');
+  >(() => {
+    if (initialTab) return initialTab as any;
+    try {
+      const savedTab = localStorage.getItem('tzwifi_admin_active_tab');
+      const validTabs = [
+        'overview',
+        'owners',
+        'subscriptions',
+        'vendor_admins',
+        'company_info',
+        'user_management',
+        'active_users',
+        'plans',
+        'transactions',
+        'vouchers',
+        'routers',
+        'schema',
+        'merchant_settings',
+        'vps_devops',
+        'portal_customizer',
+        'email_config',
+        'system_reset',
+        'settings',
+      ];
+      if (savedTab && validTabs.includes(savedTab)) {
+        return savedTab as any;
+      }
+    } catch {}
+    return 'active_users';
+  });
+
+  // Whenever activeTab changes, persist it so page reloads or actions keep the user on the same page
+  useEffect(() => {
+    if (activeTab) {
+      try {
+        localStorage.setItem('tzwifi_admin_active_tab', activeTab);
+      } catch {}
+    }
+  }, [activeTab]);
+
+  // Whenever settingsSubTab changes, persist it
+  useEffect(() => {
+    if (settingsSubTab) {
+      try {
+        localStorage.setItem('tzwifi_settings_sub_tab', settingsSubTab);
+      } catch {}
+    }
+  }, [settingsSubTab]);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as any);
+      try {
+        localStorage.setItem('tzwifi_admin_active_tab', initialTab);
+      } catch {}
+      onClearInitialTab?.();
+    }
+  }, [initialTab]);
 
   const [isVendorAccountModalOpen, setIsVendorAccountModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -140,11 +215,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const fetchRouters = async () => {
     try {
-      const q = currentOwner && currentOwner.role === 'HOTSPOT_OWNER' ? `?ownerId=${currentOwner.id}` : '';
+      const q = currentOwner?.id ? `?ownerId=${currentOwner.id}` : '';
       const res = await fetch(`/api/v1/routers${q}`);
       if (res.ok) {
         const data = await res.json();
-        setRouters(data);
+        setRouters(
+          Array.isArray(data)
+            ? data.filter((r: RouterItem) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge'))
+            : []
+        );
       }
     } catch (err) {
       console.error('Failed to fetch routers:', err);
@@ -181,6 +260,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Active Site / Router Switcher state (Allows clients with multiple MikroTiks/sites to switch and manage each site)
   const [selectedSiteRouterId, setSelectedSiteRouterId] = useState<number | 'ALL'>(() => {
+    if (propSelectedSiteRouterId !== undefined) return propSelectedSiteRouterId;
     try {
       const saved = localStorage.getItem('tzwifi_active_site_id');
       if (saved === 'ALL') return 'ALL';
@@ -190,9 +270,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   });
   const [isSiteDropdownOpen, setIsSiteDropdownOpen] = useState(false);
 
-  // Available routers for the current user
+  useEffect(() => {
+    if (propSelectedSiteRouterId !== undefined) {
+      setSelectedSiteRouterId(propSelectedSiteRouterId);
+    }
+  }, [propSelectedSiteRouterId]);
+
+  // Available routers for the current user (only own routers or assigned routers, never other owners' routers)
   const availableRouters = useMemo(() => {
-    if (isVendor) return routers;
     if (isStaff && currentOwner?.parent_owner_id) {
       const pid = Number(currentOwner.parent_owner_id);
       return routers.filter(
@@ -205,14 +290,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return routers.filter((r) => r.owner_id === oid || assigned.includes(r.id));
     }
     return routers;
-  }, [routers, isVendor, isStaff, currentOwner, parentOwner]);
+  }, [routers, isStaff, currentOwner, parentOwner]);
 
   // If user has specific routers and selected router is not among them, adjust
   useEffect(() => {
     if (availableRouters.length > 0) {
       if (selectedSiteRouterId !== 'ALL' && !availableRouters.some((r) => r.id === selectedSiteRouterId)) {
         // Keep or select first available router
-        setSelectedSiteRouterId(availableRouters[0].id);
+        const fallbackId = availableRouters[0].id;
+        setSelectedSiteRouterId(fallbackId);
+        onSiteChange?.(fallbackId);
+      }
+    } else {
+      // If user has NO routers registered, strictly reset to ALL and clear any stale router state
+      if (selectedSiteRouterId !== 'ALL') {
+        setSelectedSiteRouterId('ALL');
+        onSiteChange?.('ALL');
+        try {
+          localStorage.removeItem('tzwifi_active_site_id');
+          localStorage.removeItem('tzwifi_active_site_name');
+        } catch {}
       }
     }
   }, [availableRouters, selectedSiteRouterId]);
@@ -226,7 +323,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setSelectedSiteRouterId(newSiteId);
     try {
       localStorage.setItem('tzwifi_active_site_id', String(newSiteId));
+      const targetRouter = availableRouters.find((r) => r.id === newSiteId);
+      if (targetRouter) {
+        localStorage.setItem('tzwifi_active_site_name', targetRouter.name);
+      } else {
+        localStorage.removeItem('tzwifi_active_site_name');
+      }
     } catch {}
+    onSiteChange?.(newSiteId);
     setIsSiteDropdownOpen(false);
   };
 
@@ -322,6 +426,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               badge: `${owners.filter((o) => o.role === 'HOTSPOT_OWNER' && !o.is_sub_user && !o.parent_owner_id).length}`,
             },
             {
+              id: 'subscriptions',
+              label: lang === 'sw' ? 'Malipo ya Subscription (Mwezi)' : 'Monthly Subscriptions Ledger',
+              subLabel: lang === 'sw' ? 'Waliolipia na wasiolipia kwa mwezi' : 'Paid & unpaid monthly tenants',
+              icon: CalendarCheck,
+              badge: 'Mwezi',
+            },
+            {
               id: 'vendor_admins',
               label: lang === 'sw' ? 'Wasimamizi & Admins (HQ Privileges)' : 'System Admins & Staff (HQ Privileges)',
               subLabel: lang === 'sw' ? 'Tengeneza admins na uwape privelege' : 'Create HQ admins & assign privileges',
@@ -384,9 +495,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {
               id: 'settings',
               label: lang === 'sw' ? 'Mipangilio Mikuu (Settings)' : 'System Settings',
-              subLabel: lang === 'sw' ? 'VPS, Payment, Email, Schema & Gateways' : 'VPS, Gateways, Database & Setup',
+              subLabel: lang === 'sw' ? 'SQL Backup, VPS, Malipo, Email & Database' : 'SQL Backup, VPS, Gateways & Database',
               icon: Settings,
-              badge: '5 Tools',
+              badge: 'SQL & Tools',
             },
             {
               id: 'system_reset',
@@ -1219,6 +1330,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ownerName={!isVendor ? currentOwner?.business_name : undefined}
               selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               selectedRouterName={activeSite?.name}
+              routers={availableRouters}
+              onSelectRouter={handleSiteChange}
               onNavigateToTab={(tab) => setActiveTab(tab as any)}
               onClearRouterFilter={() => handleSiteChange('ALL')}
             />
@@ -1226,6 +1339,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {activeTab === 'owners' && (
             <OwnerManagement
+              onOwnersUpdated={fetchOwners}
+            />
+          )}
+
+          {activeTab === 'subscriptions' && (
+            <SubscriptionManagement
+              currentUser={currentOwner}
+              lang={lang}
               onOwnersUpdated={fetchOwners}
             />
           )}
@@ -1244,6 +1365,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab="company_info"
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               onResetCompleted={() => {
                 fetchOwners();
@@ -1251,6 +1373,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
               onPreviewAbout={() => setShowPreviewAbout(true)}
@@ -1275,7 +1398,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
 
-          {activeTab === 'plans' && <PlanManagement />}
+          {activeTab === 'plans' && (
+            <PlanManagement
+              currentUser={currentUser}
+              ownerId={currentOwnerId}
+              lang={lang}
+              routers={availableRouters}
+              selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
+              onSelectRouter={handleSiteChange}
+            />
+          )}
 
           {activeTab === 'transactions' && (
             <TransactionLedger
@@ -1294,15 +1426,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               routers={availableRouters}
               onSelectRouter={(id) => handleSiteChange(id ?? 'ALL')}
+              onNavigateToPlans={() => setActiveTab('plans')}
             />
           )}
 
           {activeTab === 'routers' && (
             <RouterManagement
               ownerId={currentOwnerId}
-              ownerName={!isVendor ? (currentOwner?.business_name || currentOwner?.name) : undefined}
+              ownerName={currentOwner?.business_name || currentOwner?.name}
               selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               onSelectRouter={handleSiteChange}
+              onRoutersUpdated={fetchRouters}
             />
           )}
 
@@ -1321,6 +1455,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab={settingsSubTab}
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               onResetCompleted={() => {
                 fetchOwners();
@@ -1328,6 +1463,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
               onPreviewAbout={() => setShowPreviewAbout(true)}
@@ -1341,12 +1477,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab='payment_gateway'
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
             />
@@ -1356,12 +1494,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab='vps_devops'
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
             />
@@ -1371,12 +1511,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab='email_gateway'
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
             />
@@ -1386,12 +1528,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab='database_schema'
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
             />
@@ -1401,12 +1545,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               currentUser={currentOwner}
               lang={lang}
               defaultSubTab='factory_reset'
+              onSubTabChange={(tab) => setSettingsSubTab(tab)}
               onResetCompleted={() => {
                 fetchOwners();
                 fetchRouters();
               }}
               onOwnerUpdated={(updatedOwner: HotspotOwner) => {
                 setCurrentOwner(updatedOwner);
+                if (onSwitchUser) onSwitchUser(updatedOwner);
                 fetchOwners();
               }}
             />

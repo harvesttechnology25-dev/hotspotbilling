@@ -29,6 +29,7 @@ import {
   Ticket,
   Package,
   Filter,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
@@ -104,6 +105,18 @@ export const ActiveHotspotUsers: React.FC<{
   const [executingAction, setExecutingAction] = useState<string | null>(null);
   const [customCmd, setCustomCmd] = useState('');
 
+  // In-app confirmation modal state (eliminates browser popup issues in iframe/preview)
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
+
+  const [userToKick, setUserToKick] = useState<string | null>(null);
+  const [kickingUser, setKickingUser] = useState(false);
+
+  const [bulkDeleteTarget, setBulkDeleteTarget] = useState<'UNUSED' | 'USED' | 'EXPIRED' | 'ALL' | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const [remoteActionTarget, setRemoteActionTarget] = useState<'reboot' | 'flush_cookies' | 'kick_all' | 'custom' | null>(null);
+
   // Fetch routers and plans
   useEffect(() => {
     const url = resolvedOwnerId ? `/api/v1/routers?ownerId=${resolvedOwnerId}` : '/api/v1/routers';
@@ -161,31 +174,27 @@ export const ActiveHotspotUsers: React.FC<{
   };
 
   // Kick / Terminate Active Session
-  const handleKickUser = async (username: string) => {
-    if (!confirm(`Je, una uhakika unataka kukata mtandao kwa mtumiaji '${username}'?`)) return;
-
+  const executeKickUser = async (username: string) => {
+    setKickingUser(true);
     try {
       const res = await fetch(
-        `/api/v1/routers/${selectedRouterId}/active-users/${username}/terminate`,
+        `/api/v1/routers/${selectedRouterId}/active-users/${encodeURIComponent(username)}/terminate`,
         { method: 'POST' }
       );
       const data = await res.json();
       showNotification(data.message || `Mtumiaji '${username}' ametolewa hewani.`);
+      setUserToKick(null);
       fetchUsers();
     } catch (err: any) {
       showNotification(err.message, 'error');
+    } finally {
+      setKickingUser(false);
     }
   };
 
   // Delete User completely from MikroTik
-  const handleDeleteUser = async (username: string) => {
-    if (
-      !confirm(
-        `Je, una uhakika unataka kumfuta mtumiaji '${username}' moja kwa moja kutoka kwenye MikroTik na database?`
-      )
-    )
-      return;
-
+  const executeDeleteUser = async (username: string) => {
+    setDeletingUser(true);
     // Optimistic UI update: Remove user from table immediately
     setUsers((prev) => prev.filter((u) => u.username !== username));
 
@@ -201,26 +210,61 @@ export const ActiveHotspotUsers: React.FC<{
         data = {};
       }
       if (!res.ok) throw new Error(data.error || 'Imeshindwa kufuta mtumiaji.');
-
       showNotification(data.message || `Mtumiaji '${username}' amefutwa.`);
+      setUserToDelete(null);
       fetchUsers();
     } catch (err: any) {
       showNotification(err.message, 'error');
       fetchUsers();
+    } finally {
+      setDeletingUser(false);
+    }
+  };
+
+  const executeBulkDeleteFiltered = async (status: 'UNUSED' | 'USED' | 'EXPIRED' | 'ALL') => {
+    const count =
+      status === 'UNUSED' ? unusedCount :
+      status === 'USED' ? usedCount :
+      status === 'EXPIRED' ? expiredCount :
+      users.length;
+
+    if (count === 0) {
+      showNotification('Hakuna vocha au watumiaji wa kufuta katika kundi hili.', 'error');
+      setBulkDeleteTarget(null);
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      const res = await fetch('/api/v1/vouchers/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          ownerId: resolvedOwnerId,
+          status,
+          routerId: selectedRouterId !== 'ALL' ? selectedRouterId : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showNotification(data.message || `Vocha ${data.count || 0} zimefutwa kikamilifu!`);
+        setBulkDeleteTarget(null);
+        fetchUsers();
+      } else {
+        throw new Error(data.error || 'Imeshindikana kufuta.');
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Hitilafu ya kufuta', 'error');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
   // Execute Remote Action (Reboot, Flush, Kick All)
-  const handleRemoteAction = async (action: 'reboot' | 'flush_cookies' | 'kick_all' | 'custom') => {
-    const actionNames: Record<string, string> = {
-      reboot: 'kuanzisha upya (Reboot) router hii',
-      flush_cookies: 'kufuta vidakuzi (Cookies) vyote vya Hotspot',
-      kick_all: 'kuwatoa watumiaji wote hewani mara moja',
-      custom: `kutuma amri: ${customCmd}`,
-    };
-
-    if (action !== 'custom' && !confirm(`Je, una uhakika unataka ${actionNames[action]}?`)) return;
-
+  const executeRemoteAction = async (action: 'reboot' | 'flush_cookies' | 'kick_all' | 'custom') => {
     setExecutingAction(action);
     try {
       const res = await fetch(`/api/v1/routers/${selectedRouterId}/remote-action`, {
@@ -231,6 +275,7 @@ export const ActiveHotspotUsers: React.FC<{
       const data = await res.json();
       showNotification(data.message || 'Amri imetumwa kwa MikroTik.');
       if (action === 'custom') setCustomCmd('');
+      setRemoteActionTarget(null);
       fetchUsers();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -268,14 +313,20 @@ export const ActiveHotspotUsers: React.FC<{
     );
   };
 
-  // Helper to check if voucher is unused
+  // Helper to determine if a voucher has actually been used by a customer
+  const checkIsUsed = (u: HotspotUserDetail) => {
+    if (u.is_online) return true;
+    if (u.voucher_status === 'USED' || u.voucher_status === 'ACTIVE') return true;
+    if (Boolean(u.activated_at)) return true;
+    const hasUptime = Boolean(u.uptime_seconds && u.uptime_seconds > 0);
+    const hasData = Boolean((u.bytes_in && u.bytes_in > 0) || (u.bytes_out && u.bytes_out > 0));
+    if (hasUptime || hasData) return true;
+    return false;
+  };
+
+  // Helper to check if voucher is completely unused (bado haijatumika)
   const checkIsUnused = (u: HotspotUserDetail) => {
-    if (u.voucher_status === 'UNUSED' || u.status === 'AVAILABLE') return true;
-    if (u.is_online) return false;
-    if (u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED') return false;
-    const hasData = (u.bytes_in && u.bytes_in > 0) || (u.bytes_out && u.bytes_out > 0);
-    const hasUptime = u.uptime_seconds && u.uptime_seconds > 0;
-    return !hasData && !hasUptime && u.voucher_status !== 'USED';
+    return !checkIsUsed(u);
   };
 
   // Create User / Voucher Submit
@@ -322,16 +373,22 @@ export const ActiveHotspotUsers: React.FC<{
   const filteredUsers = users.filter((u) => {
     // 1. Status Filter (Wote, Online, Offline, Unused, Used, Expired)
     let matchesStatus = true;
+    const isUsed = checkIsUsed(u);
+    const isUnused = checkIsUnused(u);
+    const isExpired = u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED';
+
     if (filterStatus === 'ONLINE') {
       matchesStatus = !!u.is_online;
     } else if (filterStatus === 'OFFLINE') {
-      matchesStatus = !u.is_online && u.status !== 'EXPIRED';
+      // Must be a voucher that was USED, but the client is currently OFFLINE, and NOT expired
+      matchesStatus = !u.is_online && isUsed && !isExpired;
     } else if (filterStatus === 'UNUSED') {
-      matchesStatus = checkIsUnused(u);
+      // Must be completely UNUSED and not expired
+      matchesStatus = isUnused && !isExpired;
     } else if (filterStatus === 'USED') {
-      matchesStatus = !checkIsUnused(u);
+      matchesStatus = isUsed;
     } else if (filterStatus === 'EXPIRED') {
-      matchesStatus = u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED';
+      matchesStatus = isExpired;
     }
 
     // 2. Plan / Package Filter
@@ -380,9 +437,9 @@ export const ActiveHotspotUsers: React.FC<{
       : filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const onlineCount = users.filter((u) => u.is_online).length;
-  const unusedCount = users.filter((u) => !u.is_online && checkIsUnused(u) && u.status !== 'EXPIRED' && u.voucher_status !== 'EXPIRED').length;
-  const offlineCount = users.filter((u) => !u.is_online && !checkIsUnused(u) && u.status !== 'EXPIRED' && u.voucher_status !== 'EXPIRED').length;
-  const usedCount = users.filter((u) => !checkIsUnused(u)).length;
+  const offlineCount = users.filter((u) => !u.is_online && checkIsUsed(u) && u.status !== 'EXPIRED' && u.voucher_status !== 'EXPIRED').length;
+  const unusedCount = users.filter((u) => checkIsUnused(u) && u.status !== 'EXPIRED' && u.voucher_status !== 'EXPIRED').length;
+  const usedCount = users.filter((u) => checkIsUsed(u)).length;
   const expiredCount = users.filter((u) => u.status === 'EXPIRED' || u.voucher_status === 'EXPIRED').length;
   const phoneCount = users.filter(checkIsPhoneUser).length;
   const manualCount = users.length - phoneCount;
@@ -506,7 +563,7 @@ export const ActiveHotspotUsers: React.FC<{
             <Users className="w-3.5 h-3.5 text-slate-400" />
           </div>
           <div className="text-2xl font-black text-slate-900">{offlineCount}</div>
-          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Walioshatumia lakini wametoka</p>
+          <p className="text-[10px] text-slate-500 font-medium mt-0.5">Walioshatumia lakini wapo offline</p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
@@ -556,8 +613,8 @@ export const ActiveHotspotUsers: React.FC<{
               <button
                 type="button"
                 disabled={executingAction !== null}
-                onClick={() => handleRemoteAction('flush_cookies')}
-                className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700"
+                onClick={() => setRemoteActionTarget('flush_cookies')}
+                className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700 cursor-pointer"
                 title="Flush Hotspot Cookies"
               >
                 <RotateCw className="w-3.5 h-3.5 text-cyan-400" />
@@ -567,8 +624,8 @@ export const ActiveHotspotUsers: React.FC<{
               <button
                 type="button"
                 disabled={executingAction !== null}
-                onClick={() => handleRemoteAction('kick_all')}
-                className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700"
+                onClick={() => setRemoteActionTarget('kick_all')}
+                className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700 cursor-pointer"
                 title="Disconnect all online users"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
@@ -578,8 +635,8 @@ export const ActiveHotspotUsers: React.FC<{
               <button
                 type="button"
                 disabled={executingAction !== null}
-                onClick={() => handleRemoteAction('reboot')}
-                className="py-1.5 px-3 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition border border-rose-800/50"
+                onClick={() => setRemoteActionTarget('reboot')}
+                className="py-1.5 px-3 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition border border-rose-800/50 cursor-pointer"
                 title="Restart MikroTik remotely"
               >
                 <Power className="w-3.5 h-3.5 text-rose-400" />
@@ -599,15 +656,15 @@ export const ActiveHotspotUsers: React.FC<{
               className="flex-1 bg-slate-950 text-emerald-400 text-xs font-mono px-3 py-1.5 rounded-lg border border-slate-800 focus:outline-none focus:border-indigo-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && customCmd.trim()) {
-                  handleRemoteAction('custom');
+                  setRemoteActionTarget('custom');
                 }
               }}
             />
             <button
               type="button"
               disabled={!customCmd.trim() || executingAction !== null}
-              onClick={() => handleRemoteAction('custom')}
-              className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1"
+              onClick={() => setRemoteActionTarget('custom')}
+              className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
             >
               <span>Tekeleza (Run)</span>
             </button>
@@ -647,13 +704,15 @@ export const ActiveHotspotUsers: React.FC<{
           <button
             type="button"
             onClick={() => setFilterStatus('OFFLINE')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
               filterStatus === 'OFFLINE'
                 ? 'bg-slate-700 text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
+            title="Vocha zilizotumika lakini mteja ndio yuko offline (hazipo hewani kwa sasa)"
           >
-            Offline ({offlineCount})
+            <span className="w-2 h-2 rounded-full bg-slate-400" />
+            <span>Wametoka / Offline ({offlineCount})</span>
           </button>
 
           <button
@@ -664,6 +723,7 @@ export const ActiveHotspotUsers: React.FC<{
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 border border-indigo-200'
             }`}
+            title="Vocha mpya ambazo hazijatumiwa bado na mteja yeyote"
           >
             <Ticket className="w-3.5 h-3.5" />
             <span>Hazijatumika / Unused ({unusedCount})</span>
@@ -692,6 +752,29 @@ export const ActiveHotspotUsers: React.FC<{
             }`}
           >
             Expired ({expiredCount})
+          </button>
+
+          {/* Delete All Button for Filtered Users / Vouchers */}
+          <button
+            type="button"
+            disabled={bulkDeleting || users.length === 0}
+            onClick={() => {
+              if (filterStatus === 'UNUSED') setBulkDeleteTarget('UNUSED');
+              else if (filterStatus === 'USED') setBulkDeleteTarget('USED');
+              else if (filterStatus === 'EXPIRED') setBulkDeleteTarget('EXPIRED');
+              else setBulkDeleteTarget('ALL');
+            }}
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition shrink-0 cursor-pointer disabled:opacity-40 shadow-2xs"
+            title="Futa kundi hili la vocha/watumiaji wote kwa pamoja (Delete All)"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>
+              {bulkDeleting ? 'Inafuta...' :
+                filterStatus === 'UNUSED' ? `Futa Zote (Unused: ${unusedCount})` :
+                filterStatus === 'USED' ? `Futa Zote (Used: ${usedCount})` :
+                filterStatus === 'EXPIRED' ? `Futa Zote (Expired: ${expiredCount})` :
+                `Futa Zote (${users.length})`}
+            </span>
           </button>
         </div>
 
@@ -881,8 +964,10 @@ export const ActiveHotspotUsers: React.FC<{
                               {u.plan_name || (u.plan_id ? `Kifurushi #${u.plan_id}` : 'Hotspot Standard')}
                             </div>
                             <div className="text-[10px] text-slate-500 font-medium">
-                              {u.plan_price ? (
+                              {u.plan_price !== undefined && u.plan_price > 0 ? (
                                 <span className="text-emerald-700 font-black">{u.plan_price.toLocaleString()} TZS</span>
+                              ) : u.username?.toUpperCase().startsWith('FREE-') || u.plan_name?.toLowerCase().includes('trial') || u.plan_name?.toLowerCase().includes('bure') || u.plan_price === 0 ? (
+                                <span className="text-cyan-700 font-bold bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded text-[10px]">Bure (0 TZS)</span>
                               ) : (
                                 <span className="text-slate-400">Standard</span>
                               )}
@@ -969,17 +1054,16 @@ export const ActiveHotspotUsers: React.FC<{
                           {u.is_online && (
                             <button
                               type="button"
-                              onClick={() => handleKickUser(u.username)}
+                              onClick={() => setUserToKick(u.username)}
                               className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
                               title="Kata mtandao mara moja (Disconnect session)"
                             >
                               <UserX className="w-3.5 h-3.5" />
                             </button>
                           )}
-
                           <button
                             type="button"
-                            onClick={() => handleDeleteUser(u.username)}
+                            onClick={() => setUserToDelete(u.username)}
                             className="p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-500 transition cursor-pointer"
                             title="Futa mtumiaji huyu kwenye MikroTik"
                           >
@@ -1083,7 +1167,13 @@ export const ActiveHotspotUsers: React.FC<{
                           {u.plan_name || (u.plan_id ? `Kifurushi #${u.plan_id}` : 'Hotspot Standard')}
                         </div>
                         <div className="text-[10px] text-slate-500">
-                          {u.plan_price ? `${u.plan_price.toLocaleString()} TZS` : 'Standard'}
+                          {u.plan_price !== undefined && u.plan_price > 0 ? (
+                            `${u.plan_price.toLocaleString()} TZS`
+                          ) : u.username?.toUpperCase().startsWith('FREE-') || u.plan_name?.toLowerCase().includes('trial') || u.plan_name?.toLowerCase().includes('bure') || u.plan_price === 0 ? (
+                            'Bure (0 TZS)'
+                          ) : (
+                            'Standard'
+                          )}
                           {u.limit_uptime ? ` • ${formatSecondsToTime(u.limit_uptime)}` : ''}
                         </div>
                       </div>
@@ -1129,7 +1219,7 @@ export const ActiveHotspotUsers: React.FC<{
                       {u.is_online && (
                         <button
                           type="button"
-                          onClick={() => handleKickUser(u.username)}
+                          onClick={() => setUserToKick(u.username)}
                           className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold text-xs flex items-center gap-1 transition min-h-[36px] cursor-pointer"
                         >
                           <UserX className="w-3.5 h-3.5" />
@@ -1138,7 +1228,7 @@ export const ActiveHotspotUsers: React.FC<{
                       )}
                       <button
                         type="button"
-                        onClick={() => handleDeleteUser(u.username)}
+                        onClick={() => setUserToDelete(u.username)}
                         className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-500 transition min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
                         title="Futa mtumiaji"
                       >
@@ -1288,6 +1378,297 @@ export const ActiveHotspotUsers: React.FC<{
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL 1: SINGLE USER DELETE CONFIRMATION */}
+      {/* ========================================================================= */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Futa Mtumiaji / Vocha Hii?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa ndani ya mfumo (Hakuna browser popup)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Jina / Vocha Code:</span>
+                <span className="font-mono font-extrabold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                  {userToDelete}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Eneo / Router:</span>
+                <span className="font-semibold text-slate-700">
+                  {selectedRouter?.name || 'Router zote za akaunti'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Je, una uhakika unataka kumfuta mtumiaji <strong className="font-mono text-slate-900">'{userToDelete}'</strong> moja kwa moja kutoka kwenye MikroTik na database? Hataweza kuunganishwa tena kwa nambari hii.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => setUserToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi (Cancel)
+              </button>
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => executeDeleteUser(userToDelete)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {deletingUser ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inafuta...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Ndio, Futa Mtumiaji</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL 2: KICK / DISCONNECT USER CONFIRMATION */}
+      {/* ========================================================================= */}
+      {userToKick && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <UserX className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Kata Mtandao kwa Mtumiaji?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Disconnect active MikroTik hotspot session
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUserToKick(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Je, una uhakika unataka kukata mtandao (Kick) kwa mtumiaji <strong className="font-mono text-slate-900">'{userToKick}'</strong>? Ataondolewa hewani mara moja kwenye MikroTik lakini vocha yake itabaki.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={kickingUser}
+                onClick={() => setUserToKick(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi
+              </button>
+              <button
+                type="button"
+                disabled={kickingUser}
+                onClick={() => executeKickUser(userToKick)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {kickingUser ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inakata...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Ndio, Kata Mtandao</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL 3: BULK DELETE ALL (UNUSED, USED, EXPIRED, ALL) */}
+      {/* ========================================================================= */}
+      {bulkDeleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Futa Vocha na Watumiaji Wote?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa ndani ya mfumo (In-system confirmation)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200/80 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium">Kundi Linalofutwa:</span>
+                <span className="font-extrabold text-rose-700 uppercase">
+                  {bulkDeleteTarget === 'UNUSED' ? `Zisizotumika (Unused: ${unusedCount})` :
+                   bulkDeleteTarget === 'USED' ? `Zilizotumika (Used: ${usedCount})` :
+                   bulkDeleteTarget === 'EXPIRED' ? `Zilizokwisha (Expired: ${expiredCount})` :
+                   `Zote (${users.length})`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium">Router / Site:</span>
+                <span className="font-semibold text-slate-800">
+                  {selectedRouter?.name || 'Router zote za akaunti'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Kitendo hiki kitafuta vocha zote za kundi hili moja kwa moja kutoka kwenye database ya mfumo na kutoka kwenye orodha ya watumiaji wa MikroTik Hotspot.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={bulkDeleting}
+                onClick={() => setBulkDeleteTarget(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi (Cancel)
+              </button>
+              <button
+                type="button"
+                disabled={bulkDeleting}
+                onClick={() => executeBulkDeleteFiltered(bulkDeleteTarget)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {bulkDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inafuta...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Futa Zote Sasa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL 4: REMOTE ROS ACTIONS (REBOOT, FLUSH, KICK ALL, CUSTOM) */}
+      {/* ========================================================================= */}
+      {remoteActionTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  {remoteActionTarget === 'reboot' ? 'Washa Upya (Reboot) Router?' :
+                   remoteActionTarget === 'flush_cookies' ? 'Futa Hotspot Cookies Zote?' :
+                   remoteActionTarget === 'kick_all' ? 'Watoe Watumiaji Wote Hewani?' :
+                   'Tekeleza Amri ya MikroTik?'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa amri ya moja kwa moja ya MikroTik
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRemoteActionTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {remoteActionTarget === 'reboot'
+                ? `Je, una uhakika unataka kuwasha upya (Reboot) MikroTik '${selectedRouter?.name || ''}'? Router itazima na kuwaka tena baada ya sekunde chache.`
+                : remoteActionTarget === 'flush_cookies'
+                ? 'Vidakuzi (Cookies) vyote vya watumiaji wa Hotspot vitafutwa kwenye MikroTik, watumiaji watahitajika kuingiza vocha tena wakitaka kuunganishwa.'
+                : remoteActionTarget === 'kick_all'
+                ? 'Watumiaji wote waliopo hewani sasa hivi watatolewa mara moja kwenye MikroTik Active Sessions.'
+                : `Amri hii itatumwa mara moja kwenye MikroTik: '${customCmd}'`}
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={executingAction !== null}
+                onClick={() => setRemoteActionTarget(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi
+              </button>
+              <button
+                type="button"
+                disabled={executingAction !== null}
+                onClick={() => executeRemoteAction(remoteActionTarget)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {executingAction !== null ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inatuma amri...</span>
+                  </>
+                ) : (
+                  <span>Thibitisha na Tekeleza</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -9,6 +9,8 @@ import {
   Building2,
   FileCode2,
   User,
+  Download,
+  UploadCloud,
 } from 'lucide-react';
 import { HotspotOwner } from '../../types/index.ts';
 import { VpsDevopsManager } from './VpsDevopsManager.tsx';
@@ -35,6 +37,7 @@ interface SettingsModuleProps {
   currentUser: HotspotOwner | null;
   lang?: 'sw' | 'en';
   defaultSubTab?: SettingsSubTab;
+  onSubTabChange?: (tab: SettingsSubTab) => void;
   onResetCompleted?: () => void;
   onOwnerUpdated?: (updatedOwner: HotspotOwner) => void;
   onPreviewAbout?: () => void;
@@ -46,6 +49,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   currentUser,
   lang = 'sw',
   defaultSubTab = 'payment_gateway',
+  onSubTabChange,
   onResetCompleted,
   onOwnerUpdated,
   onPreviewAbout,
@@ -58,6 +62,15 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   // For VENDOR_ADMIN: company_info, vps_devops, payment_gateway, email_gateway, database_schema, factory_reset
   // For HOTSPOT_OWNER: all_in_one_script, payment_gateway, email_gateway (NO company_info, NO vps_devops, NO database_schema, NO factory_reset)
   const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>(() => {
+    try {
+      const saved = localStorage.getItem('tzwifi_settings_sub_tab') as SettingsSubTab | null;
+      if (saved) {
+        if (!isVendor && ['company_info', 'vps_devops', 'database_schema', 'factory_reset'].includes(saved)) {
+          return 'all_in_one_script';
+        }
+        return saved;
+      }
+    } catch {}
     if (!isVendor) {
       if (
         defaultSubTab === 'company_info' ||
@@ -71,6 +84,16 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
     }
     return defaultSubTab || 'company_info';
   });
+
+  // Whenever activeSubTab changes, persist it and notify parent
+  useEffect(() => {
+    if (activeSubTab) {
+      try {
+        localStorage.setItem('tzwifi_settings_sub_tab', activeSubTab);
+      } catch {}
+      onSubTabChange?.(activeSubTab);
+    }
+  }, [activeSubTab, onSubTabChange]);
 
   // Ensure if role changes or unauthorized subtab is picked, fallback safely
   useEffect(() => {
@@ -165,18 +188,18 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
       badge: 'Real Dispatch',
       badgeColor: 'bg-emerald-100 text-emerald-800 font-bold',
     },
-    // 6. Database Schema (Vendor Only)
+    // 6. Database Schema & SQL Backup (Vendor Only)
     {
       id: 'database_schema' as const,
-      labelSw: 'Database & Uhifadhi wa VPS',
-      labelEn: 'Database & VPS Storage',
-      descSw: 'Muunganisho wa database, ukubwa wa faili, tables & SQL schema',
-      descEn: 'Live database connection, tables, records & MySQL DDL',
+      labelSw: 'Database & Backup ya SQL (.sql)',
+      labelEn: 'Database & SQL Backup (.sql)',
+      descSw: 'Pakua SQL backup kabla ya update, muunganisho wa database, tables & rekodi zote',
+      descEn: 'Download full SQL backup before update, tables, records & MySQL DDL',
       icon: Database,
       vendorOnly: true,
       ownerOnly: false,
-      badge: 'CONNECTED',
-      badgeColor: 'bg-emerald-100 text-emerald-800 font-bold',
+      badge: 'SQL BACKUP',
+      badgeColor: 'bg-purple-100 text-purple-800 font-bold',
     },
     // 7. Factory Reset (Vendor Only)
     {
@@ -238,8 +261,31 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
           </p>
         </div>
 
-        {/* Info pills */}
-        <div className="flex items-center gap-2 text-xs">
+        {/* Info pills & Quick Backup */}
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          {isVendor && (
+            <>
+              <a
+                href="/api/v1/system/sql-backup-download"
+                download
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                title="Pakua nakala kamili ya SQL database kabla ya ku-update mfumo"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{lang === 'sw' ? 'Pakua SQL Backup (.sql)' : 'Download SQL Backup'}</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('database_schema')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                title="Upload na kurejesha backup ya SQL au JSON"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>{lang === 'sw' ? 'Upload Backup' : 'Upload Backup'}</span>
+              </button>
+            </>
+          )}
           <span className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-medium">
             {accessibleTabs.length} {lang === 'sw' ? 'Submodules Zinazopatikana' : 'Accessible Submodules'}
           </span>

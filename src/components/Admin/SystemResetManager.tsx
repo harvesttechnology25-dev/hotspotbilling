@@ -19,6 +19,10 @@ import {
   Check,
   ShieldCheck,
   Package,
+  Download,
+  UploadCloud,
+  X,
+  ArrowUpCircle,
 } from 'lucide-react';
 
 interface DataSummary {
@@ -62,6 +66,16 @@ export const SystemResetManager: React.FC<SystemResetManagerProps> = ({
     text: string;
     details?: any;
   } | null>(null);
+
+  // Upload & Restore Backup State
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadedFileContent, setUploadedFileContent] = useState<string>('');
+  const [uploadedFileName, setUploadedFileName] = useState<string>('');
+  const [uploadPreviewStats, setUploadPreviewStats] = useState<any>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [restoreConfirmWord, setRestoreConfirmWord] = useState('');
+  const [restoringDatabase, setRestoringDatabase] = useState(false);
 
   const fetchSummary = async () => {
     try {
@@ -157,6 +171,91 @@ export const SystemResetManager: React.FC<SystemResetManagerProps> = ({
       });
     } finally {
       setIsResetting(false);
+    }
+  };
+
+  // Handle uploaded .sql or .json file reading
+  const handleFileUploadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    setUploadError(null);
+    setUploadPreviewStats(null);
+    setUploadedFileName(file.name);
+
+    try {
+      const text = await file.text();
+      setUploadedFileContent(text);
+
+      const res = await fetch('/api/v1/system/backup/upload-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileContent: text, filename: file.name }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Imeshindikana kusoma faili la backup.');
+      }
+
+      setUploadPreviewStats(data);
+    } catch (err: any) {
+      setUploadError(err.message || 'Hitilafu ya kusoma faili la backup.');
+    } finally {
+      setUploadingFile(false);
+      e.target.value = '';
+    }
+  };
+
+  // Execute restore from uploaded backup
+  const handleExecuteRestore = async () => {
+    if (!uploadedFileContent) {
+      setUploadError('Tafadhali chagua faili la backup kwanza.');
+      return;
+    }
+
+    const cleanWord = restoreConfirmWord.trim().toUpperCase();
+    if (cleanWord !== 'RESTORE' && cleanWord !== 'REJESHA') {
+      setUploadError('Tafadhali andika "RESTORE" au "REJESHA" kuthibitisha.');
+      return;
+    }
+
+    setRestoringDatabase(true);
+    setUploadError(null);
+    try {
+      const res = await fetch('/api/v1/system/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileContent: uploadedFileContent,
+          filename: uploadedFileName,
+          confirmationWord: cleanWord,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Imeshindikana kurejesha database.');
+      }
+
+      setResultMessage({
+        type: 'success',
+        text: data.message || 'Database imerejeshwa kikamilifu!',
+        details: data.stats,
+      });
+
+      setUploadModalOpen(false);
+      setUploadedFileContent('');
+      setUploadPreviewStats(null);
+      setRestoreConfirmWord('');
+
+      await fetchSummary();
+      if (onResetCompleted) onResetCompleted();
+    } catch (err: any) {
+      setUploadError(err.message || 'Hitilafu ya kurejesha backup.');
+    } finally {
+      setRestoringDatabase(false);
     }
   };
 
@@ -313,6 +412,47 @@ export const SystemResetManager: React.FC<SystemResetManagerProps> = ({
           <p className="text-indigo-800 leading-relaxed">
             Hata ukichagua <strong>"Factory Reset Kamili"</strong>, akaunti yako kuu ya Vendor Master HQ (Kelvin Mrema / <code>admin</code> / nenosiri: <code>1234</code>) itaendelea kubaki salama ili uweze kuingia mara moja na kusajili wateja na routers zako halisi.
           </p>
+        </div>
+      </div>
+
+      {/* Recommended SQL Backup Card Before Updates or Resets */}
+      <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="p-2.5 rounded-xl bg-purple-600 text-white shrink-0 mt-0.5 shadow-xs">
+            <Download className="w-5 h-5" />
+          </span>
+          <div className="space-y-1">
+            <h4 className="text-sm font-black text-purple-950">
+              Pakua SQL Backup (.sql) Kwanza Kabla ya Ku-Update Mfumo au Kureset
+            </h4>
+            <p className="text-xs text-purple-800 leading-relaxed max-w-xl">
+              Hifadhi nakala kamili ya database yenye tables na data zote halisi (wamiliki, vifaa, miamala, na vocha) kama faili la <strong>.sql</strong>. Unaweza kulitumia kurejesha mfumo kwa sekunde chache endapo lolote litatokea wakati wa update.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <a
+            href="/api/v1/system/sql-backup-download"
+            download
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-xs shadow-md shadow-purple-600/20 transition cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Pakua SQL Backup (.sql)</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => {
+              setUploadError(null);
+              setUploadModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md shadow-emerald-600/20 transition cursor-pointer"
+            title="Upload na kurejesha database kutoka kwenye backup"
+          >
+            <UploadCloud className="w-4 h-4 text-emerald-200" />
+            <span>Upload & Rejesha Backup</span>
+          </button>
         </div>
       </div>
 
@@ -509,6 +649,193 @@ export const SystemResetManager: React.FC<SystemResetManagerProps> = ({
           </div>
         </div>
       </form>
+
+      {/* ========================================================================= */}
+      {/* MODAL: UPLOAD & RESTORE SQL / JSON BACKUP                                 */}
+      {/* ========================================================================= */}
+      {uploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 my-8 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 leading-tight">
+                    Upload & Rejesha Backup ya Database
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Inasaidia faili la .sql (SQL Dump) au .json
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadModalOpen(false);
+                  setUploadedFileContent('');
+                  setUploadPreviewStats(null);
+                  setUploadError(null);
+                  setRestoreConfirmWord('');
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error Banner */}
+            {uploadError && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 animate-in fade-in duration-200">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                <div className="flex-1 font-medium">{uploadError}</div>
+              </div>
+            )}
+
+            {/* File Drop / Select Area */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">
+                1. Chagua Faili la Backup (.sql au .json):
+              </label>
+              <label className="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/40 rounded-2xl p-6 transition flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer group">
+                <input
+                  type="file"
+                  accept=".sql,.json,text/plain,application/json,application/sql"
+                  onChange={handleFileUploadChange}
+                  className="hidden"
+                  disabled={uploadingFile || restoringDatabase}
+                />
+                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition shadow-xs">
+                  {uploadingFile ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                  ) : (
+                    <ArrowUpCircle className="w-6 h-6 text-emerald-600" />
+                  )}
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-800 block">
+                    {uploadingFile
+                      ? 'Inasoma na kuhakiki faili...'
+                      : uploadedFileName
+                      ? `Faili: ${uploadedFileName}`
+                      : 'Bofya hapa kuchagua faili la .sql au .json'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-0.5 block">
+                    tz_wifi_database_backup_*.sql au *.json
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Backup Contents Preview Box */}
+            {uploadPreviewStats && uploadPreviewStats.stats && (
+              <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-200/80 space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b border-purple-200/60 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-purple-600 text-white font-mono font-bold text-[10px]">
+                      {uploadPreviewStats.stats.format}
+                    </span>
+                    <span className="text-xs font-extrabold text-purple-950 truncate max-w-[260px]">
+                      {uploadPreviewStats.stats.filename}
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-purple-700">
+                    {uploadPreviewStats.stats.sizeKb} KB
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="bg-white p-2.5 rounded-xl border border-purple-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Wamiliki</span>
+                    <span className="text-base font-black text-slate-900">{uploadPreviewStats.stats.ownersCount}</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-purple-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Routers/AP</span>
+                    <span className="text-base font-black text-slate-900">{uploadPreviewStats.stats.routersCount}</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-purple-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Vifurushi</span>
+                    <span className="text-base font-black text-slate-900">{uploadPreviewStats.stats.plansCount}</span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-purple-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Vocha</span>
+                    <span className="text-base font-black text-purple-700">{uploadPreviewStats.stats.vouchersCount}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Confirmation & Restore Section */}
+            {uploadPreviewStats && (
+              <div className="space-y-3 pt-1 border-t border-slate-100">
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+                  <div className="font-black flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Tahadhari:</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Kurejesha backup kutabadilisha taarifa zilizopo na kuweka data kutoka kwenye faili hili.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Andika "RESTORE" au "REJESHA" kuthibitisha:
+                  </label>
+                  <input
+                    type="text"
+                    value={restoreConfirmWord}
+                    onChange={(e) => setRestoreConfirmWord(e.target.value)}
+                    placeholder='RESTORE'
+                    className="w-full px-3.5 py-2.5 text-xs font-mono font-bold uppercase rounded-xl border border-slate-200 focus:border-emerald-600 focus:outline-none"
+                    disabled={restoringDatabase}
+                  />
+                </div>
+
+                <div className="flex gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    disabled={restoringDatabase}
+                    onClick={() => {
+                      setUploadModalOpen(false);
+                      setUploadedFileContent('');
+                      setUploadPreviewStats(null);
+                      setRestoreConfirmWord('');
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+                  >
+                    Ghairi
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      restoringDatabase ||
+                      (restoreConfirmWord.trim().toUpperCase() !== 'RESTORE' &&
+                        restoreConfirmWord.trim().toUpperCase() !== 'REJESHA')
+                    }
+                    onClick={handleExecuteRestore}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    {restoringDatabase ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Inarejesha Database...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Rejesha Data Sasa</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

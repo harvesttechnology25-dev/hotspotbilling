@@ -192,6 +192,10 @@ export interface PlanRecord {
   id: number;
   name: string;
   type: PlanType;
+  owner_id?: number;
+  owner_name?: string;
+  router_id?: number | null;
+  router_name?: string | null;
   limit_uptime: number | null; // in seconds
   limit_bytes_total: number | null; // in bytes
   rate_limit: string; // e.g. '2M/4M'
@@ -514,6 +518,7 @@ export interface HotspotUserDetail {
   plan_name?: string;
   plan_price?: number;
   created_at?: string;
+  activated_at?: string;
   expires_at?: string;
   login_method?: 'PHONE' | 'MANUAL';
   phone_number?: string;

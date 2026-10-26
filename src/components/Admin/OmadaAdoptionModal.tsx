@@ -19,6 +19,10 @@ import {
   Sliders,
   Layers,
   Sparkles,
+  Activity,
+  Terminal,
+  Send,
+  Zap,
 } from 'lucide-react';
 import { RouterItem } from '../../types/index.ts';
 
@@ -30,6 +34,7 @@ interface OmadaAdoptionModalProps {
   ownerId?: number;
   ownerName?: string;
   lang?: 'sw' | 'en';
+  initialStep?: number;
 }
 
 const OMADA_MODELS = [
@@ -63,9 +68,16 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   ownerId,
   ownerName,
   lang = 'sw',
+  initialStep = 1,
 }) => {
-  // Wizard steps: 1 (AP Info & MAC) -> 2 (Inform URL) -> 3 (SSID & Device Auth) -> 4 (Adoption Execution & Verification)
-  const [activeStep, setActiveStep] = useState<number>(1);
+  // Wizard steps: 0 (Live Tester) -> 1 (AP Info & MAC) -> 2 (Inform URL) -> 3 (SSID & Device Auth) -> 4 (Adoption Execution & Verification)
+  const [activeStep, setActiveStep] = useState<number>(initialStep);
+
+  useEffect(() => {
+    if (isOpen && initialStep !== undefined) {
+      setActiveStep(initialStep);
+    }
+  }, [isOpen, initialStep]);
   const [macAddress, setMacAddress] = useState('');
   const [apName, setApName] = useState('');
   const [selectedModel, setSelectedModel] = useState(OMADA_MODELS[0].name);
@@ -129,7 +141,35 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
     }
   }, [existingRouter, ownerName]);
 
-  // Fetch inform URL from server on open
+  // Live device tester state
+  const [testIpAddress, setTestIpAddress] = useState(ipAddress || '192.168.0.254');
+  const [testPort, setTestPort] = useState(80);
+  const [testingDevice, setTestingDevice] = useState(false);
+  const [testDeviceResult, setTestDeviceResult] = useState<any>(null);
+  const [simulatingInform, setSimulatingInform] = useState(false);
+  const [simulateSuccessMessage, setSimulateSuccessMessage] = useState<string | null>(null);
+  const [curlCopied, setCurlCopied] = useState(false);
+
+  // Discovered APs list from live Inform packets
+  const [discoveredAps, setDiscoveredAps] = useState<any[]>([]);
+  const [loadingDiscovered, setLoadingDiscovered] = useState(false);
+
+  const fetchDiscoveredAps = async () => {
+    try {
+      setLoadingDiscovered(true);
+      const res = await fetch('/api/v1/omada/discovered');
+      const data = await res.json();
+      if (data.discovered) {
+        setDiscoveredAps(data.discovered);
+      }
+    } catch (e) {
+      console.error('Failed to fetch discovered APs:', e);
+    } finally {
+      setLoadingDiscovered(false);
+    }
+  };
+
+  // Fetch inform URL and discovered devices on open
   useEffect(() => {
     if (isOpen) {
       fetch('/api/v1/omada/inform-info')
@@ -139,8 +179,97 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           if (data.vpsIp) setVpsIp(data.vpsIp);
         })
         .catch((err) => console.error('Failed to fetch Omada inform info:', err));
+
+      fetchDiscoveredAps();
     }
   }, [isOpen]);
+
+  const handleSelectDiscoveredAp = (ap: any) => {
+    setMacAddress(ap.macAddress);
+    if (ap.ipAddress) {
+      setIpAddress(ap.ipAddress);
+      setTestIpAddress(ap.ipAddress);
+    }
+    if (ap.modelName) {
+      const match = OMADA_MODELS.find(
+        (m) =>
+          m.name.toLowerCase().includes(ap.modelName.toLowerCase()) ||
+          ap.modelName.toLowerCase().includes(m.model.toLowerCase())
+      );
+      if (match) {
+        setSelectedModel(match.name);
+        setIsCustomModel(false);
+      } else {
+        setSelectedModel('CUSTOM');
+        setIsCustomModel(true);
+        setCustomModelText(ap.modelName);
+      }
+    }
+    setApName(`Omada-${(ap.modelName || 'AP').split(' ')[0]}-${ap.macAddress.slice(-5).replace(':', '')}`);
+    setActiveStep(1);
+  };
+
+  const handleTestDeviceReachability = async () => {
+    setTestingDevice(true);
+    setTestDeviceResult(null);
+    setErrorMessage('');
+    try {
+      const res = await fetch('/api/v1/omada/test-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ipAddress: testIpAddress.trim() || '192.168.0.254',
+          port: Number(testPort) || 80,
+          macAddress: macAddress.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      setTestDeviceResult(data);
+      await fetchDiscoveredAps();
+    } catch (e: any) {
+      setErrorMessage(e.message || 'Hitilafu ya kupima mawasiliano ya kifaa.');
+    } finally {
+      setTestingDevice(false);
+    }
+  };
+
+  const handleSimulateInform = async () => {
+    if (!macAddress.trim()) {
+      setErrorMessage('Tafadhali weka MAC Address ya kifaa (mfano: 50:D4:F7:2B:8C:1A) ili kutuma jaribio.');
+      return;
+    }
+    setSimulatingInform(true);
+    setSimulateSuccessMessage(null);
+    setErrorMessage('');
+    try {
+      const effectiveModel = isCustomModel ? (customModelText.trim() || 'Custom AP') : selectedModel;
+      const res = await fetch('/api/v1/omada/simulate-inform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          macAddress: macAddress.trim(),
+          ipAddress: testIpAddress.trim() || '192.168.0.254',
+          modelName: effectiveModel,
+          firmware: 'v5.0.12 Build 20260410',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Uigaji wa inform ulishindwa');
+      }
+      setSimulateSuccessMessage(data.message || 'Jaribio limetumwa na kutambuliwa na Controller ya VPS!');
+      await fetchDiscoveredAps();
+      setTestDeviceResult((prev: any) => ({
+        ...(prev || {}),
+        informReceived: true,
+        lastInformSeen: new Date().toISOString(),
+      }));
+    } catch (e: any) {
+      setErrorMessage(e.message || 'Hitilafu ya kutuma jaribio la inform.');
+    } finally {
+      setSimulatingInform(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -304,6 +433,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         {/* Step Indicator Bar */}
         <div className="bg-slate-900 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none text-xs">
           {[
+            { num: 0, titleSw: '0. Pima Kifaa (Live Tester)', titleEn: '0. Device Diagnostic' },
             { num: 1, titleSw: '1. MAC Address & AP', titleEn: '1. MAC & AP Info' },
             { num: 2, titleSw: '2. Controller Inform URL', titleEn: '2. Controller Inform' },
             { num: 3, titleSw: '3. SSID & Password ya AP', titleEn: '3. SSID & AP Auth' },
@@ -341,12 +471,345 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           })}
         </div>
 
+        {/* Discovered Devices Banner (Live Inform Packets Received) */}
+        {discoveredAps.length > 0 && (
+          <div className="bg-emerald-950 px-4 py-2.5 border-b border-emerald-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-white">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="font-black text-emerald-300 text-xs">
+                {lang === 'sw' ? 'Vifaa Vilivyotambuliwa Moja kwa Moja (Live Inform):' : 'Live Inform APs Detected:'}
+              </span>
+              <span className="bg-emerald-800/60 px-2 py-0.5 rounded-full text-[10px] font-mono text-emerald-200">
+                {discoveredAps.length} Discovered
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {discoveredAps.slice(0, 3).map((ap) => (
+                <button
+                  key={ap.macAddress}
+                  type="button"
+                  onClick={() => handleSelectDiscoveredAp(ap)}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/50 text-white font-mono font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  title="Bofya kuweka MAC na Model ya kifaa hiki mara moja"
+                >
+                  <Wifi className="w-3 h-3 text-emerald-200" />
+                  <span>{ap.modelName.split(' ')[0]} ({ap.macAddress})</span>
+                  <span className="text-[9px] bg-emerald-900 px-1 py-0.5 rounded text-emerald-300 font-sans font-bold">
+                    {ap.status === 'ADOPTED' ? 'ONLINE' : 'ADOPT'}
+                  </span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={fetchDiscoveredAps}
+                disabled={loadingDiscovered}
+                className="p-1 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-emerald-300 transition cursor-pointer"
+                title="Sasisha Orodha ya Vifaa"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingDiscovered ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {errorMessage && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-semibold">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {simulateSuccessMessage && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-900 font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{simulateSuccessMessage}</span>
+            </div>
+          )}
+
+          {/* STEP 0: LIVE DEVICE TESTER & DIAGNOSTICS */}
+          {activeStep === 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-teal-600" />
+                    <span>{lang === 'sw' ? 'Hatua ya 0: Pima Kifaa na Mawasiliano (Live Device Tester)' : 'Step 0: Device Reachability & Inform Diagnostics'}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {lang === 'sw'
+                      ? 'Pima kama kifaa chako (TP-Link Omada AP au Pharos CPE) kinafikiwa kwenye mtandao, kinajibu ping/port, na kimeshatuma mawasiliano ya Inform.'
+                      : 'Test live reachability, latency, and verify inform packet discovery for your TP-Link Omada or Pharos CPE device.'}
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-800 text-[11px] font-bold border border-teal-200">
+                  Diagnostic Studio
+                </span>
+              </div>
+
+              {/* Device Test Inputs */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-800 block mb-1">
+                      IP Address ya Kifaa (AP IP) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={testIpAddress}
+                      onChange={(e) => setTestIpAddress(e.target.value)}
+                      placeholder="192.168.0.254 au IP ya LAN"
+                      className="w-full px-3.5 py-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Default: <code className="font-mono font-bold">192.168.0.254</code>
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-800 block mb-1">
+                      Port ya Kujaribu
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        value={testPort}
+                        onChange={(e) => setTestPort(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setTestPort(80)}
+                          className={`px-2 py-1 text-[10px] rounded-lg border font-bold cursor-pointer transition ${testPort === 80 ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-700 border-slate-200'}`}
+                          title="HTTP Web Management"
+                        >
+                          80
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTestPort(29810)}
+                          className={`px-2 py-1 text-[10px] rounded-lg border font-bold cursor-pointer transition ${testPort === 29810 ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-700 border-slate-200'}`}
+                          title="Omada Inform Port"
+                        >
+                          29810
+                        </button>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      80 (Web GUI) / 29810 (Inform)
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-800 block mb-1">
+                      MAC Address ya Kifaa (Hiari)
+                    </label>
+                    <input
+                      type="text"
+                      value={macAddress}
+                      onChange={(e) => formatMacInput(e.target.value)}
+                      placeholder="50:D4:F7:2B:8C:1A"
+                      className="w-full px-3.5 py-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Kuangalia kama inform packet imepokelewa
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
+                  <button
+                    type="button"
+                    disabled={testingDevice}
+                    onClick={handleTestDeviceReachability}
+                    className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs flex items-center gap-2 transition cursor-pointer shadow-md"
+                  >
+                    {testingDevice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Inapima Mawasiliano ya Kifaa...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-4 h-4" />
+                        <span>🚀 Pima Mawasiliano (Test Ping & Socket Reachability)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={simulatingInform || !macAddress.trim()}
+                    onClick={handleSimulateInform}
+                    className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-md disabled:opacity-50"
+                  >
+                    {simulatingInform ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Inatuma Jaribio...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>📡 Tuma Jaribio la Inform Packet (Simulator)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={fetchDiscoveredAps}
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingDiscovered ? 'animate-spin' : ''}`} />
+                    <span>Sasisha Orodha ya Vifaa</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Test Results Display Card */}
+              {testDeviceResult && (
+                <div
+                  className={`p-4 rounded-2xl border-2 space-y-3 ${
+                    testDeviceResult.reachable
+                      ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
+                      : testDeviceResult.networkType === 'LOCAL_PRIVATE'
+                      ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+                      : 'bg-rose-50/80 border-rose-300 text-rose-950'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-white ${
+                          testDeviceResult.reachable
+                            ? 'bg-emerald-600'
+                            : testDeviceResult.networkType === 'LOCAL_PRIVATE'
+                            ? 'bg-amber-600'
+                            : 'bg-rose-600'
+                        }`}
+                      >
+                        {testDeviceResult.reachable ? '✓' : '!'}
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm">
+                          {testDeviceResult.reachable
+                            ? 'Mawasiliano na Kifaa Yamethibitishwa (ONLINE & REACHABLE)!'
+                            : testDeviceResult.networkType === 'LOCAL_PRIVATE'
+                            ? 'Kifaa Kipo Kwenye Local LAN (192.168.x.x) - Angalia Mwongozo'
+                            : 'Mawasiliano Hayajajibu (Unreachable / Timeout)'}
+                        </h4>
+                        <p className="text-xs mt-0.5 opacity-90">{testDeviceResult.diagnostic}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {testDeviceResult.latencyMs > 0 && (
+                        <span className="px-2.5 py-1 rounded-lg bg-white/80 font-mono font-black text-xs border">
+                          ⚡ {testDeviceResult.latencyMs} ms
+                        </span>
+                      )}
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-white font-bold text-[10px] uppercase ${
+                          testDeviceResult.reachable ? 'bg-emerald-600' : 'bg-slate-700'
+                        }`}
+                      >
+                        {testDeviceResult.networkType}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono pt-1">
+                    <div className="bg-white/80 p-2.5 rounded-xl border">
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Tested Target</span>
+                      <span className="font-black text-slate-900 block truncate">
+                        {testDeviceResult.ipAddress}:{testDeviceResult.port}
+                      </span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-xl border">
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Inform Heartbeat</span>
+                      <span
+                        className={`font-black block truncate ${
+                          testDeviceResult.informReceived ? 'text-emerald-700' : 'text-amber-700'
+                        }`}
+                      >
+                        {testDeviceResult.informReceived ? '🟢 IMEPOKELEWA' : '⏳ INASUBIRIWA'}
+                      </span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-xl border">
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Controller VPS</span>
+                      <span className="font-black text-teal-700 block truncate">{vpsIp}:29810</span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-xl border">
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">RADIUS CoA</span>
+                      <span className="font-black text-indigo-700 block truncate">Port 3799 (Auto-Unlock)</span>
+                    </div>
+                  </div>
+
+                  {testDeviceResult.advice && testDeviceResult.advice.length > 0 && (
+                    <div className="p-3 bg-white/90 rounded-xl border space-y-1 text-xs">
+                      <span className="font-black block text-slate-900">Ushauri wa Kitaalamu wa Kusanidi:</span>
+                      <ul className="list-disc list-inside space-y-0.5 text-slate-700">
+                        {testDeviceResult.advice.map((adv: string, idx: number) => (
+                          <li key={idx}>{adv}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* cURL Command for Local Testing from Terminal / MikroTik */}
+              <div className="p-4 rounded-2xl bg-slate-950 text-white space-y-2 border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-xs text-slate-200">
+                      Jaribu Moja kwa Moja kutoka Kwenye Terminal / Kompyuta Yako (cURL Command):
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curlCmd = `curl -X POST http://${vpsIp}:29810/inform -H "Content-Type: application/json" -d '{"mac":"${macAddress || '50:D4:F7:2B:8C:1A'}","ip":"${testIpAddress}","model":"${selectedModel}"}'`;
+                      navigator.clipboard.writeText(curlCmd);
+                      setCurlCopied(true);
+                      setTimeout(() => setCurlCopied(false), 2500);
+                    }}
+                    className="px-3 py-1 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-xs"
+                  >
+                    {curlCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{curlCopied ? 'Imenakiliwa!' : 'Nakili cURL'}</span>
+                  </button>
+                </div>
+                <pre className="p-3 bg-slate-900 rounded-xl text-[11px] font-mono text-emerald-300 overflow-x-auto select-all">
+                  curl -X POST http://{vpsIp}:29810/inform -H "Content-Type: application/json" -d &apos;&#123;&quot;mac&quot;:&quot;{macAddress || '50:D4:F7:2B:8C:1A'}&quot;,&quot;ip&quot;:&quot;{testIpAddress}&quot;,&quot;model&quot;:&quot;{selectedModel}&quot;&#125;&apos;
+                </pre>
+                <p className="text-[10px] text-slate-400">
+                  Amri hii inatuma ombi la inform kwa VPS ya Controller kama vile AP ya TP-Link inavyofanya, na kuthibitisha kuwa Controller inapokea data!
+                </p>
+              </div>
+
+              {/* Navigation button to Step 1 */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage('');
+                    setActiveStep(1);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                >
+                  <span>Endelea na Hatua ya 1: Sajili MAC na Model ya AP</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -492,8 +955,8 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   )}
 
                   {/* Pharos CPE Specialized Guidance Banner */}
-                  {((!isCustomModel && (selectedModel.includes('CPE') || selectedModel.includes('Pharos') || selectedModel.includes('WBS'))) ||
-                    (isCustomModel && (customModelText.toUpperCase().includes('CPE') || customModelText.toUpperCase().includes('PHAROS')))) && (
+                  {((!isCustomModel && ((selectedModel || '').includes('CPE') || (selectedModel || '').includes('Pharos') || (selectedModel || '').includes('WBS'))) ||
+                    (isCustomModel && ((customModelText || '').toUpperCase().includes('CPE') || (customModelText || '').toUpperCase().includes('PHAROS')))) && (
                     <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1.5 text-xs text-amber-950 mt-2">
                       <div className="flex items-center gap-1.5 font-black text-amber-900">
                         <span className="text-base">📡</span>

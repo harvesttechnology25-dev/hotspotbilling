@@ -23,6 +23,44 @@ export interface PaymentInitiationResult {
   gatewayMode: 'LIVE' | 'SANDBOX';
 }
 
+/**
+ * Maps system network provider to DaliPay provider name
+ * ("Tigo", "Airtel", "Halopesa", "Azampesa", or "Mpesa")
+ */
+export function formatDaliPayProvider(carrier: string): 'Mpesa' | 'Tigo' | 'Airtel' | 'Halopesa' | 'Azampesa' {
+  const p = String(carrier || '').toUpperCase();
+  if (p.includes('VODA') || p.includes('MPESA')) return 'Mpesa';
+  if (p.includes('TIGO')) return 'Tigo';
+  if (p.includes('AIRTEL')) return 'Airtel';
+  if (p.includes('HALO')) return 'Halopesa';
+  if (p.includes('AZAM')) return 'Azampesa';
+  return 'Mpesa';
+}
+
+/**
+ * Normalizes Tanzanian MSISDN to local format e.g. "0712345678" as required by DaliPay
+ */
+export function formatDaliPayAccountNumber(phone: string): string {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.startsWith('255') && digits.length === 12) {
+    return '0' + digits.slice(3);
+  }
+  if (digits.length === 9) {
+    return '0' + digits;
+  }
+  return digits;
+}
+
+/**
+ * Resolves DaliPay base collections endpoint (/api/v1/collections)
+ */
+export function getDaliPayCollectionsUrl(base: string): string {
+  const clean = (base || 'https://app.dalipay.co.tz').trim().replace(/\/+$/, '');
+  if (clean.endsWith('/api/v1/collections')) return clean;
+  if (clean.endsWith('/api/v1')) return `${clean}/collections`;
+  return `${clean}/api/v1/collections`;
+}
+
 export class PaymentGatewayService {
   /**
    * Generates a unique external reference for carrier tracking
@@ -93,7 +131,7 @@ export class PaymentGatewayService {
     const dalipayPublicKey = (owner?.dalipay_public_key || router?.dalipay_public_key || '').trim();
     const dalipaySecretKey = (owner?.dalipay_secret_key || router?.dalipay_secret_key || '').trim();
     const dalipayBase = (owner?.dalipay_api_endpoint || router?.dalipay_api_endpoint || 'https://app.dalipay.co.tz').trim();
-    const hasDaliPay = Boolean(dalipayKeyId && dalipayPublicKey && dalipaySecretKey);
+    const hasDaliPay = Boolean(dalipayPublicKey && dalipaySecretKey);
 
     const palmpesaUserId = (owner?.palmpesa_user_id || router?.palmpesa_user_id || '').trim();
     const palmpesaUserRef = (owner?.palmpesa_user_ref || router?.palmpesa_user_ref || '').trim();
@@ -121,40 +159,49 @@ export class PaymentGatewayService {
     let usedMerchantId = hasDaliPay ? dalipayKeyId : palmpesaUserId;
 
     if (activeGateway === 'DALIPAY') {
+      const collectionsUrl = getDaliPayCollectionsUrl(dalipayBase);
+      const dalipayProvider = formatDaliPayProvider(provider);
+      const dalipayAccount = formatDaliPayAccountNumber(carrierResult.normalized || params.phoneNumber);
+      gatewayMode = dalipayPublicKey.startsWith('gw_pk_test_') ? 'SANDBOX' : 'LIVE';
+
       try {
-        const pushRes = await fetch(`${dalipayBase}/checkout/push`, {
+        const pushRes = await fetch(collectionsUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-KEY': dalipaySecretKey,
-            'X-PUBLIC-KEY': dalipayPublicKey,
-            'X-KEY-ID': dalipayKeyId,
-            Authorization: `Bearer ${dalipaySecretKey}`,
+            'X-Public-Key': dalipayPublicKey,
+            'X-Secret-Key': dalipaySecretKey,
+            ...(dalipayKeyId ? { 'X-Key-Id': dalipayKeyId } : {}),
           },
           body: JSON.stringify({
-            key_id: dalipayKeyId,
-            phone_number: carrierResult.normalized || params.phoneNumber,
+            account_number: dalipayAccount,
             amount: plan.price,
-            carrier: provider,
-            reference: externalRef,
             currency: 'TZS',
-            callback_url: `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
+            provider: dalipayProvider,
+            external_id: externalRef.slice(0, 30),
+            customer_name: `Mteja Hotspot (${dalipayAccount})`,
           }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(10000),
         });
 
         const pushData: any = await pushRes.json().catch(() => ({}));
         if (!pushRes.ok) {
           const apiErrMsg = pushData.message || pushData.error || `DaliPay API error HTTP ${pushRes.status}`;
-          throw new Error(`Hitilafu kutoka DaliPay Aggregator API: ${apiErrMsg}`);
+          throw new Error(`Hitilafu kutoka DaliPay Collections API: ${apiErrMsg}`);
         }
-        externalTransactionId = pushData.transaction_id || pushData.id || pushData.reference || null;
+        externalTransactionId =
+          pushData.data?.uuid ||
+          pushData.data?.reference ||
+          pushData.uuid ||
+          pushData.reference ||
+          pushData.transaction_id ||
+          null;
       } catch (err: any) {
         console.error('DaliPay API Call Error:', err);
         throw new Error(
           err.message?.includes('Hitilafu kutoka DaliPay')
             ? err.message
-            : `Imeshindikana kuunganishwa na DaliPay API: ${err.message || 'Mtandao haujajibu'}. Tafadhali thibitisha API endpoint na keys zako.`
+            : `Imeshindikana kuunganishwa na DaliPay Collections API: ${err.message || 'Mtandao haujajibu'}. Tafadhali thibitisha API endpoint na keys zako.`
         );
       }
     } else if (activeGateway === 'PALMPESA') {
@@ -385,44 +432,56 @@ export class PaymentGatewayService {
 
     if (gateway === 'DALIPAY') {
       const dalipayConfig = settings.dalipay;
-      if (!dalipayConfig || (!dalipayConfig.publicKey && !dalipayConfig.secretKey)) {
+      const keyId = (dalipayConfig?.keyId || process.env.DALIPAY_KEY_ID || '').trim();
+      const publicKey = (dalipayConfig?.publicKey || process.env.DALIPAY_PUBLIC_KEY || '').trim();
+      const secretKey = (dalipayConfig?.secretKey || process.env.DALIPAY_SECRET_KEY || '').trim();
+      const dalipayBase = (dalipayConfig?.apiEndpoint || process.env.DALIPAY_ENDPOINT || 'https://app.dalipay.co.tz').trim();
+
+      if (!publicKey || !secretKey) {
         throw new Error(
           'Mipangilio ya DaliPay API haijakamilika kwenye mfumo. Tafadhali sanidi DaliPay credentials kwanza.'
         );
       }
 
-      const dalipayBase = dalipayConfig.apiEndpoint || 'https://api.dalipay.com/v1';
+      const collectionsUrl = getDaliPayCollectionsUrl(dalipayBase);
+      const dalipayProvider = formatDaliPayProvider(provider);
+      const dalipayAccount = formatDaliPayAccountNumber(params.phoneNumber);
+
       try {
-        const pushRes = await fetch(`${dalipayBase}/checkout/push`, {
+        const pushRes = await fetch(collectionsUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-KEY': dalipayConfig.secretKey || '',
-            'X-PUBLIC-KEY': dalipayConfig.publicKey || '',
-            'X-KEY-ID': dalipayConfig.keyId || '',
-            Authorization: `Bearer ${dalipayConfig.secretKey || ''}`,
+            'X-Public-Key': publicKey,
+            'X-Secret-Key': secretKey,
+            ...(keyId ? { 'X-Key-Id': keyId } : {}),
           },
           body: JSON.stringify({
-            key_id: dalipayConfig.keyId,
-            phone_number: carrierResult.normalized || params.phoneNumber,
+            account_number: dalipayAccount,
             amount: amount,
-            carrier: provider,
-            reference: externalRef,
             currency: 'TZS',
-            callback_url: `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
+            provider: dalipayProvider,
+            external_id: externalRef.slice(0, 30),
+            customer_name: owner.business_name || owner.name || 'Hotspot Owner',
           }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(10000),
         });
 
         const pushData: any = await pushRes.json().catch(() => ({}));
         if (!pushRes.ok) {
-          throw new Error(`DaliPay Aggregator Error: ${pushData.message || pushData.error || pushRes.statusText}`);
+          throw new Error(`DaliPay Collections Error: ${pushData.message || pushData.error || pushRes.statusText}`);
         }
-        externalTransactionId = pushData.transaction_id || pushData.id || pushData.reference || null;
+        externalTransactionId =
+          pushData.data?.uuid ||
+          pushData.data?.reference ||
+          pushData.uuid ||
+          pushData.reference ||
+          pushData.transaction_id ||
+          null;
       } catch (err: any) {
         console.error('Subscription DaliPay API Call Error:', err);
         throw new Error(
-          err.message?.includes('DaliPay Aggregator Error')
+          err.message?.includes('DaliPay Collections Error')
             ? err.message
             : `Imeshindikana kutuma ombi la malipo kupitia DaliPay API: ${err.message || 'Mtandao haujajibu'}.`
         );
@@ -507,21 +566,34 @@ export class PaymentGatewayService {
   /**
    * Verifies HMAC-SHA256 signature from gateway webhook headers
    */
-  static verifyWebhookSignature(payloadRaw: string, signatureHeader?: string): boolean {
+  static verifyWebhookSignature(payloadRaw: string, signatureHeader?: string, customSecret?: string): boolean {
     if (!signatureHeader) {
       return true;
     }
     try {
-      const secret = db.getSettings().webhookSecret || 'tzwifi_secret_key_89230492';
-      const computedHash = crypto
-        .createHmac('sha256', secret)
-        .update(payloadRaw)
-        .digest('hex');
+      const settings = db.getSettings();
+      const candidateSecrets = [
+        customSecret,
+        settings.dalipay?.webhookSecret,
+        process.env.DALIPAY_WEBHOOK_SECRET,
+        settings.webhookSecret,
+        'tzwifi_secret_key_89230492',
+      ].filter(Boolean) as string[];
 
-      return crypto.timingSafeEqual(
-        Buffer.from(computedHash, 'utf8'),
-        Buffer.from(signatureHeader, 'utf8')
-      );
+      for (const secret of candidateSecrets) {
+        const computedHash = crypto
+          .createHmac('sha256', secret)
+          .update(payloadRaw)
+          .digest('hex');
+
+        if (
+          computedHash.length === signatureHeader.length &&
+          crypto.timingSafeEqual(Buffer.from(computedHash, 'utf8'), Buffer.from(signatureHeader, 'utf8'))
+        ) {
+          return true;
+        }
+      }
+      return false;
     } catch {
       return false;
     }

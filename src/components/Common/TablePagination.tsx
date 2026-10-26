@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
-export type PageSizeOption = 10 | 20 | 30 | 40 | 'ALL';
+export type PageSizeOption = number | 'ALL';
 
 interface TablePaginationProps {
   currentPage: number;
@@ -10,6 +10,7 @@ interface TablePaginationProps {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: PageSizeOption) => void;
   itemName?: string;
+  pageSizeOptions?: PageSizeOption[];
 }
 
 export const TablePagination: React.FC<TablePaginationProps> = ({
@@ -19,11 +20,19 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
   onPageChange,
   onPageSizeChange,
   itemName = 'rekodi',
+  pageSizeOptions,
 }) => {
   const isAll = pageSize === 'ALL';
   const effectiveSize = isAll ? Math.max(totalItems, 1) : pageSize;
   const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalItems / effectiveSize));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  // When items are deleted, clamp currentPage to totalPages instead of jumping to page 1 or showing empty
+  React.useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      onPageChange(totalPages);
+    }
+  }, [currentPage, totalPages, onPageChange]);
 
   const startItem = totalItems === 0 ? 0 : isAll ? 1 : (safeCurrentPage - 1) * effectiveSize + 1;
   const endItem = isAll ? totalItems : Math.min(safeCurrentPage * effectiveSize, totalItems);
@@ -49,7 +58,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
   };
 
   const pageNumbers = getPageNumbers();
-  const PAGE_SIZE_OPTIONS: PageSizeOption[] = [10, 20, 30, 40, 'ALL'];
+  const effectiveOptions: PageSizeOption[] = pageSizeOptions || [10, 20, 30, 40, 'ALL'];
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border-t border-slate-200 text-xs">
@@ -58,7 +67,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
         <div className="flex items-center gap-1.5 text-slate-500">
           <span className="font-semibold text-slate-600">Safu (Rows):</span>
           <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
-            {PAGE_SIZE_OPTIONS.map((opt) => {
+            {effectiveOptions.map((opt) => {
               const active = pageSize === opt;
               return (
                 <button
@@ -140,11 +149,11 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
               </>
             )}
 
-            {pageNumbers.map((num) => {
+            {pageNumbers.map((num, idx) => {
               const active = num === safeCurrentPage;
               return (
                 <button
-                  key={num}
+                  key={`page-num-${num}-${idx}`}
                   type="button"
                   onClick={() => onPageChange(num)}
                   className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center transition cursor-pointer ${

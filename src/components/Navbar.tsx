@@ -66,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Brand Logo & Name */}
           <button
             type="button"
-            onClick={() => handleNavigate('welcome')}
+            onClick={() => handleNavigate(currentUser ? 'admin' : 'welcome')}
             className="flex items-center gap-2 sm:gap-3 text-left cursor-pointer group shrink-0 min-w-0"
           >
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-[#1b62b6] to-[#005ea9] text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition shrink-0">

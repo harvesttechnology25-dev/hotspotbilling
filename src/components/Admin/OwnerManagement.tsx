@@ -36,6 +36,9 @@ import {
   LayoutGrid,
   List,
   Power,
+  X,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import { HotspotOwner, RouterItem, UserRole, ManualSubscriptionRequest } from '../../types/index.ts';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
@@ -70,6 +73,12 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
   const [manualReferenceNote, setManualReferenceNote] = useState('Malipo ya Taslimu / Verified by Vendor HQ');
   const [manualNotes, setManualNotes] = useState('');
   const [manualRequestId, setManualRequestId] = useState<number | undefined>(undefined);
+
+  // In-App Confirmation Modals (Eliminating browser confirm/alert popups)
+  const [ownerToDelete, setOwnerToDelete] = useState<HotspotOwner | null>(null);
+  const [deletingOwner, setDeletingOwner] = useState(false);
+  const [rejectRequestTarget, setRejectRequestTarget] = useState<{ id: number; name: string } | null>(null);
+  const [rejectingRequest, setRejectingRequest] = useState(false);
   const [isApprovingManual, setIsApprovingManual] = useState(false);
   const [manualApproveSaveStatus, setManualApproveSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
@@ -264,7 +273,10 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
   // Vendor toggle subscription expire / activate button
   const handleToggleSubscription = async (owner: HotspotOwner, newStatus: "ACTIVE" | "EXPIRED") => {
     if (owner.role === "VENDOR_ADMIN" || owner.id === 1) {
-      alert("Huwezi kusitisha subscription ya Vendor Master HQ!");
+      setMessage({
+        type: 'error',
+        text: 'Huwezi kusitisha subscription ya Msimamizi Mkuu (Vendor Master HQ)!',
+      });
       return;
     }
     try {
@@ -274,18 +286,34 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: newStatus === "ACTIVE" ? "activate" : "expire",
+          isExpired: newStatus === "EXPIRED",
           days: 30,
         }),
       });
-      if (!res.ok) {
-        throw new Error("Imeshindwa kubadilisha hali ya subscription.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || data.message || "Imeshindwa kubadilisha hali ya subscription.");
       }
+
+      // If the modified owner is currently logged in, sync localStorage
+      try {
+        const saved = localStorage.getItem('tzwifi_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.id === owner.id && data.owner) {
+            localStorage.setItem('tzwifi_user', JSON.stringify(data.owner));
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
       setMessage({
         type: "success",
         text:
           newStatus === "ACTIVE"
             ? `✓ Subscription ya ${owner.business_name} (${owner.name}) imewashwa kwa siku 30!`
-            : `✓ Subscription ya ${owner.business_name} (${owner.name}) imesitishwa (Imeisha/Expired)! Mteja huyu ataona ukurasa wa subscription mara moja akifungua mfumo.`,
+            : `✓ Subscription ya ${owner.business_name} (${owner.name}) imesitishwa (Imeisha/Expired)!`,
       });
       fetchData(true);
     } catch (err: any) {
@@ -415,24 +443,8 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
   };
 
   // Reject a Manual Request
-  const handleRejectManualRequest = async (reqId: number, reqName: string) => {
-    if (!confirm(`Una uhakika unataka kukataa ombi hili la malipo kutoka kwa '${reqName}'?`)) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/v1/subscription/manual-requests/${reqId}/reject`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        setMessage({ type: 'success', text: `Ombi #${reqId} limekataliwa.` });
-        fetchData();
-      } else {
-        throw new Error('Imeshindikana kukataa ombi.');
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
-    }
+  const handleRejectManualRequest = (reqId: number, reqName: string) => {
+    setRejectRequestTarget({ id: reqId, name: reqName });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -534,33 +546,57 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
     }
   };
 
-  const handleDelete = async (owner: HotspotOwner) => {
-    if (owner.role === 'VENDOR_ADMIN') {
-      alert('Huwezi kufuta akaunti kuu ya Vendor Admin!');
+  const handleDelete = (owner: HotspotOwner) => {
+    if (owner.role === 'VENDOR_ADMIN' || owner.id === 1) {
+      setMessage({
+        type: 'error',
+        text: 'Huwezi kufuta akaunti kuu ya Msimamizi Mkuu (Vendor Admin)!',
+      });
       return;
     }
+    setOwnerToDelete(owner);
+  };
 
-    if (
-      !confirm(
-        `Una uhakika unataka kumfuta mmiliki ${owner.name} (${owner.business_name})? Hatua hii haiwezi kurudishwa.`
-      )
-    ) {
-      return;
-    }
-
+  const executeDeleteOwner = async (owner: HotspotOwner) => {
+    setDeletingOwner(true);
     try {
       const res = await fetch(`/api/v1/owners/${owner.id}`, { method: 'DELETE' });
       if (res.ok) {
         setMessage({
           type: 'success',
-          text: `Mmiliki ${owner.name} ameondolewa kwenye mfumo.`,
+          text: `Mmiliki '${owner.name}' (${owner.business_name}) ameondolewa kikamilifu kwenye mfumo.`,
         });
+        setOwnerToDelete(null);
         fetchData();
+        onOwnersUpdated?.();
       } else {
-        throw new Error('Imeshindikana kufuta.');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Imeshindikana kufuta mmiliki.');
       }
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
+      setMessage({ type: 'error', text: err.message || 'Hitilafu ya kufuta mmiliki.' });
+    } finally {
+      setDeletingOwner(false);
+    }
+  };
+
+  const executeRejectManualRequest = async (reqId: number, reqName: string) => {
+    setRejectingRequest(true);
+    try {
+      const res = await fetch(`/api/v1/subscription/manual-requests/${reqId}/reject`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setMessage({ type: 'success', text: `Ombi la malipo la '${reqName}' limekataliwa.` });
+        setRejectRequestTarget(null);
+        fetchData();
+      } else {
+        throw new Error('Imeshindikana kukataa ombi.');
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Hitilafu ya kukataa ombi.' });
+    } finally {
+      setRejectingRequest(false);
     }
   };
 
@@ -603,7 +639,7 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, owners.length]);
+  }, [searchQuery]);
 
   const paginatedOwners =
     pageSize === 'ALL'
@@ -2162,6 +2198,144 @@ export const OwnerManagement: React.FC<OwnerManagementProps> = ({ onOwnersUpdate
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL: CONFIRM DELETE HOTSPOT OWNER (NO BROWSER POPUPS)           */}
+      {/* ========================================================================= */}
+      {ownerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Futa Akaunti ya Mmiliki?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa ndani ya mfumo (In-system confirmation)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOwnerToDelete(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Jina la Mmiliki:</span>
+                <span className="font-extrabold text-slate-900">{ownerToDelete.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Jina la Biashara:</span>
+                <span className="font-semibold text-slate-800">{ownerToDelete.business_name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Barua Pepe & Simu:</span>
+                <span className="font-mono text-slate-600">{ownerToDelete.email} • {ownerToDelete.phone}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Una uhakika unataka kumfuta mmiliki <strong className="text-slate-900">'{ownerToDelete.name}'</strong> kutoka kwenye mfumo? Mipangilio yake yote ya routers, vifurushi na vocha itaathirika. Hatua hii haiwezi kurudishwa nyuma.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={deletingOwner}
+                onClick={() => setOwnerToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi (Cancel)
+              </button>
+              <button
+                type="button"
+                disabled={deletingOwner}
+                onClick={() => executeDeleteOwner(ownerToDelete)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {deletingOwner ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inafuta...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Ndio, Futa Mmiliki</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL: CONFIRM REJECT SUBSCRIPTION REQUEST                         */}
+      {/* ========================================================================= */}
+      {rejectRequestTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Kataa Ombi la Malipo?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa ndani ya mfumo
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectRequestTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Una uhakika unataka kukataa ombi la malipo kutoka kwa <strong className="text-slate-900">'{rejectRequestTarget.name}'</strong> (Ombi #{rejectRequestTarget.id})?
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={rejectingRequest}
+                onClick={() => setRejectRequestTarget(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi
+              </button>
+              <button
+                type="button"
+                disabled={rejectingRequest}
+                onClick={() => executeRejectManualRequest(rejectRequestTarget.id, rejectRequestTarget.name)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {rejectingRequest ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inakataa...</span>
+                  </>
+                ) : (
+                  <span>Ndio, Kataa Ombi</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

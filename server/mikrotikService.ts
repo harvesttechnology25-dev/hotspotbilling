@@ -354,11 +354,23 @@ export class MikrotikService {
       const loginMethod: 'PHONE' | 'MANUAL' = isPhone ? 'PHONE' : 'MANUAL';
 
       // Usage status detection: UNUSED, USED, ACTIVE, EXPIRED
-      const sessionUptime = active ? active.uptime_seconds : 0;
-      const isActivated = !!v.activated_at || isOnline || (sessionUptime ? sessionUptime > 0 : false) || (v.status as string) === 'ACTIVE' || (v.status as string) === 'USED';
-      const hasUsed = isOnline || (sessionUptime ? sessionUptime > 0 : false) || (v.status as string) === 'USED' || !!v.activated_at;
+      const sessionUptime = active ? (active.uptime_seconds || 0) : 0;
+      const hasTraffic = Boolean(
+        (active?.bytes_in && active.bytes_in > 0) ||
+        (active?.bytes_out && active.bytes_out > 0) ||
+        ((v as any).bytes_in && (v as any).bytes_in > 0) ||
+        ((v as any).bytes_out && (v as any).bytes_out > 0)
+      );
+      // A voucher has actually been used if it's currently online, has uptime, transferred data, has an activation date, or is explicitly USED
+      const hasUsed = Boolean(
+        isOnline ||
+        sessionUptime > 0 ||
+        hasTraffic ||
+        !!v.activated_at ||
+        (v.status as string) === 'USED'
+      );
       // An unactivated voucher from Voucher Station print is NEVER expired unless explicitly marked EXPIRED
-      const isExpired = (v.status as string) === 'EXPIRED' || (isActivated && v.expires_at && new Date(v.expires_at).getTime() < Date.now());
+      const isExpired = (v.status as string) === 'EXPIRED' || (hasUsed && v.expires_at && new Date(v.expires_at).getTime() < Date.now());
 
       let voucherStatus: 'UNUSED' | 'USED' | 'EXPIRED' | 'ACTIVE' = 'UNUSED';
       if (isExpired) {
@@ -372,6 +384,7 @@ export class MikrotikService {
         voucherStatus = 'UNUSED';
       }
 
+      // Offline is STRICTLY for vouchers that have been used by a customer, but the customer is currently disconnected/offline
       const computedStatus: 'ONLINE' | 'OFFLINE' | 'EXPIRED' | 'AVAILABLE' = isOnline
         ? 'ONLINE'
         : isExpired
@@ -383,6 +396,11 @@ export class MikrotikService {
       const effectiveOwnerId = v.owner_id != null && v.owner_id !== ''
         ? Number(v.owner_id)
         : (targetOwnerId || (router?.owner_id ? Number(router.owner_id) : undefined));
+
+      const isTrial = Boolean(
+        v.code.toUpperCase().startsWith('FREE-') ||
+        (v.batch_tag && v.batch_tag.toUpperCase().includes('FREE_TRIAL'))
+      );
 
       usersMap.set(v.code.toUpperCase(), {
         id: v.id,
@@ -397,20 +415,23 @@ export class MikrotikService {
         uptime_seconds: active?.uptime_seconds,
         bytes_in: active?.bytes_in,
         bytes_out: active?.bytes_out,
-        rate_limit: plan?.rate_limit || active?.rate_limit || 'Default',
+        rate_limit: isTrial ? (active?.rate_limit || '2M/4M') : (plan?.rate_limit || active?.rate_limit || 'Default'),
         limit_uptime: plan?.limit_uptime || undefined,
         limit_bytes_total: plan?.limit_bytes_total || undefined,
-        comment: isPhone
+        comment: isTrial
+          ? `🎁 Majaribio ya Bure (Free Trial) - MAC: ${v.mac_address || 'N/A'}`
+          : isPhone
           ? `📱 Simu: ${phoneNum || 'Mobile Money'} (${tx?.network_provider || 'Payment'})`
           : v.batch_tag
           ? `🎫 Vocha: ${v.batch_tag}`
           : `Kifurushi: ${plan?.name || 'Hotspot'}`,
-        plan_id: plan?.id || v.plan_id,
-        plan_name: plan?.name,
-        plan_price: plan?.price,
+        plan_id: isTrial ? 0 : (plan?.id || v.plan_id),
+        plan_name: isTrial ? 'Majaribio ya Bure (Free Trial)' : (plan?.name || `Kifurushi #${v.plan_id}`),
+        plan_price: isTrial ? 0 : (plan?.price ?? 0),
         created_at: v.created_at,
+        activated_at: v.activated_at,
         expires_at: v.expires_at,
-        login_method: loginMethod,
+        login_method: isTrial ? 'MANUAL' : loginMethod,
         phone_number: phoneNum,
         voucher_status: voucherStatus,
       });

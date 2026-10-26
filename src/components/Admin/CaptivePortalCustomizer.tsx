@@ -1129,6 +1129,8 @@ export const CaptivePortalCustomizer: React.FC<CaptivePortalCustomizerProps> = (
                     customTheme={theme}
                     previewMode={true}
                     previewDevice="mobile"
+                    currentOwnerId={currentOwner?.id}
+                    selectedRouterId={selectedRouterId !== 'all' ? selectedRouterId : undefined}
                   />
                 </div>
               </div>
@@ -1163,6 +1165,8 @@ export const CaptivePortalCustomizer: React.FC<CaptivePortalCustomizerProps> = (
                     customTheme={theme}
                     previewMode={true}
                     previewDevice="desktop"
+                    currentOwnerId={currentOwner?.id}
+                    selectedRouterId={selectedRouterId !== 'all' ? selectedRouterId : undefined}
                   />
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { DateRangePreset, RevenueMetrics } from '../../types/index.ts';
+import { DateRangePreset, RevenueMetrics, RouterItem } from '../../types/index.ts';
 import { CARRIERS, formatTzs } from '../../utils/carrierInfo.ts';
 import {
   TrendingUp,
@@ -32,6 +32,8 @@ interface AdminOverviewProps {
   selectedRouterId?: number;
   selectedRouterName?: string;
   onClearRouterFilter?: () => void;
+  routers?: RouterItem[];
+  onSelectRouter?: (routerId: number | 'ALL') => void;
 }
 
 export const AdminOverview: React.FC<AdminOverviewProps> = ({
@@ -41,6 +43,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   selectedRouterId,
   selectedRouterName,
   onClearRouterFilter,
+  routers,
+  onSelectRouter,
 }) => {
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -370,6 +374,60 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               Tumia Tarehe Hizi (Apply Filter)
             </button>
           </form>
+        )}
+
+        {/* Router Revenue Selector Bar */}
+        {routers && routers.length > 0 && (
+          <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-cyan-600" />
+                <span>Chagua Router Kuona Mapato Yake Pekee:</span>
+              </span>
+              {selectedRouterId ? (
+                <span className="text-[11px] font-bold text-cyan-800 bg-cyan-50 border border-cyan-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <span>📍 Inatazama:</span>
+                  <strong>{selectedRouterName || `Router #${selectedRouterId}`}</strong>
+                </span>
+              ) : (
+                <span className="text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                  🌐 Inatazama mapato ya router zote zilizojumlishwa
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+              <button
+                type="button"
+                onClick={() => onSelectRouter?.('ALL')}
+                className={`px-3.5 py-2 rounded-xl font-bold transition whitespace-nowrap cursor-pointer ${
+                  !selectedRouterId
+                    ? 'bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-500/30'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                🌐 Router Zote (All Combined)
+              </button>
+              {routers.map((r) => {
+                const isSelected = selectedRouterId === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => onSelectRouter?.(r.id)}
+                    className={`px-3.5 py-2 rounded-xl font-bold transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                      isSelected
+                        ? 'bg-cyan-600 text-white shadow-sm ring-2 ring-cyan-500/30'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <span>📍 {r.name}</span>
+                    {r.location && <span className="opacity-75 text-[10px]">({r.location})</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 

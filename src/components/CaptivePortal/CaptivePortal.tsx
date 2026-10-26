@@ -30,6 +30,9 @@ import {
   Coffee,
   Shield,
   Phone,
+  ServerOff,
+  WifiOff,
+  MapPin,
 } from 'lucide-react';
 
 export interface CaptivePortalProps {
@@ -38,6 +41,8 @@ export interface CaptivePortalProps {
   previewMode?: boolean;
   previewDevice?: 'mobile' | 'desktop';
   currentOwnerId?: number;
+  selectedRouterId?: number | 'ALL';
+  onNavigateAddRouter?: () => void;
 }
 
 export const CaptivePortal: React.FC<CaptivePortalProps> = ({
@@ -46,6 +51,8 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   previewMode = false,
   previewDevice,
   currentOwnerId,
+  selectedRouterId,
+  onNavigateAddRouter,
 }) => {
   const [serverTheme, setServerTheme] = useState<PortalThemeConfig | null>(null);
   const activeTheme: PortalThemeConfig = customTheme || serverTheme || DEFAULT_PORTAL_THEME;
@@ -92,6 +99,8 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   // Custom Owner Hotspot Branding & SSID
   const [portalInfo, setPortalInfo] = useState<{
     brandName: string;
+    siteName?: string;
+    routerName?: string;
     ssid: string;
     location: string;
     routerId?: number;
@@ -99,11 +108,16 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     ownerBusinessName?: string;
     hasPaymentGateway?: boolean;
     gatewayWarning?: string | null;
+    hasRouter?: boolean;
+    message?: string;
+    routers?: Array<{ id: number; name: string; brand_name?: string; location?: string; ssid?: string }>;
   }>({
-    brandName: 'Kariakoo Cyber & WiFi Point',
-    ssid: 'KARIAKOO-FREE-WIFI',
-    location: 'Posta Mpya, Dar es Salaam',
+    brandName: 'Hotspot Yako',
+    ssid: '',
+    location: '',
+    hasRouter: undefined,
   });
+  const [loadingPortalInfo, setLoadingPortalInfo] = useState(true);
 
   useEffect(() => {
     const p = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -111,17 +125,18 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     let oId = p?.get('ownerId') || p?.get('owner_id');
     const ip = p?.get('ip') || mikrotikParams.ip;
 
-    if (!oId && currentOwnerId) {
-      oId = String(currentOwnerId);
-    }
-    // Detect logged in Hotspot Owner (e.g. Japhet) if testing portal from inside session
-    if (!oId && typeof window !== 'undefined') {
+    // Check if the currently viewing user is a Vendor Admin
+    let isVendorUser = false;
+    if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('tzwifi_user');
         if (saved) {
           const u = JSON.parse(saved);
-          if (u && u.id && u.role === 'HOTSPOT_OWNER') {
-            oId = String(u.id);
+          if (u && u.id) {
+            if (!oId) oId = String(u.id);
+            if (u.role === 'VENDOR_ADMIN') {
+              isVendorUser = true;
+            }
           }
         }
       } catch (e) {
@@ -129,32 +144,58 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       }
     }
 
+    // Use passed selectedRouterId prop if routerId is not in URL (unless vendor admin viewing default)
+    if (!rId && selectedRouterId && selectedRouterId !== 'ALL' && !isVendorUser) {
+      rId = String(selectedRouterId);
+    }
+
+    // Check localStorage saved active site if not provided (and not vendor admin)
+    if (!rId && typeof window !== 'undefined' && !isVendorUser) {
+      try {
+        const savedRouter = localStorage.getItem('tzwifi_active_site_id');
+        if (savedRouter && savedRouter !== 'ALL' && !isNaN(Number(savedRouter))) {
+          rId = savedRouter;
+        }
+      } catch {}
+    }
+
+    if (!oId && currentOwnerId) {
+      oId = String(currentOwnerId);
+    }
+
     const query = new URLSearchParams();
     if (rId) query.set('routerId', rId);
     if (oId) query.set('ownerId', oId);
     if (ip) query.set('ip', ip);
 
+    setLoadingPortalInfo(true);
     fetch(`/api/v1/portal/info?${query.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) {
           setPortalInfo({
             brandName: data.brandName,
+            siteName: data.siteName,
+            routerName: data.routerName,
             ssid: data.ssid,
             location: data.location,
-            routerId: data.routerId,
-            ownerId: data.ownerId,
+            routerId: data.routerId ? Number(data.routerId) : undefined,
+            ownerId: data.ownerId ? Number(data.ownerId) : undefined,
             ownerBusinessName: data.ownerBusinessName,
             hasPaymentGateway: data.hasPaymentGateway,
             gatewayWarning: data.gatewayWarning,
+            hasRouter: data.hasRouter !== false,
+            message: data.message,
+            routers: data.routers,
           });
           if (data.portalTheme) {
             setServerTheme(data.portalTheme);
           }
         }
       })
-      .catch((e) => console.error('Failed to load portal info:', e));
-  }, [mikrotikParams.ip]);
+      .catch((e) => console.error('Failed to load portal info:', e))
+      .finally(() => setLoadingPortalInfo(false));
+  }, [mikrotikParams.ip, currentOwnerId, selectedRouterId]);
   
   // Payment initiation state
   const [initiatingPayment, setInitiatingPayment] = useState(false);
@@ -180,11 +221,24 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     }
   });
 
-  // Fetch plans from backend
+  // Fetch plans from backend (isolated per hotspot owner and router)
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const res = await fetch('/api/v1/plans');
+        let ownerFilter = currentOwnerId;
+        if (!ownerFilter && typeof window !== 'undefined') {
+          const p = new URLSearchParams(window.location.search);
+          const qOwner = p.get('owner_id') || p.get('ownerId');
+          if (qOwner) ownerFilter = Number(qOwner);
+        }
+
+        const params = new URLSearchParams();
+        if (ownerFilter) params.set('ownerId', String(ownerFilter));
+        const activeRId = portalInfo.routerId || (selectedRouterId !== 'ALL' && selectedRouterId !== undefined ? selectedRouterId : undefined);
+        if (activeRId) params.set('routerId', String(activeRId));
+
+        const url = `/api/v1/plans?${params.toString()}`;
+        const res = await fetch(url);
         if (res.ok) {
           const data: Plan[] = await res.json();
           const activePlans = data.filter((p) => p.is_active);
@@ -201,7 +255,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       }
     };
     fetchPlans();
-  }, []);
+  }, [currentOwnerId, portalInfo.routerId, selectedRouterId]);
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
@@ -316,6 +370,107 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   const isMobilePreview = previewMode && previewDevice === 'mobile';
   const isDesktopPreview = previewMode && previewDevice === 'desktop';
 
+  // Loading state when checking portal info
+  if (loadingPortalInfo && !previewMode) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center space-y-3">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto" />
+        <p className="text-xs font-semibold text-slate-500">
+          {lang === 'sw' ? 'Inapakia taarifa za Captive Portal...' : 'Loading Captive Portal details...'}
+        </p>
+      </div>
+    );
+  }
+
+  // Dedicated 'Huna Router' screen when vendor or hotspot owner has no router
+  if (!previewMode && portalInfo.hasRouter === false) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-10 sm:py-16">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-6 sm:p-10 text-center space-y-6">
+          <div className="w-20 h-20 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+            <ServerOff className="w-10 h-10 stroke-[2.2]" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold tracking-wider uppercase font-mono">
+              {lang === 'sw' ? 'HAKUNA ROUTER ILIYOUNGANISHWA' : 'NO ROUTER CONNECTED'}
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+              {lang === 'sw' ? 'Huna Router Kwenye Akaunti Yako Bado' : 'No Router on Your Account Yet'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+              {lang === 'sw'
+                ? `Akaunti yako ya "${portalInfo.ownerBusinessName || portalInfo.brandName}" bado haina kifaa chochote cha router (MikroTik au Access Point) kilichosajiliwa. Captive portal haiwezi kuonyeshwa bila router iliyounganishwa.`
+                : `Your account "${portalInfo.ownerBusinessName || portalInfo.brandName}" does not have any router (MikroTik or Access Point) registered yet. Captive portal cannot be displayed without a connected router.`}
+            </p>
+          </div>
+
+          {/* Instructions card */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2.5 text-slate-700">
+            <div className="font-bold text-slate-900 flex items-center gap-2">
+              <span>ℹ️</span>
+              <span>{lang === 'sw' ? 'Jinsi ya Kuanza:' : 'How to Get Started:'}</span>
+            </div>
+            <ol className="list-decimal list-inside space-y-1.5 text-slate-600 pl-1 leading-relaxed">
+              <li>
+                {lang === 'sw'
+                  ? 'Nenda kwenye dashibodi na ufungue menyu ya "Routers & Access Points".'
+                  : 'Go to the dashboard and open "Routers & Access Points".'}
+              </li>
+              <li>
+                {lang === 'sw'
+                  ? 'Bonyeza kitufe cha "➕ Ongeza Router Mpya".'
+                  : 'Click the "➕ Add New Router" button.'}
+              </li>
+              <li>
+                {lang === 'sw'
+                  ? 'Weka jina la router, IP Address na eneo lako, kisha hifadhi.'
+                  : 'Enter the router name, IP Address, and location, then save.'}
+              </li>
+              <li>
+                {lang === 'sw'
+                  ? 'Mara tu ukiongeza router yako, ukurasa huu wa Captive Portal utafunguka ukiwa na jina na vifurushi vya biashara yako pekee.'
+                  : 'Once added, this Captive Portal will open with your business brand and packages only.'}
+              </li>
+            </ol>
+          </div>
+
+          {/* Security & Privacy badge */}
+          <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-blue-900 text-[11px] flex items-center justify-center gap-2">
+            <Shield className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>
+              {lang === 'sw'
+                ? 'Ulinzi wa Taarifa: Mfumo unazuia kuonyesha router au captive portal ya mmiliki mwingine.'
+                : 'Privacy Protected: The system prevents displaying another owner\'s portal.'}
+            </span>
+          </div>
+
+          {/* Action Button */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            {onNavigateAddRouter ? (
+              <button
+                type="button"
+                onClick={onNavigateAddRouter}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <span>➕</span>
+                <span>{lang === 'sw' ? 'Ongeza Router Kwenye Dashibodi' : 'Add Router in Dashboard'}</span>
+              </button>
+            ) : (
+              <a
+                href="/"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <span>🏠</span>
+                <span>{lang === 'sw' ? 'Rudi Kwenye Dashibodi' : 'Return to Dashboard'}</span>
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const containerClass = previewMode
     ? isMobilePreview
       ? 'w-full max-w-full p-2.5 sm:p-3 space-y-3 overflow-hidden text-slate-900'
@@ -330,6 +485,21 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
 
   return (
     <div className={containerClass}>
+      {/* Test Preview Banner when no router exists in previewMode */}
+      {previewMode && portalInfo.hasRouter === false && (
+        <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-900 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="leading-tight">
+            <span className="font-bold">{lang === 'sw' ? 'Muonekano wa Majaribio (Preview): ' : 'Preview Mode: '}</span>
+            <span>
+              {lang === 'sw'
+                ? `Akaunti ya "${portalInfo.ownerBusinessName || 'biashara yako'}" haina router bado. Unaweza kuendelea kusanidi rangi na muundo hapa.`
+                : `Account "${portalInfo.ownerBusinessName || 'your business'}" has no router yet. You can still customize theme and colors here.`}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* MikroTik Hotspot Error Banner if redirected back with error */}
       {mikrotikParams.error && (
         <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
@@ -338,6 +508,33 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
             <span className="font-bold">Taarifa ya Router: </span>
             <span>{mikrotikParams.error}</span>
           </div>
+        </div>
+      )}
+
+      {/* Active Router Site Banner (Read-only for connected site - Customers cannot switch site) */}
+      {(portalInfo.siteName || portalInfo.routerName) && (
+        <div className="bg-white/90 backdrop-blur-md rounded-2xl px-3.5 py-2.5 border border-slate-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="font-semibold text-slate-500 text-[11px] uppercase tracking-wider shrink-0">
+              {lang === 'sw' ? 'Site ya Router:' : 'Router Site:'}
+            </span>
+            <span className="font-extrabold text-indigo-900 bg-indigo-50 border border-indigo-200/80 px-2.5 py-0.5 rounded-lg truncate">
+              {portalInfo.siteName || portalInfo.routerName}
+            </span>
+            {portalInfo.location && (
+              <span className="text-slate-500 text-[11px] truncate hidden sm:inline">
+                📍 {portalInfo.location}
+              </span>
+            )}
+          </div>
+
+          {portalInfo.ssid && (
+            <div className="flex items-center gap-1 text-[11px] font-mono font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 shrink-0">
+              <Radio className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>{portalInfo.ssid}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -363,14 +560,27 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
 
         <div className="relative z-10 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2.5 py-1 rounded-full text-xs font-semibold text-white/90 max-w-full min-w-0">
+            <div className="inline-flex items-center gap-1.5 bg-emerald-500/25 border border-emerald-400/40 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white max-w-full min-w-0 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate">{portalInfo.location || 'MikroTik Hotspot'}</span>
+              <span className="truncate">
+                {portalInfo.siteName || portalInfo.routerName ? `Site: ${portalInfo.siteName || portalInfo.routerName}` : (portalInfo.location || 'MikroTik Hotspot')}
+              </span>
             </div>
 
-            <div className="flex items-center gap-1 text-[11px] text-white/90 font-mono bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10 shrink-0">
-              <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="font-bold">SSID: {portalInfo.ssid}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {portalInfo.location && (
+                <div className="inline-flex items-center gap-1 bg-white/10 backdrop-blur-md px-2.5 py-1 rounded-full text-xs font-semibold text-white/90 max-w-full min-w-0">
+                  <MapPin className="w-3 h-3 text-cyan-300 shrink-0" />
+                  <span className="truncate">{portalInfo.location}</span>
+                </div>
+              )}
+
+              {portalInfo.ssid && (
+                <div className="flex items-center gap-1 text-[11px] text-white/90 font-mono bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10 shrink-0">
+                  <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="font-bold">SSID: {portalInfo.ssid}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -415,7 +625,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
                 <span className="truncate">{activeTheme.badgeText || 'HOTSPOT YA UHAKIKA'}</span>
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white leading-tight break-words">
-                {activeTheme.brandName || portalInfo.brandName}
+                {portalInfo.siteName || portalInfo.routerName || portalInfo.brandName || activeTheme.brandName}
               </h1>
               <p className="text-xs sm:text-sm text-slate-200 mt-1 max-w-md break-words leading-relaxed">
                 {activeTheme.tagline ||
@@ -557,6 +767,11 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
           linkOrig={mikrotikParams.linkOrig}
           macAddress={mikrotikParams.mac}
           lang={lang}
+          selectedPlan={selectedPlan}
+          plans={plans}
+          onSelectPlan={(id) => setSelectedPlanId(id)}
+          routerId={portalInfo.routerId || (selectedRouterId !== 'ALL' && selectedRouterId !== undefined ? Number(selectedRouterId) : undefined)}
+          routerName={portalInfo.routerName || portalInfo.siteName}
         />
       )}
 
@@ -601,9 +816,9 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
               </div>
             ) : (
               <div className={gridColsClass}>
-                {plans.map((plan) => (
+                {plans.map((plan, idx) => (
                   <PackageCard
-                    key={plan.id}
+                    key={`portal-plan-${plan.id}-${idx}`}
                     plan={plan}
                     isSelected={selectedPlanId === plan.id}
                     onSelect={() => setSelectedPlanId(plan.id)}

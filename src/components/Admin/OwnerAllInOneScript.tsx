@@ -47,10 +47,10 @@ export const OwnerAllInOneScript: React.FC<OwnerAllInOneScriptProps> = ({
         const res = await fetch('/api/v1/routers');
         if (res.ok) {
           const allRouters: RouterItem[] = await res.json();
-          // Filter routers for this owner if not vendor
-          const ownerRouters = currentUser?.role === 'VENDOR_ADMIN'
-            ? allRouters
-            : allRouters.filter((r) => r.owner_id === currentUser?.id || (currentUser?.assigned_router_ids || []).includes(r.id));
+          // Filter routers for this owner/user
+          const ownerRouters = allRouters.filter(
+            (r) => r.owner_id === currentUser?.id || (currentUser?.assigned_router_ids || []).includes(r.id)
+          );
 
           setRouters(ownerRouters);
           if (ownerRouters.length > 0) {

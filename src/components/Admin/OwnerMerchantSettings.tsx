@@ -44,43 +44,35 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
   const initialOwner = propOwner || propCurrentUser || null;
   const [localOwner, setLocalOwner] = useState<HotspotOwner | null>(initialOwner);
 
-  // Platform admin subscription default reference
-  const DEFAULT_ADMIN_KEY_ID = 'admin';
-  const DEFAULT_ADMIN_PUBLIC_KEY = 'gw_pk_production_o8YDH6_Liq3xgwifJV3PqOJk26QkgaLu';
-  const DEFAULT_ADMIN_SECRET_KEY = 'gw_sk_production_dali_live_6A3k';
   const DEFAULT_ENDPOINT = 'https://app.dalipay.co.tz';
-  const DEFAULT_WEBHOOK_URL = 'https://infotechwifi.com/api/v1/payments/webhook';
+  const DEFAULT_WEBHOOK_URL =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/api/v1/payments/webhook`
+      : 'https://infotechwifi.com/api/v1/payments/webhook';
 
   const isVendor = localOwner?.role === 'VENDOR_ADMIN';
 
-  // An owner has configured their keys only if explicitly set on their account
-  const hasConfiguredKeys = isVendor
-    ? Boolean(localOwner?.dalipay_public_key || DEFAULT_ADMIN_PUBLIC_KEY)
-    : Boolean(
-        (localOwner?.dalipay_key_id && localOwner?.dalipay_public_key && localOwner?.dalipay_secret_key) ||
-        (localOwner?.palmpesa_user_id && localOwner?.palmpesa_api_token)
-      );
-
-  const [selectedGateway, setSelectedGateway] = useState<
-    'dalipay' | 'palmpay' | 'azampay' | 'vodacom_mpesa' | 'tigopesa' | 'airtel_money' | 'manual_wallet'
-  >('dalipay');
-
-  // DaliPay State
-  const [daliKeyId, setDaliKeyId] = useState(
-    isVendor ? DEFAULT_ADMIN_KEY_ID : (localOwner?.dalipay_key_id || '')
-  );
-  const [daliPublicKey, setDaliPublicKey] = useState(
-    isVendor ? DEFAULT_ADMIN_PUBLIC_KEY : (localOwner?.dalipay_public_key || '')
-  );
-  const [daliSecretKey, setDaliSecretKey] = useState(
-    isVendor ? DEFAULT_ADMIN_SECRET_KEY : (localOwner?.dalipay_secret_key || '')
-  );
+  // An owner has configured their keys only if explicitly set on their account or in system settings
+  const [daliKeyId, setDaliKeyId] = useState(localOwner?.dalipay_key_id || '');
+  const [daliPublicKey, setDaliPublicKey] = useState(localOwner?.dalipay_public_key || '');
+  const [daliSecretKey, setDaliSecretKey] = useState(localOwner?.dalipay_secret_key || '');
   const [daliEndpoint, setDaliEndpoint] = useState(
     localOwner?.dalipay_api_endpoint || DEFAULT_ENDPOINT
   );
   const [daliWebhookSecret, setDaliWebhookSecret] = useState(
     localOwner?.dalipay_webhook_secret || ''
   );
+
+  const hasConfiguredKeys = Boolean(
+    (daliPublicKey && daliSecretKey) ||
+    (localOwner?.dalipay_public_key && localOwner?.dalipay_secret_key) ||
+    (localOwner?.palmpesa_user_id && localOwner?.palmpesa_api_token)
+  );
+
+  const [selectedGateway, setSelectedGateway] = useState<
+    'dalipay' | 'palmpay' | 'azampay' | 'vodacom_mpesa' | 'tigopesa' | 'airtel_money' | 'manual_wallet'
+  >('dalipay');
+
   const [showDaliSecret, setShowDaliSecret] = useState(false);
   const [showFormDaliSecret, setShowFormDaliSecret] = useState(false);
   const [copiedDaliKey, setCopiedDaliKey] = useState(false);
@@ -131,18 +123,27 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
   // Sync state when localOwner changes
   useEffect(() => {
     if (localOwner) {
-      const isVendorRole = localOwner.role === 'VENDOR_ADMIN';
-      setDaliKeyId(
-        localOwner.dalipay_key_id || (isVendorRole ? DEFAULT_ADMIN_KEY_ID : '')
-      );
-      setDaliPublicKey(
-        localOwner.dalipay_public_key || (isVendorRole ? DEFAULT_ADMIN_PUBLIC_KEY : '')
-      );
-      setDaliSecretKey(
-        localOwner.dalipay_secret_key || (isVendorRole ? DEFAULT_ADMIN_SECRET_KEY : '')
-      );
+      setDaliKeyId(localOwner.dalipay_key_id || '');
+      setDaliPublicKey(localOwner.dalipay_public_key || '');
+      setDaliSecretKey(localOwner.dalipay_secret_key || '');
       setDaliEndpoint(localOwner.dalipay_api_endpoint || DEFAULT_ENDPOINT);
       setDaliWebhookSecret(localOwner.dalipay_webhook_secret || '');
+
+      // If keys are not set on owner, check if configured in system settings
+      if (!localOwner.dalipay_public_key && !localOwner.dalipay_secret_key) {
+        fetch('/api/v1/settings')
+          .then((r) => r.json())
+          .then((settings) => {
+            if (settings?.dalipay) {
+              if (settings.dalipay.keyId) setDaliKeyId(settings.dalipay.keyId);
+              if (settings.dalipay.publicKey) setDaliPublicKey(settings.dalipay.publicKey);
+              if (settings.dalipay.secretKey) setDaliSecretKey(settings.dalipay.secretKey);
+              if (settings.dalipay.apiEndpoint) setDaliEndpoint(settings.dalipay.apiEndpoint);
+              if (settings.dalipay.webhookSecret) setDaliWebhookSecret(settings.dalipay.webhookSecret);
+            }
+          })
+          .catch((e) => console.error('Error fetching settings:', e));
+      }
 
       setUserId(localOwner.palmpesa_user_id || '');
       setUserRef(localOwner.palmpesa_user_ref || '');
@@ -198,10 +199,10 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
     e.preventDefault();
     if (!localOwner) return;
 
-    if (!daliKeyId.trim() || !daliPublicKey.trim() || !daliSecretKey.trim()) {
+    if (!daliPublicKey.trim() || !daliSecretKey.trim()) {
       setMessage({
         type: 'error',
-        text: 'Tafadhali jaza Key ID, Public Key, na Secret Key za geti la malipo ili uweze kuwasha geti la malipo.',
+        text: 'Tafadhali jaza Public Key na Secret Key za DaliPay ili uweze kuwasha geti la malipo.',
       });
       return;
     }
@@ -267,7 +268,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
             publicKey: daliPublicKey.trim(),
             secretKey: daliSecretKey.trim(),
             apiEndpoint: daliEndpoint.trim() || DEFAULT_ENDPOINT,
-            webhookSecret: daliWebhookSecret.trim() || 'gw_wh_production_dalipay_secret',
+            webhookSecret: daliWebhookSecret.trim(),
             isSandbox: false,
           }),
         }).catch((err) => console.error('Failed to sync admin settings:', err));
@@ -310,8 +311,8 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
 
   const handleTestStkPush = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!daliPublicKey || !daliSecretKey || !daliKeyId) {
-      setTestError('Tafadhali jaza na uhifadhi Key ID, Public Key, na Secret Key kabla ya kujaribu STK Push.');
+    if (!daliPublicKey || !daliSecretKey) {
+      setTestError('Tafadhali jaza na uhifadhi Public Key na Secret Key kabla ya kujaribu STK Push.');
       return;
     }
 
@@ -505,9 +506,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                 )}
               </div>
               <span className="font-mono font-bold text-slate-700 text-xs mt-1 block truncate">
-                {hasConfiguredKeys || isVendor
-                  ? daliPublicKey || DEFAULT_ADMIN_PUBLIC_KEY
-                  : 'Haijawekwa — Weka hapa chini'}
+                {daliPublicKey ? daliPublicKey : 'Haijawekwa — Weka hapa chini'}
               </span>
             </div>
 
@@ -537,9 +536,7 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                 )}
               </div>
               <span className="font-mono text-xs text-slate-800 mt-1 block truncate">
-                {hasConfiguredKeys || isVendor
-                  ? activeSecretDisplay()
-                  : 'Haijawekwa — Weka hapa chini'}
+                {daliSecretKey ? activeSecretDisplay() : 'Haijawekwa — Weka hapa chini'}
               </span>
             </div>
           </div>
@@ -668,19 +665,19 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
               {/* 4 Form Inputs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-800 mb-1">
-                    DaliPay Key ID *
+                  <label className="block font-bold text-slate-800 mb-1 flex items-center justify-between">
+                    <span>DaliPay Key ID</span>
+                    <span className="text-[10px] text-slate-400 font-normal">(Hiari / Optional)</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={daliKeyId}
                     onChange={(e) => setDaliKeyId(e.target.value)}
-                    placeholder="Weka Key ID yako (Mfano: admin au ID ya DaliPay)"
+                    placeholder="Key ID (Hiari — acha wazi kama huna)"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    Key ID inayopatikana kwenye ukurasa wa Keys wa DaliPay.
+                    Hiari kwa DaliPay. Mfumo unahitaji Public Key na Secret Key pekee.
                   </span>
                 </div>
 

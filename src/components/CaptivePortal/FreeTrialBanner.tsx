@@ -66,7 +66,18 @@ export const FreeTrialBanner: React.FC<FreeTrialBannerProps> = ({
   }, [mac, routerId]);
 
   const handleClaim = async () => {
-    if (claiming || claimed) return;
+    if (claiming) return;
+
+    // If the customer has already claimed their trial, reject immediately on click
+    if (claimed) {
+      setError(
+        lang === 'sw'
+          ? 'Umeshatumia jaribio la bure (Already used free trial). Kila kifaa kinaruhusiwa mara 1 tu milele. Tafadhali chagua kifurushi hapa chini ili uendelee!'
+          : 'Already used free trial. Strictly 1 trial per device. Please select a package below to continue!'
+      );
+      return;
+    }
+
     setClaiming(true);
     setError('');
 
@@ -85,6 +96,15 @@ export const FreeTrialBanner: React.FC<FreeTrialBannerProps> = ({
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409 || data.claimed) {
+          setClaimed(true);
+          throw new Error(
+            data.error ||
+              (lang === 'sw'
+                ? 'Umeshatumia jaribio la bure (Already used free trial). Kila kifaa kinaruhusiwa mara 1 tu milele.'
+                : 'Already used free trial. Strictly 1 trial allowed per device.')
+          );
+        }
         throw new Error(data.error || 'Hitilafu ya kufungua intaneti ya bure.');
       }
 
@@ -148,69 +168,11 @@ export const FreeTrialBanner: React.FC<FreeTrialBannerProps> = ({
     return null;
   }
 
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-white/60 p-4 flex items-center justify-center gap-2 text-xs text-slate-500">
-        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-        <span>{lang === 'sw' ? 'Inakagua ustahiki wa majaribio ya bure...' : 'Checking free trial eligibility...'}</span>
-      </div>
-    );
-  }
-
   const durationMinutes = trialConfig?.duration_minutes || 15;
   const rateLimit = trialConfig?.rate_limit || '2M/4M';
   const quotaMb = trialConfig?.quota_mb || 0;
   const lockPolicy = trialConfig?.lock_policy || 'LIFETIME';
   const buttonText = trialConfig?.button_text || (lang === 'sw' ? '⚡ Jiunge Bure Sasa' : '⚡ Connect Free Now');
-
-  // Case 1: Trial has ALREADY been claimed by this MAC address (Policy lock)
-  if (claimed && !success) {
-    const formattedDate = claimedAt
-      ? new Date(claimedAt).toLocaleDateString(lang === 'sw' ? 'sw-TZ' : 'en-US', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        })
-      : null;
-
-    let lockDescription = '';
-    if (lockPolicy === 'LIFETIME') {
-      lockDescription = lang === 'sw'
-        ? `Kifaa hiki kimeshatumia dakika ${durationMinutes} za bure ${formattedDate ? `(${formattedDate})` : ''}. Kila kifaa kinaruhusiwa mara 1 tu milele. Chagua kifurushi hapa chini kuanzia TZS 500 uendelee kufurahia intaneti ya kasi!`
-        : `This device already consumed the ${durationMinutes}-minute trial ${formattedDate ? `(${formattedDate})` : ''}. Strictly 1 trial per device. Please select a package below to continue.`;
-    } else if (lockPolicy === 'DAILY') {
-      lockDescription = lang === 'sw'
-        ? `Kifaa hiki kilitumia majaribio ya bure ndani ya saa 24 zilizopita. Kinaruhusiwa mara 1 kwa siku. Chagua kifurushi cha kulipia hapa chini!`
-        : `This device already used the trial today. Reset occurs every 24 hours. Please select a paid package below!`;
-    } else {
-      lockDescription = lang === 'sw'
-        ? `Kifaa hiki kilitumia majaribio ya bure ndani ya wiki hii. Chagua kifurushi hapa chini!`
-        : `This device already used the trial this week. Please select a paid package below!`;
-    }
-
-    return (
-      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 sm:p-4 text-slate-600">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 mt-0.5">
-            <Lock className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-md">
-                {lang === 'sw' ? 'Majaribio Yameshatumika' : 'Trial Already Used'}
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">
-                MAC: {mac}
-              </span>
-            </div>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              {lockDescription}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Case 2: Just Successfully Claimed
   if (success) {
@@ -318,9 +280,33 @@ export const FreeTrialBanner: React.FC<FreeTrialBannerProps> = ({
       </div>
 
       {error && (
-        <div className="mt-3 p-2.5 rounded-xl bg-red-900/80 border border-red-500/50 text-red-200 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-          <span>{error}</span>
+        <div className="mt-3.5 p-3.5 rounded-2xl bg-red-950/95 border-2 border-red-500 text-white text-xs sm:text-sm flex items-start justify-between gap-3 shadow-xl shadow-red-950/60 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-red-600/40 text-red-300 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/40">
+              <AlertCircle className="w-4 h-4 text-red-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-red-200 bg-red-900/80 px-2 py-0.5 rounded-md border border-red-500/40">
+                  {lang === 'sw' ? 'Ombi Limekataliwa' : 'Request Denied'}
+                </span>
+                <span className="text-[11px] font-bold text-red-300 font-mono">
+                  Already used free trial
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-red-100 font-semibold leading-relaxed">
+                {error}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            className="text-red-300 hover:text-white p-1 rounded-lg hover:bg-red-900/60 transition shrink-0 cursor-pointer text-sm font-bold"
+            title={lang === 'sw' ? 'Funga ujumbe' : 'Close'}
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

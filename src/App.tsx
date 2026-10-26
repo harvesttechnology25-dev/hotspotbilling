@@ -15,7 +15,40 @@ import { ContactUsModal } from './components/Modals/ContactUsModal.tsx';
 import { HotspotOwner } from './types/index.ts';
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<'welcome' | 'portal' | 'admin'>('welcome');
+  const [currentUser, setCurrentUser] = useState<HotspotOwner | null>(() => {
+    try {
+      const saved = localStorage.getItem('tzwifi_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse saved session synchronously:', e);
+    }
+    return null;
+  });
+
+  const [viewMode, setViewMode] = useState<'welcome' | 'portal' | 'admin'>(() => {
+    try {
+      const savedUser = localStorage.getItem('tzwifi_user');
+      const savedView = localStorage.getItem('tzwifi_view_mode') as 'welcome' | 'portal' | 'admin' | null;
+      if (savedView && ['welcome', 'portal', 'admin'].includes(savedView)) {
+        if (savedView === 'portal' && !savedUser) {
+          return 'welcome';
+        }
+        return savedView;
+      }
+      if (savedUser) {
+        return 'admin';
+      }
+    } catch (e) {
+      console.error('Failed to read saved viewMode:', e);
+    }
+    return 'welcome';
+  });
+
   const [lang, setLang] = useState<'sw' | 'en'>(() => {
     try {
       const explicitChoice = localStorage.getItem('tzwifi_lang_explicit');
@@ -30,7 +63,23 @@ export default function App() {
     }
     return 'en';
   });
-  const [currentUser, setCurrentUser] = useState<HotspotOwner | null>(null);
+
+  const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>(undefined);
+  const [selectedSiteRouterId, setSelectedSiteRouterId] = useState<number | 'ALL'>(() => {
+    try {
+      const saved = localStorage.getItem('tzwifi_active_site_id');
+      if (saved === 'ALL') return 'ALL';
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 'ALL';
+  });
+
+  const handleSiteChange = (newSiteId: number | 'ALL') => {
+    setSelectedSiteRouterId(newSiteId);
+    try {
+      localStorage.setItem('tzwifi_active_site_id', String(newSiteId));
+    } catch {}
+  };
 
   const handleSetLang = (newLang: 'sw' | 'en') => {
     setLang(newLang);
@@ -42,14 +91,23 @@ export default function App() {
     }
   };
 
+  const handleSetViewMode = (newMode: 'welcome' | 'portal' | 'admin') => {
+    setViewMode(newMode);
+    try {
+      localStorage.setItem('tzwifi_view_mode', newMode);
+    } catch (e) {
+      console.error('Failed to persist viewMode preference:', e);
+    }
+  };
+
   // Guard portal view: only authenticated users can access the portal preview
   useEffect(() => {
     if (!currentUser && viewMode === 'portal') {
-      setViewMode('welcome');
+      handleSetViewMode('welcome');
     }
   }, [currentUser, viewMode]);
 
-  // Restore session from localStorage if present
+  // Restore session from localStorage if updated externally
   useEffect(() => {
     try {
       const saved = localStorage.getItem('tzwifi_user');
@@ -67,14 +125,14 @@ export default function App() {
   const handleLoginSuccess = (user: HotspotOwner) => {
     setCurrentUser(user);
     localStorage.setItem('tzwifi_user', JSON.stringify(user));
-    setViewMode('admin');
+    handleSetViewMode('admin');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('tzwifi_user');
     localStorage.removeItem('tzwifi_token');
-    setViewMode('welcome');
+    handleSetViewMode('welcome');
   };
 
   const handleSwitchUser = (user: HotspotOwner) => {
@@ -98,7 +156,7 @@ export default function App() {
       {/* Top Header */}
       <Navbar
         viewMode={viewMode}
-        setViewMode={setViewMode}
+        setViewMode={handleSetViewMode}
         lang={lang}
         setLang={handleSetLang}
         currentUser={currentUser}
@@ -111,18 +169,26 @@ export default function App() {
       <main className="flex-1">
         {viewMode === 'welcome' ? (
           <WelcomePage
-            onNavigateLogin={() => setViewMode('admin')}
-            onNavigateRegister={() => setViewMode('admin')}
+            onNavigateLogin={() => handleSetViewMode('admin')}
+            onNavigateRegister={() => handleSetViewMode('admin')}
             onOpenAbout={() => setIsAboutModalOpen(true)}
             onOpenContact={() => setIsContactModalOpen(true)}
             lang={lang}
           />
         ) : viewMode === 'portal' && currentUser ? (
-          <CaptivePortal lang={lang} currentOwnerId={currentUser.id} />
+          <CaptivePortal
+            lang={lang}
+            currentOwnerId={currentUser.id}
+            selectedRouterId={currentUser.role === 'VENDOR_ADMIN' ? 'ALL' : selectedSiteRouterId}
+            onNavigateAddRouter={() => {
+              setAdminInitialTab('routers');
+              handleSetViewMode('admin');
+            }}
+          />
         ) : !currentUser ? (
           <LoginPage
             onLoginSuccess={handleLoginSuccess}
-            onCancel={() => setViewMode('welcome')}
+            onCancel={() => handleSetViewMode('welcome')}
             lang={lang}
           />
         ) : isOwnerExpired ? (
@@ -144,8 +210,12 @@ export default function App() {
             currentUser={currentUser}
             onLogout={handleLogout}
             onSwitchUser={handleSwitchUser}
-            onNavigatePortal={() => setViewMode('portal')}
+            onNavigatePortal={() => handleSetViewMode('portal')}
             lang={lang}
+            initialTab={adminInitialTab}
+            selectedSiteRouterId={selectedSiteRouterId}
+            onSiteChange={handleSiteChange}
+            onClearInitialTab={() => setAdminInitialTab(undefined)}
           />
         )}
       </main>
@@ -175,7 +245,7 @@ export default function App() {
             {viewMode === 'portal' && currentUser ? (
               <button
                 type="button"
-                onClick={() => setViewMode('admin')}
+                onClick={() => handleSetViewMode('admin')}
                 className="underline hover:text-slate-800 font-medium cursor-pointer"
               >
                 {lang === 'sw' ? 'Rudi Kwenye Dashibodi' : 'Return to Admin Console'}
@@ -183,7 +253,7 @@ export default function App() {
             ) : currentUser ? (
               <button
                 type="button"
-                onClick={() => setViewMode('portal')}
+                onClick={() => handleSetViewMode('portal')}
                 className="underline hover:text-slate-800 font-medium cursor-pointer"
               >
                 {lang === 'sw' ? 'Tazama Captive Portal Yangu' : 'Switch to Customer Portal'}
@@ -202,7 +272,7 @@ export default function App() {
           setIsAboutModalOpen(false);
           setIsContactModalOpen(true);
         }}
-        onGetStarted={() => setViewMode('admin')}
+        onGetStarted={() => handleSetViewMode('admin')}
         lang={lang}
       />
 

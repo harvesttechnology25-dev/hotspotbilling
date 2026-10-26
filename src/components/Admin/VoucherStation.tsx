@@ -19,6 +19,7 @@ import {
   Search,
   Trash2,
   MapPin,
+  AlertTriangle,
 } from 'lucide-react';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 import { RouterItem } from '../../types/index.ts';
@@ -29,12 +30,14 @@ export const VoucherStation: React.FC<{
   selectedRouterId?: number;
   routers?: RouterItem[];
   onSelectRouter?: (id: number | undefined) => void;
+  onNavigateToPlans?: () => void;
 }> = ({
   ownerId,
   businessName,
   selectedRouterId,
   routers = [],
   onSelectRouter,
+  onNavigateToPlans,
 }) => {
   // Auto-resolve owner ID with fallback to logged-in user to prevent any cross-owner voucher leakage
   const resolvedOwnerId = useMemo(() => {
@@ -106,6 +109,7 @@ export const VoucherStation: React.FC<{
   const [printableList, setPrintableList] = useState<Voucher[]>([]);
   const [activePrintBatchId, setActivePrintBatchId] = useState<string | undefined>(undefined);
   const [activePrintSiteName, setActivePrintSiteName] = useState<string | undefined>(undefined);
+  const [activePrintPlan, setActivePrintPlan] = useState<Plan | undefined>(undefined);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
@@ -116,6 +120,11 @@ export const VoucherStation: React.FC<{
     | null
   >(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk Delete Modal State (allows deleting all vouchers by status: AVAILABLE/UNUSED, ACTIVE/USED, EXPIRED, ALL)
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
+  const [bulkDeleteStatus, setBulkDeleteStatus] = useState<'AVAILABLE' | 'ACTIVE' | 'EXPIRED' | 'ALL'>('AVAILABLE');
+  const [bulkDeleteSiteScope, setBulkDeleteSiteScope] = useState<'CURRENT_SITE' | 'ALL_SITES'>('CURRENT_SITE');
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard?.writeText(code);
@@ -177,16 +186,53 @@ export const VoucherStation: React.FC<{
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch('/api/v1/plans');
+      if (!resolvedOwnerId) {
+        setPlans([]);
+        return;
+      }
+      const res = await fetch(`/api/v1/plans?ownerId=${resolvedOwnerId}`, {
+        headers: authHeaders,
+      });
       if (res.ok) {
         const data = await res.json();
-        setPlans(data);
-        if (data.length > 0) setSelectedPlanId(data[0].id);
+        // Client-side strict filter: ONLY packages created by this owner
+        const safePlans = Array.isArray(data)
+          ? (data as Plan[]).filter(
+              (p) =>
+                p.owner_id != null &&
+                Number(p.owner_id) === Number(resolvedOwnerId) &&
+                p.owner_name !== 'Japhet Hotspot'
+            )
+          : [];
+        setPlans(safePlans);
+        if (safePlans.length > 0) {
+          setSelectedPlanId((prev) => safePlans.some((p) => p.id === prev) ? prev : safePlans[0].id);
+        } else {
+          setSelectedPlanId(0);
+        }
+      } else {
+        setPlans([]);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch owner plans:', err);
+      setPlans([]);
     }
   };
+
+  const compatiblePlans = useMemo(() => {
+    if (targetRouterId === 'ALL') {
+      return plans;
+    }
+    return plans.filter((p) => p.router_id == null || Number(p.router_id) === Number(targetRouterId));
+  }, [plans, targetRouterId]);
+
+  useEffect(() => {
+    if (compatiblePlans.length > 0) {
+      if (!compatiblePlans.some((p) => p.id === selectedPlanId)) {
+        setSelectedPlanId(compatiblePlans[0].id);
+      }
+    }
+  }, [compatiblePlans, selectedPlanId]);
 
   useEffect(() => {
     Promise.all([fetchVouchers(), fetchBatches(), fetchPlans()]).finally(() => setLoading(false));
@@ -220,6 +266,7 @@ export const VoucherStation: React.FC<{
         setPrintableList(data.vouchers || []);
         setActivePrintBatchId(data.batchTag);
         setActivePrintSiteName(targetRouter?.name);
+        setActivePrintPlan(selectedPlan || undefined);
         setPrintModalOpen(true);
         await Promise.all([fetchVouchers(), fetchBatches()]);
       } else {
@@ -243,6 +290,10 @@ export const VoucherStation: React.FC<{
         const data: VoucherBatch = await res.json();
         const batchSite = data.router_name || routers.find((r) => r.id === data.router_id)?.name;
         setActivePrintSiteName(batchSite);
+        const bPlan =
+          plans.find((p) => Number(p.id) === Number(data.plan_id)) ||
+          (data.plan_name ? ({ id: data.plan_id, name: data.plan_name, price: data.price } as Plan) : undefined);
+        setActivePrintPlan(bPlan);
         if (data.vouchers && data.vouchers.length > 0) {
           setPrintableList(data.vouchers);
           setActivePrintBatchId(batchId);
@@ -321,7 +372,81 @@ export const VoucherStation: React.FC<{
     }
   };
 
-  const selectedPlan = plans.find((p) => p.id === selectedPlanId);
+  const handleOpenBulkDelete = (status?: 'AVAILABLE' | 'ACTIVE' | 'EXPIRED' | 'ALL') => {
+    let initialStatus: 'AVAILABLE' | 'ACTIVE' | 'EXPIRED' | 'ALL' = 'AVAILABLE';
+    if (status === 'AVAILABLE' || status === 'ACTIVE' || status === 'EXPIRED' || status === 'ALL') {
+      initialStatus = status;
+    } else if (
+      voucherStatusFilter === 'AVAILABLE' ||
+      voucherStatusFilter === 'ACTIVE' ||
+      voucherStatusFilter === 'EXPIRED'
+    ) {
+      initialStatus = voucherStatusFilter as any;
+    }
+    setBulkDeleteStatus(initialStatus);
+    setBulkDeleteSiteScope(selectedSiteFilter === 'ALL' ? 'ALL_SITES' : 'CURRENT_SITE');
+    setBulkDeleteModalOpen(true);
+  };
+
+  const handleExecuteBulkDelete = async () => {
+    if (bulkDeleteEligibleCount === 0) return;
+    setDeleting(true);
+    try {
+      const targetRouterId =
+        bulkDeleteSiteScope === 'CURRENT_SITE' && selectedSiteFilter !== 'ALL'
+          ? selectedSiteFilter
+          : 'ALL';
+
+      const res = await fetch('/api/v1/vouchers/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          ownerId: resolvedOwnerId,
+          status: bulkDeleteStatus,
+          routerId: targetRouterId,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccessNotice(data.message || `Vocha ${data.count || 0} zimefutwa kikamilifu!`);
+        setTimeout(() => setSuccessNotice(null), 4000);
+        setBulkDeleteModalOpen(false);
+        await Promise.all([fetchVouchers(), fetchBatches()]);
+      } else {
+        alert('Hitilafu: ' + (data.error || 'Imeshindikana kufuta vocha.'));
+      }
+    } catch (err: any) {
+      console.error('Bulk delete error:', err);
+      alert('Hitilafu ya mtandao: ' + (err.message || 'Mtandao umeshindwa kuunganisha.'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const selectedPlan = useMemo(() => {
+    if (!plans || plans.length === 0) return null;
+    return (
+      compatiblePlans.find((p) => Number(p.id) === Number(selectedPlanId)) ||
+      plans.find((p) => Number(p.id) === Number(selectedPlanId)) ||
+      compatiblePlans[0] ||
+      plans[0] ||
+      null
+    );
+  }, [plans, compatiblePlans, selectedPlanId]);
+
+  const currentPlanPrice = useMemo(() => {
+    if (selectedPlan && selectedPlan.price != null && !isNaN(Number(selectedPlan.price))) {
+      return Number(selectedPlan.price);
+    }
+    return 1000;
+  }, [selectedPlan]);
+
+  const safeQuantity = Math.max(1, Number(quantity) || 0);
+  const totalBatchValue = currentPlanPrice * safeQuantity;
 
   const activeSiteObj = useMemo(() => {
     if (selectedSiteFilter === 'ALL') return null;
@@ -352,6 +477,29 @@ export const VoucherStation: React.FC<{
     };
   }, [currentSiteVouchers]);
 
+  // All sites stats for modal display
+  const allSitesStats = useMemo(() => {
+    const available = vouchers.filter((v) => v.status === 'AVAILABLE').length;
+    const active = vouchers.filter((v) => v.status === 'ACTIVE').length;
+    const expired = vouchers.filter((v) => v.status === 'EXPIRED').length;
+    return {
+      total: vouchers.length,
+      available,
+      active,
+      expired,
+    };
+  }, [vouchers]);
+
+  // Bulk delete eligible count based on active scope & status
+  const bulkDeleteEligibleCount = useMemo(() => {
+    const list =
+      bulkDeleteSiteScope === 'CURRENT_SITE' && selectedSiteFilter !== 'ALL'
+        ? currentSiteVouchers
+        : vouchers;
+    if (bulkDeleteStatus === 'ALL') return list.length;
+    return list.filter((v) => v.status === bulkDeleteStatus).length;
+  }, [vouchers, currentSiteVouchers, bulkDeleteSiteScope, selectedSiteFilter, bulkDeleteStatus]);
+
   // Batches filtered strictly by selected site
   const filteredBatches = useMemo(() => {
     if (selectedSiteFilter === 'ALL') return batches;
@@ -363,11 +511,11 @@ export const VoucherStation: React.FC<{
   // Reset pagination when filters change
   useEffect(() => {
     setVoucherPage(1);
-  }, [voucherSearch, voucherStatusFilter, selectedSiteFilter, vouchers.length]);
+  }, [voucherSearch, voucherStatusFilter, selectedSiteFilter]);
 
   useEffect(() => {
     setBatchPage(1);
-  }, [selectedSiteFilter, batches.length]);
+  }, [selectedSiteFilter]);
 
   const filteredVouchers = useMemo(() => {
     return vouchers.filter((v) => {
@@ -543,20 +691,53 @@ export const VoucherStation: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             {/* Plan Selector */}
             <div className="sm:col-span-2 xl:col-span-2">
-              <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                Select Package / Plan
-              </label>
-              <select
-                value={selectedPlanId}
-                onChange={(e) => setSelectedPlanId(Number(e.target.value))}
-                className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600"
-              >
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name.split('(')[0]} - {formatTzs(p.price)} ({p.rate_limit})
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold uppercase text-slate-500">
+                  Select Package / Plan
+                </label>
+                {onNavigateToPlans && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToPlans}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                  >
+                    + Simamia Vifurushi
+                  </button>
+                )}
+              </div>
+              {compatiblePlans.length > 0 ? (
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(Number(e.target.value))}
+                  className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600"
+                >
+                  {compatiblePlans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name.split('(')[0]} - {formatTzs(p.price)} ({p.rate_limit})
+                      {p.router_id ? ` [📍 ${p.router_name || `Router #${p.router_id}`}]` : ' [🌐 Global]'}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center justify-between gap-2">
+                  <div className="text-[11px] leading-tight">
+                    <span className="font-bold">
+                      {targetRouterId !== 'ALL'
+                        ? 'Hakuna kifurushi kilichotengwa kwa ajili ya router hii au router zote.'
+                        : 'Huna kifurushi ulichotengeneza bado.'}
+                    </span>
+                  </div>
+                  {onNavigateToPlans && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPlans}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded-lg transition whitespace-nowrap cursor-pointer shadow-xs"
+                    >
+                      ➕ Tengeneza Kifurushi
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Site / MikroTik Router Selector */}
@@ -575,31 +756,62 @@ export const VoucherStation: React.FC<{
                 className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-cyan-600 text-slate-800"
               >
                 <option value="ALL">🌐 Zitumike Sites Zote (All Sites / Global)</option>
-                {routers.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    📍 {r.name} ({r.ip_address})
-                  </option>
-                ))}
+                {routers
+                  .filter((r) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge'))
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      📍 {r.name} ({r.ip_address})
+                    </option>
+                  ))}
               </select>
+              {targetRouterId !== 'ALL' ? (
+                <p className="text-[10px] text-emerald-700 font-bold mt-1.5 flex items-center gap-1">
+                  <span>🔒 Vocha hizi zitafungwa kwenye router hii pekee (kusiwe na kushare vocha).</span>
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-500 font-medium mt-1.5">
+                  🌐 Vocha za jumla (zinaweza kutumika kwenye router yoyote ya eneo hili).
+                </p>
+              )}
             </div>
 
-            {/* Quantity Presets */}
-            <div>
-              <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                Batch Quantity
+            {/* Quantity Input & Presets */}
+            <div className="sm:col-span-2 xl:col-span-2">
+              <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1 flex items-center justify-between">
+                <span>Idadi ya Vocha (Quantity)</span>
+                <span className="text-[10px] text-indigo-600 font-mono font-bold">{quantity} Cards</span>
               </label>
-              <select
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 font-mono"
-              >
-                <option value={10}>10 Cards</option>
-                <option value={20}>20 Cards</option>
-                <option value={50}>50 Cards</option>
-                <option value={100}>100 Cards</option>
-                <option value={200}>200 Cards</option>
-                <option value={500}>500 Cards</option>
-              </select>
+              <div className="space-y-1.5">
+                <input
+                  type="number"
+                  min={1}
+                  max={2000}
+                  required
+                  value={quantity || ''}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setQuantity(isNaN(val) ? 0 : val);
+                  }}
+                  className="w-full text-xs font-bold font-mono px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 text-slate-900"
+                  placeholder="Andika idadi ya vocha, mfano: 20"
+                />
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+                  {[10, 20, 50, 100, 200, 500].map((presetQty) => (
+                    <button
+                      key={presetQty}
+                      type="button"
+                      onClick={() => setQuantity(presetQty)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer shrink-0 ${
+                        quantity === presetQty
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      {presetQty}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Prefix */}
@@ -613,7 +825,7 @@ export const VoucherStation: React.FC<{
                 onChange={(e) => setBatchPrefix(e.target.value.toUpperCase())}
                 placeholder="e.g. TZ or VIP"
                 maxLength={5}
-                className="w-full text-xs font-bold font-mono px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 uppercase"
+                className="w-full text-xs font-bold font-mono px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 uppercase"
               />
             </div>
 
@@ -625,7 +837,7 @@ export const VoucherStation: React.FC<{
               <select
                 value={codeLength}
                 onChange={(e) => setCodeLength(Number(e.target.value))}
-                className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 font-mono"
+                className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 font-mono"
               >
                 <option value={6}>6 Digits (Standard)</option>
                 <option value={7}>7 Digits</option>
@@ -634,25 +846,28 @@ export const VoucherStation: React.FC<{
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
-            <div className="text-xs text-slate-500">
-              Total value of this batch:{' '}
-              <strong className="text-slate-900 font-bold font-mono text-sm">
-                {formatTzs((selectedPlan?.price || 1000) * quantity)}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-2xl w-full sm:w-auto shadow-2xs">
+              <span className="font-semibold text-slate-600">Total value of this batch:</span>
+              <strong className="text-emerald-700 font-extrabold font-mono text-base">
+                {formatTzs(totalBatchValue)}
               </strong>
+              <span className="text-[11px] text-slate-500 font-mono font-medium">
+                ({safeQuantity} vocha × {formatTzs(currentPlanPrice)})
+              </span>
             </div>
 
             <button
               type="submit"
-              disabled={generating}
-              className="w-full sm:w-auto py-2.5 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2"
+              disabled={generating || plans.length === 0 || safeQuantity < 1}
+              className="w-full sm:w-auto py-2.5 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               {generating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Sparkles className="w-4 h-4" />
               )}
-              <span>Generate & Open Print Preview</span>
+              <span>{plans.length === 0 ? 'Tengeneza Kwanza Vifurushi' : `Tengeneza Vocha ${safeQuantity} (Generate & Print)`}</span>
             </button>
           </div>
         </form>
@@ -937,6 +1152,26 @@ export const VoucherStation: React.FC<{
               <option value="EXPIRED">EXPIRED (Zilizokwisha)</option>
             </select>
 
+            {/* Quick Bulk Delete Button */}
+            <button
+              type="button"
+              onClick={() => handleOpenBulkDelete(voucherStatusFilter as any)}
+              disabled={currentSiteVouchers.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+              title="Futa vocha kwa mkupuo (Unused, Active, Expired au Zote)"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>
+                {voucherStatusFilter === 'AVAILABLE'
+                  ? `Futa Zote Zilizopo (${siteStats.available})`
+                  : voucherStatusFilter === 'ACTIVE'
+                  ? `Futa Zote Zinazotumika (${siteStats.active})`
+                  : voucherStatusFilter === 'EXPIRED'
+                  ? `Futa Zote Zilizokwisha (${siteStats.expired})`
+                  : `Futa Zote (${siteStats.total})`}
+              </span>
+            </button>
+
             {/* Search */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -951,27 +1186,83 @@ export const VoucherStation: React.FC<{
           </div>
         </div>
 
-        {/* Per-Site Inventory Breakdown Stats Banner */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 sm:px-5 py-3 bg-slate-50/80 border-b border-slate-100 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
-            <span className="text-slate-500 font-medium">Jumla ya Site:</span>
-            <strong className="text-slate-900 font-bold">{siteStats.total}</strong>
+        {/* Per-Site Inventory Breakdown Stats Banner with Quick Status Filters & Delete Triggers */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-4 sm:px-5 py-3 bg-slate-50/80 border-b border-slate-100 text-xs">
+          <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/60 border border-slate-200/60">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+              <span className="text-slate-500 font-medium text-[11px]">Jumla:</span>
+              <strong className="text-slate-900 font-bold">{siteStats.total}</strong>
+            </div>
+            {siteStats.total > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenBulkDelete('ALL')}
+                className="text-[10px] text-rose-600 hover:text-rose-800 font-extrabold hover:underline cursor-pointer bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
+                title="Futa vocha zote bila kujali hali (Delete All)"
+              >
+                Futa zote
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-            <span className="text-slate-500 font-medium">Zilizopo (Available):</span>
-            <strong className="text-blue-700 font-bold">{siteStats.available}</strong>
+
+          <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/60 border border-blue-200/60">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+              <span className="text-slate-500 font-medium text-[11px]">Zilizopo:</span>
+              <strong className="text-blue-700 font-bold">{siteStats.available}</strong>
+            </div>
+            {siteStats.available > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenBulkDelete('AVAILABLE')}
+                className="text-[10px] text-rose-600 hover:text-rose-800 font-extrabold hover:underline cursor-pointer bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
+                title="Futa vocha zote zisizotumika (Delete All Unused)"
+              >
+                Futa zote
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-            <span className="text-slate-500 font-medium">Zinazotumika (Active):</span>
-            <strong className="text-emerald-700 font-bold">{siteStats.active}</strong>
+
+          <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/60 border border-emerald-200/60">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+              <span className="text-slate-500 font-medium text-[11px]">Zinazotumika:</span>
+              <strong className="text-emerald-700 font-bold">{siteStats.active}</strong>
+            </div>
+            {siteStats.active > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenBulkDelete('ACTIVE')}
+                className="text-[10px] text-rose-600 hover:text-rose-800 font-extrabold hover:underline cursor-pointer bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
+                title="Futa vocha zote zinazotumika sasa (Delete All Active)"
+              >
+                Futa zote
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-            <span className="text-slate-500 font-medium">Thamani:</span>
-            <strong className="text-slate-900 font-bold font-mono">{formatTzs(siteStats.totalVal)}</strong>
+
+          <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/60 border border-amber-200/60">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+              <span className="text-slate-500 font-medium text-[11px]">Zilizokwisha:</span>
+              <strong className="text-amber-700 font-bold">{siteStats.expired}</strong>
+            </div>
+            {siteStats.expired > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenBulkDelete('EXPIRED')}
+                className="text-[10px] text-rose-600 hover:text-rose-800 font-extrabold hover:underline cursor-pointer bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200"
+                title="Futa vocha zote zilizokwisha au zilizotumika (Delete All Expired/Used)"
+              >
+                Futa zote
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-white/60 border border-slate-200/60 col-span-2 sm:col-span-1">
+            <span className="text-slate-500 font-medium text-[11px]">Thamani:</span>
+            <strong className="text-slate-900 font-bold font-mono text-xs">{formatTzs(siteStats.totalVal)}</strong>
           </div>
         </div>
 
@@ -1039,10 +1330,18 @@ export const VoucherStation: React.FC<{
                         )}
                       </td>
                       <td className="px-4 py-3 font-sans font-medium text-slate-800">
-                        {v.plan?.name.split('(')[0] || `Plan #${v.plan_id}`}
+                        {v.code?.toUpperCase().startsWith('FREE-') || v.batch_tag?.toUpperCase().includes('FREE_TRIAL')
+                          ? 'Majaribio ya Bure (Free Trial)'
+                          : v.plan?.name.split('(')[0] || `Plan #${v.plan_id}`}
                       </td>
                       <td className="px-4 py-3 font-bold text-slate-900">
-                        {v.plan ? formatTzs(v.plan.price) : '-'}
+                        {v.code?.toUpperCase().startsWith('FREE-') || v.batch_tag?.toUpperCase().includes('FREE_TRIAL') || (v.plan && v.plan.price === 0) ? (
+                          <span className="text-cyan-700 font-bold bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded text-[10px]">Bure (0 TZS)</span>
+                        ) : v.plan ? (
+                          formatTzs(v.plan.price)
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="px-4 py-3 font-sans">
                         <span
@@ -1195,7 +1494,7 @@ export const VoucherStation: React.FC<{
         isOpen={printModalOpen}
         onClose={() => setPrintModalOpen(false)}
         vouchers={printableList}
-        plan={selectedPlan}
+        plan={activePrintPlan || selectedPlan || undefined}
         batchId={activePrintBatchId}
         hotspotName={businessName || 'INFOTECH WiFi HIGH-SPEED'}
         siteName={activePrintSiteName || activeSiteObj?.name}
@@ -1263,6 +1562,255 @@ export const VoucherStation: React.FC<{
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Ndio, Futa Moja kwa Moja</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Bulk Delete Modal for Vouchers by Status */}
+      {bulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Futa Vocha kwa Mkupuo (Delete All Vouchers)
+                </h3>
+                <p className="text-xs text-slate-500 font-sans">
+                  Chagua aina ya vocha unazotaka kufuta: zilizopo, zinazotumika, au zilizokwisha muda.
+                </p>
+              </div>
+            </div>
+
+            {/* Scope Selection: Current Site vs All Sites */}
+            {routers.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Eneo la Vocha (Site Scope):
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteSiteScope('CURRENT_SITE')}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center gap-2 ${
+                      bulkDeleteSiteScope === 'CURRENT_SITE'
+                        ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-bold'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <MapPin className="w-4 h-4 text-cyan-600 shrink-0" />
+                    <div className="truncate">
+                      <div className="font-bold truncate">
+                        {selectedSiteFilter === 'ALL'
+                          ? 'Sites Zote'
+                          : activeSiteObj?.name || `Site #${selectedSiteFilter}`}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {currentSiteVouchers.length} vocha zilizopo hapa
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteSiteScope('ALL_SITES')}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center gap-2 ${
+                      bulkDeleteSiteScope === 'ALL_SITES'
+                        ? 'border-indigo-600 bg-indigo-50/70 text-indigo-950 font-bold'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span className="text-sm">🌐</span>
+                    <div className="truncate">
+                      <div className="font-bold truncate">Sites Zote za Mfumo</div>
+                      <div className="text-[10px] text-slate-500">
+                        {vouchers.length} vocha kwa ujumla
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Status Selection Cards */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                Chagua Hali ya Vocha za Kufuta (Select Status):
+              </label>
+
+              <div className="grid grid-cols-1 gap-2">
+                {/* 1. AVAILABLE / UNUSED */}
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteStatus('AVAILABLE')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-3 ${
+                    bulkDeleteStatus === 'AVAILABLE'
+                      ? 'border-blue-500 bg-blue-50/60 shadow-xs'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                      <strong className="text-xs font-bold text-slate-900">
+                        Zisizotumika / Zilizopo (Unused / Available)
+                      </strong>
+                    </div>
+                    <p className="text-[11px] text-slate-500 pl-4.5">
+                      Vocha ambazo bado hazijatumiwa na mteja yeyote (tayari kuuzwa).
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-black font-mono bg-blue-100 text-blue-800 shrink-0">
+                    {bulkDeleteSiteScope === 'CURRENT_SITE' && selectedSiteFilter !== 'ALL'
+                      ? siteStats.available
+                      : allSitesStats.available}{' '}
+                    vocha
+                  </span>
+                </button>
+
+                {/* 2. ACTIVE / USED */}
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteStatus('ACTIVE')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-3 ${
+                    bulkDeleteStatus === 'ACTIVE'
+                      ? 'border-emerald-500 bg-emerald-50/60 shadow-xs'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      <strong className="text-xs font-bold text-slate-900">
+                        Zinazotumika (Used / Active)
+                      </strong>
+                    </div>
+                    <p className="text-[11px] text-slate-500 pl-4.5">
+                      Vocha ambazo wateja wameziingiza na muda wao bado unaendelea sasa.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-black font-mono bg-emerald-100 text-emerald-800 shrink-0">
+                    {bulkDeleteSiteScope === 'CURRENT_SITE' && selectedSiteFilter !== 'ALL'
+                      ? siteStats.active
+                      : allSitesStats.active}{' '}
+                    vocha
+                  </span>
+                </button>
+
+                {/* 3. EXPIRED */}
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteStatus('EXPIRED')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-3 ${
+                    bulkDeleteStatus === 'EXPIRED'
+                      ? 'border-amber-500 bg-amber-50/60 shadow-xs'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                      <strong className="text-xs font-bold text-slate-900">
+                        Zilizokwisha Muda (Expired)
+                      </strong>
+                    </div>
+                    <p className="text-[11px] text-slate-500 pl-4.5">
+                      Vocha zilizotumiwa na muda wake wa intaneti umemalizika kabisa.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-black font-mono bg-amber-100 text-amber-800 shrink-0">
+                    {bulkDeleteSiteScope === 'CURRENT_SITE' && selectedSiteFilter !== 'ALL'
+                      ? siteStats.expired
+                      : allSitesStats.expired}{' '}
+                    vocha
+                  </span>
+                </button>
+
+                {/* 4. ALL */}
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteStatus('ALL')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between gap-3 ${
+                    bulkDeleteStatus === 'ALL'
+                      ? 'border-rose-500 bg-rose-50/60 shadow-xs'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                      <strong className="text-xs font-bold text-rose-950">
+                        Futa Vocha Zote Bila Kujali Hali (Delete All)
+                      </strong>
+                    </div>
+                    <p className="text-[11px] text-slate-500 pl-4.5">
+                      Futa vocha zote zilizopo: unused, active na expired kwa pamoja.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-black font-mono bg-rose-100 text-rose-800 shrink-0">
+                    {bulkDeleteSiteScope === 'CURRENT_SITE' && selectedSiteFilter !== 'ALL'
+                      ? siteStats.total
+                      : allSitesStats.total}{' '}
+                    vocha
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Warning Box */}
+            <div className="bg-rose-50 rounded-2xl p-3.5 border border-rose-200 text-xs text-rose-900 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-bold">
+                  {bulkDeleteEligibleCount > 0
+                    ? `Vocha ${bulkDeleteEligibleCount} zitafutwa kabisa!`
+                    : 'Hakuna vocha iliyopatikana kwenye kundi hili.'}
+                </div>
+                <p className="text-[11px] text-rose-800 leading-relaxed">
+                  Vocha hizi zitaondolewa kwenye mfumo na kwenye FreeRADIUS AAA database. Kitendo hiki hakiwezi kurejeshwa.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteModalOpen(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Ghairi (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBulkDelete}
+                disabled={deleting || bulkDeleteEligibleCount === 0}
+                className="px-5 py-2.5 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/30 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inafuta Vocha {bulkDeleteEligibleCount}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>
+                      {bulkDeleteStatus === 'AVAILABLE'
+                        ? `Futa Zote Zilizopo (${bulkDeleteEligibleCount})`
+                        : bulkDeleteStatus === 'ACTIVE'
+                        ? `Futa Zote Active (${bulkDeleteEligibleCount})`
+                        : bulkDeleteStatus === 'EXPIRED'
+                        ? `Futa Zote Expired (${bulkDeleteEligibleCount})`
+                        : `Futa Vocha Zote (${bulkDeleteEligibleCount})`}
+                    </span>
                   </>
                 )}
               </button>

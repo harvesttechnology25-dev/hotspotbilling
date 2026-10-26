@@ -168,11 +168,13 @@ export const RouterManagement: React.FC<{
   ownerName?: string;
   selectedRouterId?: number;
   onSelectRouter?: (id: number) => void;
+  onRoutersUpdated?: () => void;
 }> = ({
   ownerId,
   ownerName,
   selectedRouterId,
   onSelectRouter,
+  onRoutersUpdated,
 }) => {
   const [routers, setRouters] = useState<RouterItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +197,13 @@ export const RouterManagement: React.FC<{
   const [portalUrlCopiedId, setPortalUrlCopiedId] = useState<number | null>(null);
   const [togglingAntiTetheringId, setTogglingAntiTetheringId] = useState<number | null>(null);
 
+  // In-app delete and reboot confirmation modals (no browser popups in iframe)
+  const [routerToDelete, setRouterToDelete] = useState<RouterItem | null>(null);
+  const [deletingRouter, setDeletingRouter] = useState(false);
+  const [rebootOmadaTarget, setRebootOmadaTarget] = useState<RouterItem | null>(null);
+  const [rebootingOmada, setRebootingOmada] = useState(false);
+  const [routerNotice, setRouterNotice] = useState<string | null>(null);
+
   // Testing connection state
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testResult, setTestResult] = useState<{
@@ -211,11 +220,13 @@ export const RouterManagement: React.FC<{
   // TP-Link Omada Inform Adoption modal state
   const [omadaModalOpen, setOmadaModalOpen] = useState(false);
   const [selectedOmadaRouter, setSelectedOmadaRouter] = useState<RouterItem | null>(null);
+  const [omadaInitialStep, setOmadaInitialStep] = useState<number>(1);
   const [checkingAdoptionId, setCheckingAdoptionId] = useState<number | null>(null);
   const [adoptionFeedback, setAdoptionFeedback] = useState<{ routerId: number; success: boolean; message: string } | null>(null);
 
-  const handleOpenOmadaModal = (router?: RouterItem) => {
+  const handleOpenOmadaModal = (router?: RouterItem, step = 1) => {
     setSelectedOmadaRouter(router || null);
+    setOmadaInitialStep(step);
     setOmadaModalOpen(true);
   };
 
@@ -245,15 +256,19 @@ export const RouterManagement: React.FC<{
     }
   };
 
-  const handleRebootOmada = async (router: RouterItem) => {
-    if (!confirm(`Una uhakika unataka kuwasha upya (Reboot) AP ya Omada (${router.name})?`)) return;
+  const executeRebootOmada = async (router: RouterItem) => {
+    setRebootingOmada(true);
     try {
       const res = await fetch(`/api/v1/omada/reboot/${router.id}`, { method: 'POST' });
       const data = await res.json();
-      alert(data.message || 'Amri ya reboot imetumwa!');
+      setRouterNotice(data.message || 'Amri ya reboot imetumwa kikamilifu!');
+      setTimeout(() => setRouterNotice(null), 4000);
+      setRebootOmadaTarget(null);
       await fetchRouters();
     } catch (e: any) {
-      alert(e.message);
+      setRouterNotice(e.message || 'Hitilafu ya kureboot kifaa.');
+    } finally {
+      setRebootingOmada(false);
     }
   };
 
@@ -426,7 +441,12 @@ export const RouterManagement: React.FC<{
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setRouters(data);
+        setRouters(
+          Array.isArray(data)
+            ? data.filter((r: RouterItem) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge'))
+            : []
+        );
+        onRoutersUpdated?.();
       }
     } catch (err) {
       console.error(err);
@@ -687,10 +707,15 @@ export const RouterManagement: React.FC<{
 
     try {
       const finalModelName = isCustomModel
-        ? (customModelText.trim() || 'Custom Wi-Fi Device')
-        : (formData.model_name.trim() || 'MikroTik RouterOS');
+        ? ((customModelText || '').trim() || 'Custom Wi-Fi Device')
+        : ((formData.model_name || '').trim() || 'MikroTik RouterOS');
 
-      const isCpe = finalModelName.includes('CPE') || finalModelName.includes('Pharos') || finalModelName.includes('WBS');
+      const isCpe = Boolean(
+        finalModelName &&
+          (finalModelName.includes('CPE') ||
+            finalModelName.includes('Pharos') ||
+            finalModelName.includes('WBS'))
+      );
 
       const payload: Record<string, any> = {
         name: formData.name.trim(),
@@ -708,7 +733,7 @@ export const RouterManagement: React.FC<{
         location: formData.location?.trim() || 'Dar es Salaam, Kariakoo',
         hotspot_server_name: formData.hotspot_server_name?.trim() || 'hotspot1',
         dns_name: formData.dns_name?.trim() || 'wifi.hotspot.lan',
-        owner_id: ownerId || undefined,
+        owner_id: editingRouter ? (editingRouter.owner_id || ownerId || undefined) : (ownerId || undefined),
       };
 
       if (formData.api_password_hash.trim()) {
@@ -731,6 +756,7 @@ export const RouterManagement: React.FC<{
         setModalOpen(false);
         setEditingRouter(null);
         await fetchRouters();
+        onRoutersUpdated?.();
       } else {
         // CREATE NEW ROUTER
         const res = await fetch('/api/v1/routers', {
@@ -746,6 +772,7 @@ export const RouterManagement: React.FC<{
 
         setModalOpen(false);
         await fetchRouters();
+        onRoutersUpdated?.();
 
         // Automatically open script modal for new router
         if (data.router) {
@@ -759,18 +786,33 @@ export const RouterManagement: React.FC<{
     }
   };
 
-  const handleDeleteRouter = async (id: number) => {
-    if (!confirm('Je, una uhakika unataka kuondoa router hii?')) return;
+  const executeDeleteRouter = async (id: number) => {
+    setDeletingRouter(true);
     try {
       const res = await fetch(`/api/v1/routers/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchRouters();
-    } catch (err) {
+      if (res.ok) {
+        setRouterToDelete(null);
+        setRouterNotice('Router/AP imeondolewa kikamilifu kwenye mfumo!');
+        setTimeout(() => setRouterNotice(null), 4000);
+        await fetchRouters();
+        onRoutersUpdated?.();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setRouterNotice(data.error || 'Imeshindikana kuondoa router.');
+      }
+    } catch (err: any) {
       console.error(err);
+      setRouterNotice(err.message || 'Hitilafu ya kufuta router.');
+    } finally {
+      setDeletingRouter(false);
     }
   };
 
   // Filtered & Paginated Routers (10, 20, 30, 40, ALL)
   const filteredRouters = routers.filter((r) => {
+    if (ownerId && r.owner_id && r.owner_id !== ownerId) {
+      return false;
+    }
     if (deviceFilter === 'PHAROS_CPE') {
       const isCpe = (r.model_name && (r.model_name.includes('CPE') || r.model_name.includes('Pharos') || r.model_name.includes('WBS'))) || r.cpe_mode;
       if (!isCpe) return false;
@@ -791,7 +833,7 @@ export const RouterManagement: React.FC<{
 
   useEffect(() => {
     setRouterPage(1);
-  }, [routerSearch, deviceFilter, routers.length]);
+  }, [routerSearch, deviceFilter]);
 
   const paginatedRouters =
     routerPageSize === 'ALL'
@@ -815,12 +857,22 @@ export const RouterManagement: React.FC<{
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => handleOpenOmadaModal()}
+            onClick={() => handleOpenOmadaModal(undefined, 1)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md shadow-teal-600/20 transition cursor-pointer"
             title="Unganisha AP ya TP-Link Omada kupitia Controller Inform URL na Check Adoption"
           >
             <Wifi className="w-4 h-4 text-teal-200" />
             <span>🟢 Omada AP Adoption</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOpenOmadaModal(undefined, 0)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs border border-teal-300 transition cursor-pointer shadow-xs"
+            title="Pima kifaa chako moja kwa moja: Ping, Reachability, na Inform Test"
+          >
+            <Activity className="w-4 h-4 text-teal-600" />
+            <span>⚡ Pima Kifaa (Tester)</span>
           </button>
 
           <button
@@ -1152,7 +1204,7 @@ export const RouterManagement: React.FC<{
 
                     <button
                       type="button"
-                      onClick={() => handleDeleteRouter(router.id)}
+                      onClick={() => setRouterToDelete(router)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                       title="Futa kifaa (Delete device)"
                     >
@@ -1449,10 +1501,21 @@ export const RouterManagement: React.FC<{
                             )}
                           </button>
 
-                          {/* 2. Open Omada Adoption Wizard Modal */}
+                          {/* 2. Pima Kifaa (Live Device Tester) Button */}
                           <button
                             type="button"
-                            onClick={() => handleOpenOmadaModal(router)}
+                            onClick={() => handleOpenOmadaModal(router, 0)}
+                            className="py-2 px-3 rounded-xl border border-teal-500 bg-teal-50 hover:bg-teal-100 text-teal-900 font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                            title="Pima kifaa hiki moja kwa moja: Ping, Socket Reachability, na Inform Status"
+                          >
+                            <Activity className="w-3.5 h-3.5 text-teal-700" />
+                            <span>⚡ Pima Kifaa</span>
+                          </button>
+
+                          {/* 3. Open Omada Adoption Wizard Modal */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenOmadaModal(router, 1)}
                             className="py-2 px-3 rounded-xl border border-teal-400 bg-teal-50/50 hover:bg-teal-100 text-teal-900 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                             title="Fungua Wizard ya Kuunganisha Omada, Weka MAC, SSID na Password"
                           >
@@ -1463,7 +1526,7 @@ export const RouterManagement: React.FC<{
                           {/* 3. Soft Reboot Omada AP */}
                           <button
                             type="button"
-                            onClick={() => handleRebootOmada(router)}
+                            onClick={() => setRebootOmadaTarget(router)}
                             className="p-2 rounded-xl border border-slate-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-xs transition cursor-pointer"
                             title="Washa upya AP (Reboot Omada AP)"
                           >
@@ -2641,8 +2704,8 @@ export const RouterManagement: React.FC<{
                 )}
 
                 {/* TP-Link Pharos CPE Guidance Banner */}
-                {((!isCustomModel && (formData.model_name.includes('CPE') || formData.model_name.includes('Pharos') || formData.model_name.includes('WBS'))) ||
-                  (isCustomModel && (customModelText.toUpperCase().includes('CPE') || customModelText.toUpperCase().includes('PHAROS')))) && (
+                {((!isCustomModel && ((formData.model_name || '').includes('CPE') || (formData.model_name || '').includes('Pharos') || (formData.model_name || '').includes('WBS'))) ||
+                  (isCustomModel && ((customModelText || '').toUpperCase().includes('CPE') || (customModelText || '').toUpperCase().includes('PHAROS')))) && (
                   <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1.5 text-xs text-amber-950 mt-1">
                     <div className="flex items-center justify-between flex-wrap gap-1">
                       <div className="flex items-center gap-1.5 font-black text-amber-900">
@@ -2985,7 +3048,150 @@ export const RouterManagement: React.FC<{
         existingRouter={selectedOmadaRouter}
         ownerId={ownerId}
         ownerName={ownerName}
+        initialStep={omadaInitialStep}
       />
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL: DELETE ROUTER CONFIRMATION (NO BROWSER POPUPS) */}
+      {/* ========================================================================= */}
+      {routerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Ondoa Router / AP Hii?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa ndani ya mfumo (In-system confirmation)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRouterToDelete(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Jina la Router:</span>
+                <span className="font-extrabold text-slate-900">{routerToDelete.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">IP Address / Aina:</span>
+                <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                  {routerToDelete.ip_address} ({routerToDelete.device_type})
+                </span>
+              </div>
+              {routerToDelete.location && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Eneo:</span>
+                  <span className="font-medium text-slate-700">{routerToDelete.location}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Je, una uhakika unataka kuondoa kifaa hiki kwenye mfumo? Mipangilio yake yote na taarifa zilizounganishwa zitaondolewa.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={deletingRouter}
+                onClick={() => setRouterToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi
+              </button>
+              <button
+                type="button"
+                disabled={deletingRouter}
+                onClick={() => executeDeleteRouter(routerToDelete.id)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {deletingRouter ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inaondoa...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Ndio, Ondoa Router</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IN-APP MODAL: REBOOT OMADA AP CONFIRMATION */}
+      {/* ========================================================================= */}
+      {rebootOmadaTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <RefreshCw className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 leading-tight">
+                  Washa Upya (Reboot) AP ya Omada?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Uthibitisho wa ndani ya mfumo
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRebootOmadaTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Una uhakika unataka kuwasha upya (Reboot) AP ya Omada <strong>'{rebootOmadaTarget.name}'</strong>? Kifaa kitazima na kuwaka upya na kurejesha mawasiliano baada ya sekunde 30.
+            </p>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={rebootingOmada}
+                onClick={() => setRebootOmadaTarget(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+              >
+                Ghairi
+              </button>
+              <button
+                type="button"
+                disabled={rebootingOmada}
+                onClick={() => executeRebootOmada(rebootOmadaTarget)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {rebootingOmada ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Inatuma amri...</span>
+                  </>
+                ) : (
+                  <span>Ndio, Washa Upya</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

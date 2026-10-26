@@ -39,38 +39,13 @@ const DEFAULT_SETTINGS: GatewaySettings = {
     isSandbox: false,
   },
   dalipay: {
-    keyId: process.env.DALIPAY_KEY_ID || 'y3hT9bs505Z6',
-    publicKey: process.env.DALIPAY_PUBLIC_KEY || 'gw_pk_test_EoDvAZ',
-    secretKey: process.env.DALIPAY_SECRET_KEY || 'gw_sk_test_IdufCg',
-    apiEndpoint: process.env.DALIPAY_ENDPOINT || 'https://api.dalipay.com/v1',
-    webhookSecret: process.env.DALIPAY_WEBHOOK_SECRET || 'gw_wh_test_secret_dalipay',
-    isSandbox: true,
-    availableKeys: [
-      {
-        keyId: 'y3hT9bs505Z6',
-        publicKey: 'gw_pk_test_EoDvAZ',
-        secretKey: 'gw_sk_test_IdufCg',
-        status: 'Active',
-        created: '29 Sept 2026 13:05',
-        lastUsed: 'Never',
-      },
-      {
-        keyId: 'd06TgZivMkzW',
-        publicKey: 'gw_pk_test_AAY0S5',
-        secretKey: 'gw_sk_test_tYAWZs',
-        status: 'Active',
-        created: '29 Sept 2026 13:03',
-        lastUsed: 'Never',
-      },
-      {
-        keyId: '56Jva2sXOfq',
-        publicKey: 'gw_pk_test_pd5CNG',
-        secretKey: 'gw_sk_test_gh_Xyw',
-        status: 'Active',
-        created: '29 Sept 2026 13:01',
-        lastUsed: 'Never',
-      },
-    ],
+    keyId: process.env.DALIPAY_KEY_ID || '',
+    publicKey: process.env.DALIPAY_PUBLIC_KEY || '',
+    secretKey: process.env.DALIPAY_SECRET_KEY || '',
+    apiEndpoint: process.env.DALIPAY_ENDPOINT || 'https://app.dalipay.co.tz',
+    webhookSecret: process.env.DALIPAY_WEBHOOK_SECRET || '',
+    isSandbox: false,
+    availableKeys: [],
   },
   azampay: {
     appName: process.env.AZAMPAY_APP_NAME || 'TZ-WIFI-PORTAL',
@@ -196,6 +171,73 @@ class PersistentDatabase {
           requireRegistrationOtp: parsed.settings?.requireRegistrationOtp !== undefined ? Boolean(parsed.settings.requireRegistrationOtp) : true,
         };
 
+        // Purge old hardcoded DaliPay dummy keys so settings are empty until explicitly added or configured via env
+        if (this.settings.dalipay) {
+          const dummyKeys = [
+            'gw_pk_production_o8YDH6_Liq3xgwifJV3PqOJk26QkgaLu',
+            'gw_pk_test_EoDvAZ',
+            'gw_pk_test_AAY0S5',
+            'gw_pk_test_pd5CNG',
+          ];
+          const dummySecrets = [
+            'gw_sk_production_dali_live_6A3k',
+            'gw_sk_test_IdufCg',
+            'gw_sk_test_tYAWZs',
+            'gw_sk_test_gh_Xyw',
+          ];
+
+          if (dummyKeys.includes(this.settings.dalipay.publicKey)) {
+            this.settings.dalipay.publicKey = process.env.DALIPAY_PUBLIC_KEY || '';
+          }
+          if (dummySecrets.includes(this.settings.dalipay.secretKey)) {
+            this.settings.dalipay.secretKey = process.env.DALIPAY_SECRET_KEY || '';
+          }
+          if (this.settings.dalipay.keyId === 'y3hT9bs505Z6' || (this.settings.dalipay.keyId === 'admin' && !process.env.DALIPAY_KEY_ID)) {
+            this.settings.dalipay.keyId = process.env.DALIPAY_KEY_ID || '';
+          }
+          if (this.settings.dalipay.webhookSecret === 'gw_wh_test_secret_dalipay' || this.settings.dalipay.webhookSecret === 'gw_wh_production_dalipay_secret') {
+            this.settings.dalipay.webhookSecret = process.env.DALIPAY_WEBHOOK_SECRET || '';
+          }
+          this.settings.dalipay.availableKeys = [];
+        }
+
+        for (const o of this.owners) {
+          if (o.dalipay_public_key && (o.dalipay_public_key.includes('o8YDH6') || o.dalipay_public_key.includes('EoDvAZ'))) {
+            o.dalipay_public_key = '';
+          }
+          if (o.dalipay_secret_key && (o.dalipay_secret_key.includes('6A3k') || o.dalipay_secret_key.includes('IdufCg'))) {
+            o.dalipay_secret_key = '';
+          }
+          if (o.dalipay_key_id === 'admin' && !process.env.DALIPAY_KEY_ID) {
+            o.dalipay_key_id = '';
+          }
+        }
+
+        // Purge any stale default dummy routers (Mwenge Bus Stand, dummy test routers)
+        this.routers = (this.routers || []).filter(
+          (r) =>
+            r.id !== 3 &&
+            !r.name?.toLowerCase().includes('mwenge') &&
+            !r.location?.toLowerCase().includes('mwenge') &&
+            !r.dns_name?.toLowerCase().includes('mwenge')
+        );
+
+        // Deduplicate plans by id and remove dummy default plans that have no real owner or belong to sample Japhet Hotspot
+        const uniquePlanMap = new Map<number, PlanRecord>();
+        for (const p of this.plans) {
+          if (!uniquePlanMap.has(p.id)) {
+            // Remove unowned dummy plans from initial sample seed
+            if (p.owner_name === 'Japhet Hotspot' && (!p.owner_id || p.owner_id === 2)) {
+              continue;
+            }
+            if (p.owner_id) {
+              uniquePlanMap.set(p.id, p);
+            }
+          }
+        }
+        this.plans = Array.from(uniquePlanMap.values());
+        this.saveToDisk();
+
         if (this.owners.length === 0) {
           this.seedOwners();
           this.saveToDisk();
@@ -203,132 +245,15 @@ class PersistentDatabase {
           // Ensure passwords, monthly_fee, and vendor fields exist
           let updated = false;
 
-          // Backfill default demo hotspot owners if missing
-          if (!this.owners.some((o) => o.id === 2)) {
-            this.owners.push({
-              id: 2,
-              name: 'Japhet',
-              business_name: 'Japhet Hotspot',
-              email: 'harvesttechnology25@gmail.com',
-              phone: '0623887886',
-              password: '1234',
-              role: 'HOTSPOT_OWNER',
-              status: 'ACTIVE',
-              assigned_router_ids: [1],
-              commission_rate: 5,
-              monthly_fee: 15000,
-              subscription_fee: 15000,
-              subscription_status: 'ACTIVE',
-              subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-            updated = true;
-          }
-          if (!this.owners.some((o) => o.id === 3)) {
-            this.owners.push({
-              id: 3,
-              name: 'Juma Hasani',
-              business_name: 'mbezi',
-              email: 'harvesttechnology27@gmail.com',
-              phone: '0623887889',
-              password: '1234',
-              role: 'HOTSPOT_OWNER',
-              status: 'ACTIVE',
-              assigned_router_ids: [2],
-              commission_rate: 5,
-              monthly_fee: 15000,
-              subscription_fee: 15000,
-              subscription_status: 'ACTIVE',
-              subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-            updated = true;
-          }
-
-          // Backfill default routers if empty
-          if (this.routers.length === 0) {
-            this.routers = [
-              {
-                id: 1,
-                name: 'MikroTik Hotspot Gateway (Kariakoo)',
-                model_name: 'MikroTik RB750Gr3 / hEX',
-                brand_name: 'Japhet Hotspot',
-                ssid: 'JAPHET-HOTSPOT-WIFI',
-                ip_address: '192.168.88.1',
-                api_port: 8728,
-                api_username: 'admin',
-                api_password_hash: '',
-                location: 'Kariakoo, Dar es Salaam',
-                hotspot_server_name: 'hotspot1',
-                dns_name: 'wifi.japhet.hotspot',
-                status: 'ONLINE',
-                owner_id: 2,
-                owner_name: 'Japhet',
-                vpn_assigned_ip: '100.108.0.2',
-                radius_secret: 'radius_secret_2026',
-                vendor_name: 'PalmPesa',
-                vendor_merchant_id: 'PP-MERCHANT-10002',
-                platform_commission_percent: 5.0,
-                payout_channel: 'PALMPESA',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-              {
-                id: 2,
-                name: 'MikroTik Hotspot Gateway (Mbezi Beach)',
-                model_name: 'MikroTik CCR2004-16G-2S+',
-                brand_name: 'mbezi',
-                ssid: 'MBEZI-HOTSPOT-WIFI',
-                ip_address: '192.168.89.1',
-                api_port: 8728,
-                api_username: 'admin',
-                api_password_hash: '',
-                location: 'Mbezi Beach, Dar es Salaam',
-                hotspot_server_name: 'hotspot2',
-                dns_name: 'wifi.mbezi.hotspot',
-                status: 'ONLINE',
-                owner_id: 3,
-                owner_name: 'Juma Hasani',
-                vpn_assigned_ip: '100.108.0.3',
-                radius_secret: 'radius_secret_2026',
-                vendor_name: 'PalmPesa',
-                vendor_merchant_id: 'PP-MERCHANT-10003',
-                platform_commission_percent: 5.0,
-                payout_channel: 'PALMPESA',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-              {
-                id: 3,
-                name: 'MikroTik Hotspot Gateway (Mwenge Bus Stand)',
-                model_name: 'MikroTik hAP ac3 / CCR',
-                brand_name: 'Japhet Hotspot - Mwenge',
-                ssid: 'JAPHET-MWENGE-WIFI',
-                ip_address: '192.168.90.1',
-                api_port: 8728,
-                api_username: 'admin',
-                api_password_hash: '',
-                location: 'Mwenge Kituo cha Mabasi, Dar es Salaam',
-                hotspot_server_name: 'hotspot3',
-                dns_name: 'wifi.mwenge.hotspot',
-                status: 'ONLINE',
-                owner_id: 2,
-                owner_name: 'Japhet',
-                vpn_assigned_ip: '100.108.0.4',
-                radius_secret: 'radius_secret_2026',
-                vendor_name: 'PalmPesa',
-                vendor_merchant_id: 'PP-MERCHANT-10002',
-                platform_commission_percent: 5.0,
-                payout_channel: 'PALMPESA',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-            ];
-            updated = true;
-          }
           for (const o of this.owners) {
+            // Purge deleted router 3 from assigned_router_ids
+            if (Array.isArray(o.assigned_router_ids)) {
+              const cleaned = o.assigned_router_ids.filter((id) => id !== 3);
+              if (cleaned.length !== o.assigned_router_ids.length) {
+                o.assigned_router_ids = cleaned;
+                updated = true;
+              }
+            }
             if (!o.password) {
               o.password = o.role === 'VENDOR_ADMIN' ? 'admin123' : '123456';
               updated = true;
@@ -387,6 +312,10 @@ class PersistentDatabase {
 
           // Strict Multi-Tenant Backfill & Router Sync:
           for (const o of this.owners) {
+            if (!Array.isArray(o.assigned_router_ids)) {
+              o.assigned_router_ids = [];
+              updated = true;
+            }
             if (o.role === 'HOTSPOT_OWNER' && Array.isArray(o.assigned_router_ids)) {
               for (const rId of o.assigned_router_ids) {
                 const matchedRouter = this.routers.find((r) => r.id === Number(rId));
@@ -537,243 +466,10 @@ class PersistentDatabase {
   private seedDefaults() {
     this.seedOwners();
     this.routers = [];
-    this.plans = [
-      {
-        id: 1,
-        name: 'Masaa 2 - Kasi ya Juu (2 Hours)',
-        type: 'TIME_BASED',
-        limit_uptime: 7200,
-        limit_bytes_total: null,
-        rate_limit: '2M/4M',
-        price: 500,
-        validity_period: 7200,
-        shared_users: 1,
-        is_active: true,
-        description_sw: 'Masaa 2 ya intaneti isiyo na kikomo cha data kwa kasi ya 4Mbps',
-        description_en: '2 Hours unlimited browsing at 4Mbps peak speed',
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 2,
-        name: 'Masaa 6 - Standard (6 Hours)',
-        type: 'TIME_BASED',
-        limit_uptime: 21600,
-        limit_bytes_total: null,
-        rate_limit: '3M/6M',
-        price: 1000,
-        validity_period: 21600,
-        shared_users: 1,
-        is_active: true,
-        description_sw: 'Masaa 6 ya kazi, video na kupakua maudhui mtandaoni',
-        description_en: '6 Hours for remote work, streaming, and downloads',
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 3,
-        name: 'Masaa 24 (Siku 1) - Unlimited',
-        type: 'TIME_BASED',
-        limit_uptime: 86400,
-        limit_bytes_total: null,
-        rate_limit: '3M/8M',
-        price: 1500,
-        validity_period: 86400,
-        shared_users: 1,
-        is_active: true,
-        description_sw: 'Siku 1 kamili (masaa 24) intaneti mfululizo bila kikomo',
-        description_en: 'Full 24-hour unlimited connection at high speed',
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 4,
-        name: 'Siku 7 (Wiki 1) - Kasi Kubwa',
-        type: 'TIME_BASED',
-        limit_uptime: 604800,
-        limit_bytes_total: null,
-        rate_limit: '4M/10M',
-        price: 5000,
-        validity_period: 604800,
-        shared_users: 1,
-        is_active: true,
-        description_sw: 'Wiki nzima (siku 7) intaneti kasi kubwa bila kukatika',
-        description_en: '7 Days continuous broadband internet with prioritized QoS',
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 5,
-        name: 'Siku 30 (Mwezi 1) - Unlimited',
-        type: 'TIME_BASED',
-        limit_uptime: 2592000,
-        limit_bytes_total: null,
-        rate_limit: '5M/15M',
-        price: 18000,
-        validity_period: 2592000,
-        shared_users: 2,
-        is_active: true,
-        description_sw: 'Mwezi mzima (siku 30) vifaa hadi 2 kwa wakati mmoja',
-        description_en: 'Monthly unlimited internet package up to 2 simultaneous devices',
-        created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
-
-    this.transactions = [
-      {
-        id: 1,
-        phone_number: '255754123456',
-        network_provider: 'VODACOM',
-        amount: 1500,
-        external_reference: 'TZWF-260924-A109',
-        transaction_id: 'MP260924.0812.K10921',
-        status: 'SUCCESS',
-        plan_id: 3,
-        router_id: 1,
-        mac_address: 'BC:D0:74:11:2E:8A',
-        gateway_provider: 'AZAMPAY',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date(Date.now() - 3590000).toISOString(),
-      },
-      {
-        id: 2,
-        phone_number: '255713994021',
-        network_provider: 'TIGO',
-        amount: 500,
-        external_reference: 'TZWF-260924-B882',
-        transaction_id: 'TP260924.0920.L44910',
-        status: 'SUCCESS',
-        plan_id: 1,
-        router_id: 1,
-        mac_address: 'F0:18:98:5C:33:1B',
-        gateway_provider: 'AZAMPAY',
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        updated_at: new Date(Date.now() - 7190000).toISOString(),
-      },
-      {
-        id: 3,
-        phone_number: '255784112940',
-        network_provider: 'AIRTEL',
-        amount: 5000,
-        external_reference: 'TZWF-260924-C901',
-        transaction_id: 'AM260924.0715.M78129',
-        status: 'SUCCESS',
-        plan_id: 4,
-        router_id: 2,
-        mac_address: '44:65:0E:8F:A2:70',
-        gateway_provider: 'AZAMPAY',
-        created_at: new Date(Date.now() - 14400000).toISOString(),
-        updated_at: new Date(Date.now() - 14380000).toISOString(),
-      },
-      {
-        id: 4,
-        phone_number: '255620993812',
-        network_provider: 'HALOTEL',
-        amount: 1000,
-        external_reference: 'TZWF-260924-D442',
-        transaction_id: 'HP260924.0610.N12345',
-        status: 'SUCCESS',
-        plan_id: 2,
-        router_id: 1,
-        mac_address: '38:F9:D3:55:10:9A',
-        gateway_provider: 'AZAMPAY',
-        created_at: new Date(Date.now() - 18000000).toISOString(),
-        updated_at: new Date(Date.now() - 17980000).toISOString(),
-      },
-    ];
-
-    this.vouchers = [
-      {
-        id: 1,
-        code: 'TZ-74921',
-        password: 'admin',
-        plan_id: 3,
-        router_id: 1,
-        transaction_id: 1,
-        mac_address: 'BC:D0:74:11:2E:8A',
-        status: 'ACTIVE',
-        activated_at: new Date(Date.now() - 3590000).toISOString(),
-        expires_at: new Date(Date.now() + 82810000).toISOString(),
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 2,
-        code: 'TZ-88301',
-        password: 'admin',
-        plan_id: 1,
-        router_id: 1,
-        transaction_id: 2,
-        mac_address: 'F0:18:98:5C:33:1B',
-        status: 'ACTIVE',
-        activated_at: new Date(Date.now() - 7190000).toISOString(),
-        expires_at: new Date(Date.now() + 10000).toISOString(),
-        created_at: new Date(Date.now() - 7200000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 3,
-        code: 'TZ-90124',
-        password: 'admin',
-        plan_id: 1,
-        router_id: 1,
-        status: 'AVAILABLE',
-        batch_tag: 'BATCH-2026-09-A',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 4,
-        code: 'TZ-90125',
-        password: 'admin',
-        plan_id: 2,
-        router_id: 1,
-        status: 'AVAILABLE',
-        batch_tag: 'BATCH-2026-09-A',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 5,
-        code: 'TZ-MAN-501',
-        password: 'admin',
-        plan_id: 2,
-        router_id: 1,
-        status: 'ACTIVE',
-        batch_tag: 'COUNTER_CASH_SALES',
-        activated_at: new Date(Date.now() - 5400000).toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString(),
-        created_at: new Date(Date.now() - 10800000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 6,
-        code: 'TZ-MAN-502',
-        password: 'admin',
-        plan_id: 3,
-        router_id: 1,
-        status: 'ACTIVE',
-        batch_tag: 'COUNTER_CASH_SALES',
-        activated_at: new Date(Date.now() - 7200000).toISOString(),
-        expires_at: new Date(Date.now() + 172800000).toISOString(),
-        created_at: new Date(Date.now() - 14400000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: 7,
-        code: 'TZ-MAN-503',
-        password: 'admin',
-        plan_id: 4,
-        router_id: 2,
-        status: 'ACTIVE',
-        batch_tag: 'COUNTER_CASH_SALES',
-        activated_at: new Date(Date.now() - 18000000).toISOString(),
-        expires_at: new Date(Date.now() + 604800000).toISOString(),
-        created_at: new Date(Date.now() - 21600000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ];
+    this.plans = [];
+    this.transactions = [];
+    this.vouchers = [];
+    this.voucherBatches = [];
   }
 
   // --- Settings ---
@@ -842,11 +538,20 @@ const mergedEmail: EmailGatewayConfig = {
 
   // --- Hotspot Owners / Tenants ---
   getOwners(): HotspotOwner[] {
-    return [...this.owners];
+    return this.owners.map((o) => {
+      if (!Array.isArray(o.assigned_router_ids)) {
+        o.assigned_router_ids = [];
+      }
+      return o;
+    });
   }
 
   getOwnerById(id: number): HotspotOwner | undefined {
-    return this.owners.find((o) => o.id === id);
+    const owner = this.owners.find((o) => o.id === id);
+    if (owner && !Array.isArray(owner.assigned_router_ids)) {
+      owner.assigned_router_ids = [];
+    }
+    return owner;
   }
 
   getNextOwnerId(): number {
@@ -854,6 +559,9 @@ const mergedEmail: EmailGatewayConfig = {
   }
 
   saveOwner(owner: HotspotOwner): HotspotOwner {
+    if (!Array.isArray(owner.assigned_router_ids)) {
+      owner.assigned_router_ids = [];
+    }
     const idx = this.owners.findIndex((o) => o.id === owner.id);
     owner.updated_at = new Date().toISOString();
     if (idx >= 0) {
@@ -938,7 +646,15 @@ const mergedEmail: EmailGatewayConfig = {
 
   // --- Plans ---
   getPlans(): PlanRecord[] {
-    return [...this.plans];
+    const seen = new Set<number>();
+    const unique: PlanRecord[] = [];
+    for (const p of this.plans) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        unique.push(p);
+      }
+    }
+    return unique;
   }
 
   getPlanById(id: number): PlanRecord | undefined {
@@ -1134,8 +850,15 @@ const mergedEmail: EmailGatewayConfig = {
 
     if (options?.routerId) {
       const targetRouterId = Number(options.routerId);
-      transactions = transactions.filter((t) => t.router_id === targetRouterId);
-      vouchers = vouchers.filter((v) => v.router_id === targetRouterId);
+      transactions = transactions.filter((t) => t.router_id != null && Number(t.router_id) === targetRouterId);
+      vouchers = vouchers.filter((v) => {
+        if (v.router_id != null) return Number(v.router_id) === targetRouterId;
+        if (v.batch_tag) {
+          const b = this.voucherBatches.find((batch) => batch.batch_id === v.batch_tag);
+          if (b && b.router_id != null) return Number(b.router_id) === targetRouterId;
+        }
+        return false;
+      });
     }
 
     // Determine timestamp bounds
@@ -1228,22 +951,34 @@ const mergedEmail: EmailGatewayConfig = {
 
     // 2. Manual Vouchers Revenue (Cash / Printed Vouchers)
     // Exclude vouchers tied to an automated mobile money transaction
-    const manualVouchers = vouchers.filter((v) => !v.transaction_id);
+    // Also strictly exclude FREE TRIAL vouchers (Free trial is 0 TZS, not paid)
+    const manualVouchers = vouchers.filter(
+      (v) =>
+        !v.transaction_id &&
+        !v.code?.toUpperCase().startsWith('FREE-') &&
+        !v.batch_tag?.toUpperCase().includes('FREE_TRIAL')
+    );
     const rangeManualVouchers = manualVouchers.filter((v) => inRange(v.activated_at || v.created_at));
 
     const soldManualVouchers = rangeManualVouchers.filter(
       (v) => v.status === 'ACTIVE' || v.status === 'EXPIRED'
     );
     const manualVoucherRevenue = soldManualVouchers.reduce((sum, v) => {
+      if (v.code?.toUpperCase().startsWith('FREE-') || v.batch_tag?.toUpperCase().includes('FREE_TRIAL')) {
+        return sum;
+      }
       const plan = plansMap.get(v.plan_id);
-      return sum + (plan ? plan.price : 1000);
+      return sum + (plan ? plan.price : 0);
     }, 0);
 
     // Stock value of available unsold manual vouchers
-    const availableManualVouchers = vouchers.filter((v) => v.status === 'AVAILABLE');
+    const availableManualVouchers = manualVouchers.filter((v) => v.status === 'AVAILABLE');
     const manualVouchersStockValue = availableManualVouchers.reduce((sum, v) => {
+      if (v.code?.toUpperCase().startsWith('FREE-') || v.batch_tag?.toUpperCase().includes('FREE_TRIAL')) {
+        return sum;
+      }
       const plan = plansMap.get(v.plan_id);
-      return sum + (plan ? plan.price : 1000);
+      return sum + (plan ? plan.price : 0);
     }, 0);
 
     // 3. Combined Total Gross Revenue
@@ -1435,6 +1170,14 @@ const mergedEmail: EmailGatewayConfig = {
     return [...this.nasList];
   }
 
+  getRadCheckList(): RadCheckRecord[] {
+    return [...this.radcheck];
+  }
+
+  getRadReplyList(): RadReplyRecord[] {
+    return [...this.radreply];
+  }
+
   addNas(nas: NasRecord): void {
     this.nasList.push(nas);
     this.saveToDisk();
@@ -1546,14 +1289,14 @@ const mergedEmail: EmailGatewayConfig = {
       if (this.freeTrialConfig.lock_policy === 'LIFETIME') {
         return {
           success: false,
-          error: `Kifaa hiki chenye MAC (${normalizedMac}) kimeshatumia muda wa majaribio ya bure (tarehe ${claimDateStr}). Kila kifaa kinaruhusiwa mara 1 tu milele. Tafadhali nunua kifurushi ili uendelee kufurahia intaneti!`,
+          error: `Umeshatumia jaribio la bure (Already used free trial). Kila kifaa kinaruhusiwa mara 1 tu milele. Tafadhali chagua kifurushi hapa chini ili uendelee kufurahia intaneti!`,
         };
       } else if (this.freeTrialConfig.lock_policy === 'DAILY') {
         const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
         if (claimDate.getTime() > oneDayAgo) {
           return {
             success: false,
-            error: `Kifaa hiki (${normalizedMac}) kilitumia muda wa majaribio ndani ya saa 24 zilizopita. Jaribu tena baada ya saa 24 au nunua kifurushi sasa!`,
+            error: `Umeshatumia jaribio la bure (Already used free trial). Kifaa hiki kilitumia majaribio ndani ya saa 24 zilizopita. Jaribu tena kesho au chagua kifurushi sasa!`,
           };
         }
       } else if (this.freeTrialConfig.lock_policy === 'WEEKLY') {
@@ -1561,7 +1304,7 @@ const mergedEmail: EmailGatewayConfig = {
         if (claimDate.getTime() > sevenDaysAgo) {
           return {
             success: false,
-            error: `Kifaa hiki (${normalizedMac}) kilitumia muda wa majaribio ndani ya wiki hii. Jaribu tena wiki ijayo au nunua kifurushi sasa!`,
+            error: `Umeshatumia jaribio la bure (Already used free trial). Kifaa hiki kilitumia majaribio ndani ya wiki hii. Jaribu tena wiki ijayo au chagua kifurushi sasa!`,
           };
         }
       }
@@ -1584,7 +1327,7 @@ const mergedEmail: EmailGatewayConfig = {
       id: this.getNextVoucherId(),
       code: voucherCode,
       password: voucherCode,
-      plan_id: 1,
+      plan_id: 0,
       router_id: router?.id,
       owner_id: router?.owner_id,
       mac_address: normalizedMac,
@@ -1840,86 +1583,9 @@ const mergedEmail: EmailGatewayConfig = {
       this.routers = [];
     }
 
-    // 7. Reset Plans to Standard Clean Defaults
+    // 7. Reset Plans to Standard Clean Defaults (Empty until owner creates/clones)
     if (options.resetPlansToDefault) {
-      this.plans = [
-        {
-          id: 1,
-          name: 'Masaa 2 - Kasi ya Juu (2 Hours)',
-          type: 'TIME_BASED',
-          limit_uptime: 7200,
-          limit_bytes_total: null,
-          rate_limit: '2M/4M',
-          price: 500,
-          validity_period: 7200,
-          shared_users: 1,
-          is_active: true,
-          badge: 'HOT_DEAL',
-          badge_text: 'Majaribio / Kasi',
-          features: ['Masaa 2 bila kikomo cha MB', 'Kasi ya 4 Mbps'],
-          description_sw: 'Masaa 2 ya intaneti bila kikomo kwa kasi ya 4Mbps',
-          description_en: '2 Hours unlimited browsing at 4Mbps',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: 2,
-          name: 'Masaa 6 - Standard (6 Hours)',
-          type: 'TIME_BASED',
-          limit_uptime: 21600,
-          limit_bytes_total: null,
-          rate_limit: '3M/6M',
-          price: 1000,
-          validity_period: 21600,
-          shared_users: 1,
-          is_active: true,
-          badge: 'POPULAR',
-          badge_text: 'Inapendwa Zaidi',
-          features: ['Masaa 6 ya kazi & masomo', 'Kasi ya 6 Mbps', 'YouTube & TikTok bila kukwama'],
-          description_sw: 'Masaa 6 ya kazi, video na kupakua maudhui mtandaoni',
-          description_en: '6 Hours for remote work and streaming',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: 3,
-          name: 'Masaa 24 (Siku 1) - Unlimited',
-          type: 'TIME_BASED',
-          limit_uptime: 86400,
-          limit_bytes_total: null,
-          rate_limit: '3M/8M',
-          price: 1500,
-          validity_period: 86400,
-          shared_users: 1,
-          is_active: true,
-          badge: 'BEST_VALUE',
-          badge_text: 'Thamani Bora',
-          features: ['Saa 24 (siku 1) mfululizo', 'Kasi ya 8 Mbps', 'Inafaa kwa kupakua na simu'],
-          description_sw: 'Siku 1 kamili (masaa 24) intaneti mfululizo bila kikomo',
-          description_en: 'Full 24-hour unlimited connection at high speed',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          id: 4,
-          name: 'Siku 7 (Wiki 1) - Kasi Kubwa',
-          type: 'TIME_BASED',
-          limit_uptime: 604800,
-          limit_bytes_total: null,
-          rate_limit: '4M/10M',
-          price: 5000,
-          validity_period: 604800,
-          shared_users: 1,
-          is_active: true,
-          badge: 'SUPER_FAST',
-          badge_text: 'Kasi Kubwa',
-          features: ['Siku 7 mfululizo bila kikomo', 'Kasi kubwa 10 Mbps', 'QoS prioritization kwa kazi'],
-          description_sw: 'Wiki nzima (siku 7) intaneti kasi kubwa bila kukatika',
-          description_en: '7 Days continuous broadband internet with QoS',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ];
+      this.plans = [];
     }
 
     // 8. Log the Reset Event
@@ -2119,6 +1785,90 @@ const mergedEmail: EmailGatewayConfig = {
         platform: process.platform,
         dataDir: DATA_DIR,
       },
+    };
+  }
+
+  /**
+   * Restores database state from a parsed backup snapshot object
+   * (used by SQL / JSON backup upload & restore).
+   */
+  restoreFromSnapshot(snapshot: {
+    owners?: HotspotOwner[];
+    routers?: RouterRecord[];
+    plans?: PlanRecord[];
+    transactions?: TransactionRecord[];
+    vouchers?: VoucherRecord[];
+    voucherBatches?: VoucherBatchRecord[];
+    radcheck?: RadCheckRecord[];
+    radreply?: RadReplyRecord[];
+    nasList?: NasRecord[];
+    auditLogs?: TransactionAuditLog[];
+    freeTrialClaims?: FreeTrialClaimRecord[];
+    freeTrialConfig?: FreeTrialPackageConfig;
+    manualSubRequests?: ManualSubscriptionRequest[];
+    companyInfo?: CompanyPublicInfo;
+    settings?: GatewaySettings;
+  }): {
+    ownersCount: number;
+    routersCount: number;
+    plansCount: number;
+    vouchersCount: number;
+    transactionsCount: number;
+  } {
+    if (snapshot.owners && Array.isArray(snapshot.owners)) {
+      this.owners = snapshot.owners;
+    }
+    if (snapshot.routers && Array.isArray(snapshot.routers)) {
+      this.routers = snapshot.routers;
+    }
+    if (snapshot.plans && Array.isArray(snapshot.plans)) {
+      this.plans = snapshot.plans;
+    }
+    if (snapshot.transactions && Array.isArray(snapshot.transactions)) {
+      this.transactions = snapshot.transactions;
+    }
+    if (snapshot.vouchers && Array.isArray(snapshot.vouchers)) {
+      this.vouchers = snapshot.vouchers;
+    }
+    if (snapshot.voucherBatches && Array.isArray(snapshot.voucherBatches)) {
+      this.voucherBatches = snapshot.voucherBatches;
+    }
+    if (snapshot.radcheck && Array.isArray(snapshot.radcheck)) {
+      this.radcheck = snapshot.radcheck;
+    }
+    if (snapshot.radreply && Array.isArray(snapshot.radreply)) {
+      this.radreply = snapshot.radreply;
+    }
+    if (snapshot.nasList && Array.isArray(snapshot.nasList)) {
+      this.nasList = snapshot.nasList;
+    }
+    if (snapshot.auditLogs && Array.isArray(snapshot.auditLogs)) {
+      this.auditLogs = snapshot.auditLogs;
+    }
+    if (snapshot.freeTrialClaims && Array.isArray(snapshot.freeTrialClaims)) {
+      this.freeTrialClaims = snapshot.freeTrialClaims;
+    }
+    if (snapshot.freeTrialConfig && typeof snapshot.freeTrialConfig === 'object') {
+      this.freeTrialConfig = { ...this.freeTrialConfig, ...snapshot.freeTrialConfig };
+    }
+    if (snapshot.manualSubRequests && Array.isArray(snapshot.manualSubRequests)) {
+      this.manualSubRequests = snapshot.manualSubRequests;
+    }
+    if (snapshot.companyInfo && typeof snapshot.companyInfo === 'object') {
+      this.companyInfo = { ...this.companyInfo, ...snapshot.companyInfo };
+    }
+    if (snapshot.settings && typeof snapshot.settings === 'object') {
+      this.settings = { ...this.settings, ...snapshot.settings };
+    }
+
+    this.saveToDisk();
+
+    return {
+      ownersCount: this.owners.length,
+      routersCount: this.routers.length,
+      plansCount: this.plans.length,
+      vouchersCount: this.vouchers.length,
+      transactionsCount: this.transactions.length,
     };
   }
 

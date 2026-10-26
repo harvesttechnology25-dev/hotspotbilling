@@ -565,7 +565,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       password: '123456',
       role: 'CASHIER',
       status: 'ACTIVE',
-      assigned_router_ids: defaultParentOwner?.assigned_router_ids || routers.map((r) => r.id),
+      assigned_router_ids: [],
       monthly_fee: 0,
       commission_rate: 0,
       parent_owner_id: defaultParentId,
@@ -1729,41 +1729,61 @@ Tovuti: ${window.location.origin}`;
                 <label className="font-bold text-slate-700 block">
                   {lang === 'sw' ? 'Vifaa & Routers Anazohudumia:' : 'Assigned Routers & Access Points:'}
                 </label>
-                {routers.length === 0 ? (
-                  <p className="text-[11px] text-slate-400">Hakuna router zilizosajiliwa.</p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {routers.map((r) => {
-                      const isAssigned = userForm.assigned_router_ids.includes(r.id);
-                      return (
-                        <label
-                          key={r.id}
-                          className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 text-slate-800 cursor-pointer text-xs"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isAssigned}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setUserForm({
-                                  ...userForm,
-                                  assigned_router_ids: [...userForm.assigned_router_ids, r.id],
-                                });
-                              } else {
-                                setUserForm({
-                                  ...userForm,
-                                  assigned_router_ids: userForm.assigned_router_ids.filter((id) => id !== r.id),
-                                });
-                              }
-                            }}
-                            className="w-4 h-4 rounded text-indigo-600"
-                          />
-                          <span className="truncate font-semibold">{r.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                {(() => {
+                  const eligibleRouters = routers.filter((r) => {
+                    if (r.id === 3 || r.name?.toLowerCase().includes('mwenge') || r.location?.toLowerCase().includes('mwenge')) {
+                      return false;
+                    }
+                    if (userForm.parent_owner_id) {
+                      const pOwner = allHotspotOwners.find((o) => o.id === userForm.parent_owner_id);
+                      const pAssigned = pOwner?.assigned_router_ids || [];
+                      return r.owner_id === userForm.parent_owner_id || pAssigned.includes(r.id);
+                    }
+                    return true;
+                  });
+
+                  if (eligibleRouters.length === 0) {
+                    return (
+                      <p className="text-[11px] text-slate-400">
+                        {lang === 'sw' ? 'Hakuna router zilizosajiliwa kwa sasa.' : 'No routers registered at the moment.'}
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {eligibleRouters.map((r) => {
+                        const isAssigned = (userForm.assigned_router_ids || []).includes(r.id);
+                        return (
+                          <label
+                            key={r.id}
+                            className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 text-slate-800 cursor-pointer text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setUserForm({
+                                    ...userForm,
+                                    assigned_router_ids: [...userForm.assigned_router_ids, r.id],
+                                  });
+                                } else {
+                                  setUserForm({
+                                    ...userForm,
+                                    assigned_router_ids: userForm.assigned_router_ids.filter((id) => id !== r.id),
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-indigo-600"
+                            />
+                            <span className="truncate font-semibold">{r.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Submit Buttons with Dynamic Saved / Updated State */}

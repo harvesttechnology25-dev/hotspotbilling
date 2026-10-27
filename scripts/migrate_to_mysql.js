@@ -4,6 +4,7 @@
  * Targets: hotspot_billing (schema.sql)
  */
 
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -11,12 +12,12 @@ const mysql = require('mysql2/promise');
 const DB_FILE = path.resolve(process.cwd(), 'data/database.json');
 const SCHEMA_FILE = path.resolve(process.cwd(), 'schema.sql');
 
-// Load environment variables or defaults
+// Load environment variables or defaults matching .env.example
 const dbConfig = {
   host: process.env.MYSQL_HOST || 'localhost',
-  user: process.env.MYSQL_USER || 'hotspot_user',
-  password: process.env.MYSQL_PASSWORD || 'TzWifiSecure2026!',
-  database: process.env.MYSQL_DATABASE || 'hotspot_billing',
+  user: process.env.MYSQL_USER || 'tzwifi_user',
+  password: process.env.MYSQL_PASSWORD || 'SecureDbPassword2026!',
+  database: process.env.MYSQL_DATABASE || 'tzwifi_billing',
   port: Number(process.env.MYSQL_PORT) || 3306,
   multipleStatements: true,
 };
@@ -46,12 +47,14 @@ async function runMigration() {
     connection = await mysql.createConnection(dbConfig);
     console.log(`✓ Connected to MySQL database '${dbConfig.database}' successfully!`);
 
-    // 3. Apply schema.sql if present
+    // 3. Apply schema.sql if present, adapted to target database
     if (fs.existsSync(SCHEMA_FILE)) {
       console.log(`Applying schema structure from ${SCHEMA_FILE}...`);
-      const schemaSql = fs.readFileSync(SCHEMA_FILE, 'utf8');
+      let schemaSql = fs.readFileSync(SCHEMA_FILE, 'utf8');
+      // Ensure all CREATE TABLE statements run against the configured database
+      schemaSql = schemaSql.replace(/USE `[^`]+`;/g, `USE \`${dbConfig.database}\`;`);
       await connection.query(schemaSql);
-      console.log(`✓ MySQL schema and tables created/verified successfully!`);
+      console.log(`✓ MySQL schema and tables created/verified successfully in '${dbConfig.database}'!`);
     } else {
       console.warn(`! schema.sql not found at ${SCHEMA_FILE}, continuing with existing tables.`);
     }

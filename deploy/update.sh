@@ -30,7 +30,7 @@ fi
 
 # 3. Sakinisha vifurushi vipya vya npm (kama vimeongezeka)
 echo "📦 2/5: Ku-install na kusasisha maktaba za mfumo (npm install)..."
-npm install --silent
+npm install --legacy-peer-deps
 
 # 4. Jenga upya production build ya React / Vite
 echo "⚡ 3/5: Kujenga toleo jipya la mfumo (npm run build)..."

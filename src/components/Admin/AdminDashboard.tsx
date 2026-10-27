@@ -198,11 +198,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (res.ok) {
         const data = await res.json();
         setOwners(data);
-        if (!currentOwner && data.length > 0) {
-          if (currentUser) {
-            const matched = data.find((o: HotspotOwner) => o.id === currentUser.id);
-            setCurrentOwner(matched || currentUser);
-          } else {
+        if (data.length > 0) {
+          const targetId = currentUser?.id || currentOwner?.id;
+          if (targetId) {
+            const matched = data.find((o: HotspotOwner) => Number(o.id) === Number(targetId));
+            if (matched) {
+              setCurrentOwner(matched);
+              if (onSwitchUser && (
+                matched.dalipay_public_key !== currentUser?.dalipay_public_key ||
+                matched.dalipay_secret_key !== currentUser?.dalipay_secret_key ||
+                matched.palmpesa_api_token !== currentUser?.palmpesa_api_token
+              )) {
+                onSwitchUser(matched);
+              }
+            }
+          } else if (!currentOwner) {
             const vendor = data.find((o: HotspotOwner) => o.role === 'VENDOR_ADMIN') || data[0];
             setCurrentOwner(vendor);
           }
@@ -212,6 +222,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       console.error('Failed to fetch owners:', err);
     }
   };
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e?.detail) {
+        setCurrentOwner(e.detail);
+      }
+      fetchOwners();
+    };
+    window.addEventListener('tzwifi_user_updated', handleSync as EventListener);
+    return () => {
+      window.removeEventListener('tzwifi_user_updated', handleSync as EventListener);
+    };
+  }, []);
 
   const fetchRouters = async () => {
     try {
@@ -1139,7 +1162,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {/* If Hotspot Owner has not configured their payment API, show notice to set API first */}
-        {!isVendor && !currentOwner?.dalipay_public_key && !currentOwner?.palmpesa_api_token && (
+        {!isVendor && !(
+          (currentOwner?.dalipay_public_key && currentOwner?.dalipay_secret_key) ||
+          currentOwner?.dalipay_public_key ||
+          (currentOwner?.palmpesa_user_id && currentOwner?.palmpesa_api_token) ||
+          currentOwner?.palmpesa_api_token ||
+          currentOwner?.wallet_account_number
+        ) && (
           <div className="bg-amber-500 text-slate-950 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold shadow-xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-slate-950 shrink-0" />

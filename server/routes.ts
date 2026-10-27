@@ -16,6 +16,7 @@ import { OmadaAdoptionService } from './services/omadaAdoptionService.js';
 import { EmailService } from './emailService.js';
 import { db } from './db.js';
 import { generateFullDatabaseSQL, parseSQLDumpToSnapshot } from './sqlBackup.js';
+import { mysqlService } from './mysqlService.js';
 import {
   InitiatePaymentPayload,
   WebhookPayload,
@@ -1506,8 +1507,66 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
         subscription_fee: user.subscription_fee || 15000,
         subscription_status: user.subscription_status || 'ACTIVE',
         subscription_expires_at: user.subscription_expires_at,
+        payout_channel: user.payout_channel,
+        wallet_account_number: user.wallet_account_number,
+        vendor_merchant_id: user.vendor_merchant_id,
         palmpesa_user_id: user.palmpesa_user_id,
         palmpesa_user_ref: user.palmpesa_user_ref,
+        palmpesa_api_token: user.palmpesa_api_token,
+        palmpesa_accept_stk: user.palmpesa_accept_stk !== false,
+        dalipay_key_id: user.dalipay_key_id,
+        dalipay_public_key: user.dalipay_public_key,
+        dalipay_secret_key: user.dalipay_secret_key,
+        dalipay_api_endpoint: user.dalipay_api_endpoint,
+        dalipay_webhook_secret: user.dalipay_webhook_secret,
+        portal_theme: user.portal_theme,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Current User Me / Session validation endpoint
+apiRouter.get('/auth/me', (req: Request, res: Response) => {
+  try {
+    const user = getRequestUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Hakuna kikao kilicho hai (Unauthorized)' });
+    }
+    const isVendor = user.role === 'VENDOR_ADMIN';
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username || (isVendor ? 'admin' : undefined),
+        business_name: user.business_name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        assigned_router_ids: user.assigned_router_ids || [],
+        parent_owner_id: user.parent_owner_id,
+        staff_title: user.staff_title,
+        privileges: user.privileges,
+        commission_rate: user.commission_rate || 0,
+        monthly_fee: user.monthly_fee ?? 15000,
+        subscription_fee: user.subscription_fee || 15000,
+        subscription_status: user.subscription_status || 'ACTIVE',
+        subscription_expires_at: user.subscription_expires_at,
+        payout_channel: user.payout_channel,
+        wallet_account_number: user.wallet_account_number,
+        vendor_merchant_id: user.vendor_merchant_id,
+        palmpesa_user_id: user.palmpesa_user_id,
+        palmpesa_user_ref: user.palmpesa_user_ref,
+        palmpesa_api_token: user.palmpesa_api_token,
+        palmpesa_accept_stk: user.palmpesa_accept_stk !== false,
+        dalipay_key_id: user.dalipay_key_id,
+        dalipay_public_key: user.dalipay_public_key,
+        dalipay_secret_key: user.dalipay_secret_key,
+        dalipay_api_endpoint: user.dalipay_api_endpoint,
+        dalipay_webhook_secret: user.dalipay_webhook_secret,
         portal_theme: user.portal_theme,
       },
     });
@@ -1668,6 +1727,18 @@ apiRouter.post('/auth/register-initiate', async (req: Request, res: Response) =>
           subscription_fee: 15000,
           subscription_status: newOwner.subscription_status,
           subscription_expires_at: newOwner.subscription_expires_at,
+          payout_channel: newOwner.payout_channel,
+          wallet_account_number: newOwner.wallet_account_number,
+          vendor_merchant_id: newOwner.vendor_merchant_id,
+          palmpesa_user_id: newOwner.palmpesa_user_id,
+          palmpesa_user_ref: newOwner.palmpesa_user_ref,
+          palmpesa_api_token: newOwner.palmpesa_api_token,
+          palmpesa_accept_stk: newOwner.palmpesa_accept_stk !== false,
+          dalipay_key_id: newOwner.dalipay_key_id,
+          dalipay_public_key: newOwner.dalipay_public_key,
+          dalipay_secret_key: newOwner.dalipay_secret_key,
+          dalipay_api_endpoint: newOwner.dalipay_api_endpoint,
+          dalipay_webhook_secret: newOwner.dalipay_webhook_secret,
           created_at: newOwner.created_at,
         },
       });
@@ -1846,6 +1917,18 @@ apiRouter.post('/auth/register-verify', (req: Request, res: Response) => {
         subscription_fee: 15000,
         subscription_status: newOwner.subscription_status,
         subscription_expires_at: newOwner.subscription_expires_at,
+        payout_channel: newOwner.payout_channel,
+        wallet_account_number: newOwner.wallet_account_number,
+        vendor_merchant_id: newOwner.vendor_merchant_id,
+        palmpesa_user_id: newOwner.palmpesa_user_id,
+        palmpesa_user_ref: newOwner.palmpesa_user_ref,
+        palmpesa_api_token: newOwner.palmpesa_api_token,
+        palmpesa_accept_stk: newOwner.palmpesa_accept_stk !== false,
+        dalipay_key_id: newOwner.dalipay_key_id,
+        dalipay_public_key: newOwner.dalipay_public_key,
+        dalipay_secret_key: newOwner.dalipay_secret_key,
+        dalipay_api_endpoint: newOwner.dalipay_api_endpoint,
+        dalipay_webhook_secret: newOwner.dalipay_webhook_secret,
         created_at: newOwner.created_at,
       },
     });
@@ -1996,6 +2079,16 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
         subscription_expires_at: newOwner.subscription_expires_at,
         palmpesa_user_id: newOwner.palmpesa_user_id,
         palmpesa_user_ref: newOwner.palmpesa_user_ref,
+        palmpesa_api_token: newOwner.palmpesa_api_token,
+        palmpesa_accept_stk: newOwner.palmpesa_accept_stk !== false,
+        dalipay_key_id: newOwner.dalipay_key_id,
+        dalipay_public_key: newOwner.dalipay_public_key,
+        dalipay_secret_key: newOwner.dalipay_secret_key,
+        dalipay_api_endpoint: newOwner.dalipay_api_endpoint,
+        dalipay_webhook_secret: newOwner.dalipay_webhook_secret,
+        payout_channel: newOwner.payout_channel,
+        wallet_account_number: newOwner.wallet_account_number,
+        vendor_merchant_id: newOwner.vendor_merchant_id,
       },
     });
   } catch (err: any) {
@@ -2682,8 +2775,13 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
       ownerBusinessName: owner?.business_name || brandName,
       brandName,
       ssid: isVendor ? 'VENDOR-HQ-WIFI' : '',
-      location: isVendor ? 'Vendor HQ Platform' : '',
-      hasPaymentGateway: false,
+      hasPaymentGateway: Boolean(
+        (owner?.dalipay_public_key && (owner?.dalipay_secret_key || owner?.dalipay_key_id)) ||
+        owner?.dalipay_public_key ||
+        (owner?.palmpesa_user_id && owner?.palmpesa_api_token) ||
+        owner?.palmpesa_api_token ||
+        owner?.wallet_account_number
+      ),
       gatewayWarning: null,
       message: isVendor
         ? 'Huna router iliyosajiliwa moja kwa moja kwenye akaunti ya Vendor HQ bado.'
@@ -2700,16 +2798,31 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
     ? routers.filter((r) => r.owner_id === effectiveOwner.id || (effectiveOwner.assigned_router_ids || []).includes(r.id))
     : [matched];
 
+  const settings = db.getSettings();
+
   // Check if payment API has been configured by this owner or router
+  // (DaliPay requires public key and secret key; key_id is optional)
   const hasDaliPay = Boolean(
-    (effectiveOwner?.dalipay_key_id && effectiveOwner?.dalipay_public_key && effectiveOwner?.dalipay_secret_key) ||
-    (matched?.dalipay_key_id && matched?.dalipay_public_key && matched?.dalipay_secret_key)
+    (effectiveOwner?.dalipay_public_key && (effectiveOwner?.dalipay_secret_key || effectiveOwner?.dalipay_key_id)) ||
+    effectiveOwner?.dalipay_public_key ||
+    (matched?.dalipay_public_key && (matched?.dalipay_secret_key || matched?.dalipay_key_id)) ||
+    matched?.dalipay_public_key ||
+    (settings.dalipay?.publicKey && settings.dalipay?.secretKey) ||
+    process.env.DALIPAY_PUBLIC_KEY
   );
   const hasPalmPesa = Boolean(
     (effectiveOwner?.palmpesa_user_id && effectiveOwner?.palmpesa_api_token) ||
-    (matched?.palmpesa_user_id && matched?.palmpesa_api_token)
+    effectiveOwner?.palmpesa_api_token ||
+    (matched?.palmpesa_user_id && matched?.palmpesa_api_token) ||
+    matched?.palmpesa_api_token ||
+    (settings.palmpesa?.userId && settings.palmpesa?.apiToken) ||
+    process.env.PALMPESA_API_TOKEN
   );
-  const hasPaymentGateway = Boolean(hasDaliPay || hasPalmPesa);
+  const hasDirectWallet = Boolean(
+    effectiveOwner?.wallet_account_number ||
+    (effectiveOwner?.payout_channel && effectiveOwner?.payout_channel !== 'MANUAL')
+  );
+  const hasPaymentGateway = Boolean(hasDaliPay || hasPalmPesa || hasDirectWallet);
 
   const siteName = matched.name;
   const brandName = matched.brand_name || matched.name || effectiveOwner?.business_name || 'INFOTECH WiFi';
@@ -4376,63 +4489,165 @@ apiRouter.get('/system/schema', (_req: Request, res: Response) => {
   res.type('text/plain').send(schemaSQL);
 });
 
-apiRouter.post('/system/sync-to-mysql', async (_req: Request, res: Response) => {
+apiRouter.get('/system/database/status', async (_req: Request, res: Response) => {
   try {
-    const mysql = await import('mysql2/promise');
-    const conn = await mysql.createConnection({
-      host: process.env.MYSQL_HOST || 'localhost',
-      user: process.env.MYSQL_USER || 'hotspot_user',
-      password: process.env.MYSQL_PASSWORD || 'TzWifiSecure2026!',
-      database: process.env.MYSQL_DATABASE || 'hotspot_billing',
-      port: Number(process.env.MYSQL_PORT) || 3306,
+    const summary = db.getDataSummary();
+    const mysqlStatus = await mysqlService.getStatus();
+    const dbPath = path.resolve(process.cwd(), 'data', 'database.json');
+    let fileSizeKb = 0;
+    let lastModified = new Date().toISOString();
+    try {
+      if (fs.existsSync(dbPath)) {
+        const stats = fs.statSync(dbPath);
+        fileSizeKb = Math.round(stats.size / 1024);
+        lastModified = stats.mtime.toISOString();
+      }
+    } catch (_) {}
+
+    res.json({
+      status: 'CONNECTED',
+      engine: mysqlStatus.isConnected ? 'MySQL 8.0+ (Live Sync) + JSON Engine' : 'JSON Persistent Engine (Standalone VPS)',
+      storagePath: 'data/database.json',
+      schemaFile: 'schema.sql',
+      fileSizeKb,
+      lastModified,
+      uptimeSeconds: Math.floor(process.uptime()),
+      tables: {
+        hotspot_owners: {
+          count: summary.hotspotOwnersCount,
+          description: 'Wamiliki wa Hotspot & Kampuni',
+          schemaTable: 'hotspot_owners',
+        },
+        routers: {
+          count: summary.routersCount,
+          description: 'MikroTik & Omada Routers',
+          schemaTable: 'routers',
+        },
+        plans: {
+          count: summary.plansCount,
+          description: 'Vifurushi vya Intaneti',
+          schemaTable: 'plans',
+        },
+        transactions: {
+          count: summary.totalTransactions,
+          description: 'Miamala ya Malipo (M-Pesa, Tigo, Airtel, Halo)',
+          schemaTable: 'transactions',
+        },
+        vouchers: {
+          count: summary.vouchersCount,
+          description: 'Vocha za Hotspot (Kodi & PIN)',
+          schemaTable: 'vouchers',
+        },
+        voucher_batches: {
+          count: summary.voucherBatchesCount,
+          description: 'Batches za Vocha zilizozalishwa',
+          schemaTable: 'voucher_batches',
+        },
+        free_trial_claims: {
+          count: summary.freeTrialClaimsCount,
+          description: 'Majaribio ya Bure kwa MAC Address',
+          schemaTable: 'free_trial_claims',
+        },
+        audit_logs: {
+          count: summary.auditLogsCount,
+          description: 'Kumbukumbu za Usalama & Vitendo',
+          schemaTable: 'audit_logs',
+        },
+      },
+      mysql: mysqlStatus,
+      env: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        dataDir: path.resolve(process.cwd(), 'data'),
+      },
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    const owners = db.getOwners();
-    for (const o of owners) {
-      await conn.query(
-        `INSERT INTO hotspot_owners (
-          id, name, business_name, email, phone, role, status, commission_rate,
-          dalipay_key_id, dalipay_public_key, dalipay_secret_key, dalipay_webhook_secret,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-        ON DUPLICATE KEY UPDATE name=VALUES(name), business_name=VALUES(business_name),
-          phone=VALUES(phone), dalipay_key_id=VALUES(dalipay_key_id),
-          dalipay_public_key=VALUES(dalipay_public_key), dalipay_secret_key=VALUES(dalipay_secret_key)`,
-        [o.id, o.name, o.business_name, o.email, o.phone, o.role, o.status, o.commission_rate || 5, o.dalipay_key_id || null, o.dalipay_public_key || null, o.dalipay_secret_key || null, o.dalipay_webhook_secret || null]
-      );
+apiRouter.get(['/database/mysql-status', '/system/mysql-status'], async (_req: Request, res: Response) => {
+  try {
+    const status = await mysqlService.getStatus();
+    res.json({ success: true, ...status });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+apiRouter.post(['/system/sync-to-mysql', '/database/migrate-now', '/system/migrate-mysql'], async (_req: Request, res: Response) => {
+  try {
+    // 1. Bootstrap all tables in MySQL if not already created
+    await mysqlService.bootstrapNow();
+
+    // 2. Also run schema & data sync
+    try {
+      const mysqlModule = await import('mysql2/promise');
+      const dbConfig = {
+        host: process.env.MYSQL_HOST || 'localhost',
+        user: process.env.MYSQL_USER || 'tzwifi_user',
+        password: process.env.MYSQL_PASSWORD || 'SecureDbPassword2026!',
+        database: process.env.MYSQL_DATABASE || 'tzwifi_billing',
+        port: Number(process.env.MYSQL_PORT) || 3306,
+        multipleStatements: true,
+      };
+      const conn = await mysqlModule.createConnection(dbConfig);
+
+      const owners = db.getOwners();
+      for (const o of owners) {
+        await conn.query(
+          `INSERT INTO hotspot_owners (
+            id, name, business_name, email, phone, role, status, commission_rate,
+            dalipay_key_id, dalipay_public_key, dalipay_secret_key, dalipay_webhook_secret,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          ON DUPLICATE KEY UPDATE name=VALUES(name), business_name=VALUES(business_name),
+            phone=VALUES(phone), dalipay_key_id=VALUES(dalipay_key_id),
+            dalipay_public_key=VALUES(dalipay_public_key), dalipay_secret_key=VALUES(dalipay_secret_key)`,
+          [o.id, o.name, o.business_name, o.email, o.phone, o.role, o.status, o.commission_rate || 5, o.dalipay_key_id || null, o.dalipay_public_key || null, o.dalipay_secret_key || null, o.dalipay_webhook_secret || null]
+        );
+      }
+
+      const routers = db.getRouters();
+      for (const r of routers) {
+        await conn.query(
+          `INSERT INTO routers (
+            id, name, ip_address, owner_id, status, location, ssid, radius_secret, api_port, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          ON DUPLICATE KEY UPDATE name=VALUES(name), ip_address=VALUES(ip_address), owner_id=VALUES(owner_id)`,
+          [r.id, r.name, r.ip_address, r.owner_id || 1, r.status, r.location || 'HQ', r.ssid || 'TZ-WIFI', r.radius_secret || 'secret', r.api_port || 8728]
+        );
+      }
+
+      const plans = db.getPlans();
+      for (const p of plans) {
+        await conn.query(
+          `INSERT INTO plans (
+            id, name, price, duration_minutes, duration_label, speed_limit_up, speed_limit_down, is_popular, is_active, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+          ON DUPLICATE KEY UPDATE name=VALUES(name), price=VALUES(price)`,
+          [p.id, p.name, p.price, Math.floor((p.limit_uptime || 3600) / 60), `${Math.floor((p.limit_uptime || 3600) / 60)} Mins`, '5M', '5M', 0, 1]
+        );
+      }
+
+      await conn.end();
+    } catch (e: any) {
+      console.warn('[MySQL Sync] Table data sync note:', e.message);
     }
 
-    const routers = db.getRouters();
-    for (const r of routers) {
-      await conn.query(
-        `INSERT INTO routers (
-          id, name, ip_address, owner_id, status, location, ssid, radius_secret, api_port, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-        ON DUPLICATE KEY UPDATE name=VALUES(name), ip_address=VALUES(ip_address), owner_id=VALUES(owner_id)`,
-        [r.id, r.name, r.ip_address, r.owner_id || 1, r.status, r.location || 'HQ', r.ssid || 'TZ-WIFI', r.radius_secret || 'secret', r.api_port || 8728]
-      );
-    }
+    const latestStatus = await mysqlService.getStatus();
 
-    const plans = db.getPlans();
-    for (const p of plans) {
-      await conn.query(
-        `INSERT INTO plans (
-          id, name, price, duration_minutes, duration_label, speed_limit_up, speed_limit_down, is_popular, is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ON DUPLICATE KEY UPDATE name=VALUES(name), price=VALUES(price)`,
-        [p.id, p.name, p.price, Math.floor((p.limit_uptime || 3600) / 60), `${Math.floor((p.limit_uptime || 3600) / 60)} Mins`, '5M', '5M', 0, 1]
-      );
-    }
-
-    await conn.end();
     res.json({
       success: true,
-      message: 'Data zote zimehamishiwa kwenye MySQL kikamilifu!',
+      message: `Tables zote ${latestStatus.tablesCount} za MySQL zimetengenezwa na kuhakikiwa kikamilifu kwenye database ya '${latestStatus.database}'!`,
+      tablesCreated: latestStatus.tables,
+      tablesCount: latestStatus.tablesCount,
+      database: latestStatus.database,
       migrated: {
-        owners: owners.length,
-        routers: routers.length,
-        plans: plans.length
-      }
+        owners: db.getOwners().length,
+        routers: db.getRouters().length,
+        plans: db.getPlans().length,
+      },
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

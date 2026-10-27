@@ -5,11 +5,15 @@
 -- Mobile Money Aggregators: PalmPesa, AzamPay, Selcom, Vodacom M-Pesa, Tigo Pesa, Airtel Money, Halopesa
 -- =============================================================================
 
+CREATE DATABASE IF NOT EXISTS `tzwifi_billing` 
+  DEFAULT CHARACTER SET utf8mb4 
+  COLLATE utf8mb4_unicode_ci;
+
 CREATE DATABASE IF NOT EXISTS `hotspot_billing` 
   DEFAULT CHARACTER SET utf8mb4 
   COLLATE utf8mb4_unicode_ci;
 
-USE `hotspot_billing`;
+USE `tzwifi_billing`;
 
 -- -----------------------------------------------------------------------------
 -- 1. Table: hotspot_owners

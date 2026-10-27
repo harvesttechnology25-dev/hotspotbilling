@@ -118,6 +118,17 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     hasRouter: undefined,
   });
   const [loadingPortalInfo, setLoadingPortalInfo] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const handleSync = () => setRefreshKey((k) => k + 1);
+    window.addEventListener('tzwifi_user_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('tzwifi_user_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
 
   useEffect(() => {
     const p = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -195,7 +206,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       })
       .catch((e) => console.error('Failed to load portal info:', e))
       .finally(() => setLoadingPortalInfo(false));
-  }, [mikrotikParams.ip, currentOwnerId, selectedRouterId]);
+  }, [mikrotikParams.ip, currentOwnerId, selectedRouterId, refreshKey]);
   
   // Payment initiation state
   const [initiatingPayment, setInitiatingPayment] = useState(false);

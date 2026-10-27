@@ -19,5 +19,6 @@ INNER_EOF
 python3 /tmp/update_all_live.py
 rm -f /tmp/update_all_live.py
 npm run build
+node scripts/migrate_to_mysql.js || true
 pm2 restart all --update-env
 pm2 save

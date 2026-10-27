@@ -107,7 +107,7 @@ export default function App() {
     }
   }, [currentUser, viewMode]);
 
-  // Restore session from localStorage if updated externally
+  // Restore session from localStorage if updated externally or via event
   useEffect(() => {
     try {
       const saved = localStorage.getItem('tzwifi_user');
@@ -120,6 +120,19 @@ export default function App() {
     } catch (e) {
       console.error('Failed to parse saved session:', e);
     }
+
+    const handleUserUpdate = (e: any) => {
+      if (e?.detail && e.detail.id) {
+        setCurrentUser(e.detail);
+        try {
+          localStorage.setItem('tzwifi_user', JSON.stringify(e.detail));
+        } catch {}
+      }
+    };
+    window.addEventListener('tzwifi_user_updated', handleUserUpdate as EventListener);
+    return () => {
+      window.removeEventListener('tzwifi_user_updated', handleUserUpdate as EventListener);
+    };
   }, []);
 
   const handleLoginSuccess = (user: HotspotOwner) => {

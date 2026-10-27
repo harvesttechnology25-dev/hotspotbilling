@@ -33,13 +33,19 @@ fi
 
 # 3. Kusanikisha dependencies na kubuild application
 echo "⚡ Ku-install dependencies na kujenga frontend..."
-npm install --silent
+npm install --legacy-peer-deps
 npm run build
 
 # 4. Angalia faili la .env
 if [ ! -f .env ]; then
   echo "📄 Kutengeneza faili la .env kutoka .env.example..."
   cp .env.example .env
+fi
+
+# 4b. Hakikisha MySQL Tables Zote Zimetengenezwa
+echo "🗄️ Kuhakiki na kutengeneza tables zote za MySQL (schema & migration)..."
+if command -v node >/dev/null 2>&1 && [ -f scripts/migrate_to_mysql.js ]; then
+  node scripts/migrate_to_mysql.js || echo "⚠️ MySQL migration notice (Mfumo utaendelea na faili la database)"
 fi
 
 # 5. Fungua port 80 na 3000 kwenye firewall

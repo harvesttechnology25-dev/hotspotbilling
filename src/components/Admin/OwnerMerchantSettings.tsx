@@ -292,6 +292,12 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
         console.error(err);
       }
 
+      try {
+        window.dispatchEvent(new CustomEvent('tzwifi_user_updated', { detail: updatedOwner }));
+      } catch (err) {
+        console.error('Failed to dispatch user update event:', err);
+      }
+
       setSaveStatus('saved');
       setMessage({
         type: 'success',

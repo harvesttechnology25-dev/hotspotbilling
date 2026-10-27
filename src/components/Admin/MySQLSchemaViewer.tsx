@@ -41,6 +41,15 @@ interface DatabaseHealthData {
       lastRecordTime?: string | null;
     };
   };
+  mysql?: {
+    isConnected: boolean;
+    database: string;
+    host: string;
+    port: number;
+    tablesCount: number;
+    tables: string[];
+    error?: string;
+  };
   env: {
     nodeVersion: string;
     platform: string;
@@ -94,6 +103,37 @@ export const MySQLSchemaViewer: React.FC<MySQLSchemaViewerProps> = ({ lang = 'sw
   const [restoreConfirmWord, setRestoreConfirmWord] = useState('');
   const [restoringDatabase, setRestoringDatabase] = useState(false);
   const [restoreSuccessMessage, setRestoreSuccessMessage] = useState<string | null>(null);
+
+  // MySQL 1-Click Migration State
+  const [migratingMysql, setMigratingMysql] = useState(false);
+  const [migrationFeedback, setMigrationFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleRunMigration = async () => {
+    try {
+      setMigratingMysql(true);
+      setMigrationFeedback(null);
+      const res = await fetch('/api/v1/database/migrate-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Imeshindikana kuendesha migration.');
+      }
+      setMigrationFeedback({
+        success: true,
+        message: data.message || 'Tables za MySQL zimetengenezwa kikamilifu!',
+      });
+      await fetchDatabaseInfo();
+    } catch (err: any) {
+      setMigrationFeedback({
+        success: false,
+        message: err.message || 'Hitilafu ya kuunda tables za MySQL.',
+      });
+    } finally {
+      setMigratingMysql(false);
+    }
+  };
 
   const fetchDatabaseInfo = async () => {
     try {
@@ -627,7 +667,7 @@ export const MySQLSchemaViewer: React.FC<MySQLSchemaViewerProps> = ({ lang = 'sw
                 <p className="text-slate-700 leading-relaxed">
                   Ukihitaji kurudisha data kwenye MySQL au server, endesha amri:
                   <code className="block mt-1 font-mono text-[11px] bg-white p-1.5 rounded border border-emerald-300 text-emerald-900 select-all">
-                    mysql -u root -p hotspot_billing &lt; backup.sql
+                    mysql -u root -p tzwifi_billing &lt; backup.sql
                   </code>
                 </p>
               </div>
@@ -780,6 +820,136 @@ export const MySQLSchemaViewer: React.FC<MySQLSchemaViewerProps> = ({ lang = 'sw
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Live MySQL Database (VPS) Card & 1-Click Bootstrap */}
+          <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-7 border border-indigo-700/50 shadow-xl space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    <Database className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-lg font-black tracking-tight text-white">
+                    {lang === 'sw' ? 'Hali ya MySQL Database (VPS)' : 'MySQL Database Status (VPS)'}
+                  </h3>
+                  {healthData?.mysql?.isConnected ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>
+                        {(healthData?.mysql?.tablesCount || 0) > 0
+                          ? `ONLINE (${healthData.mysql.tablesCount} TABLES)`
+                          : 'CONNECTED (0 TABLES)'}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>STANDBY / LOCAL ENGINE</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 max-w-xl">
+                  {lang === 'sw'
+                    ? `Database ya MySQL: '${healthData?.mysql?.database || 'tzwifi_billing'}' kwenye port ${healthData?.mysql?.port || 3306}. Mfumo unasawazisha tables na data kiotomatiki.`
+                    : `MySQL database: '${healthData?.mysql?.database || 'tzwifi_billing'}' on port ${healthData?.mysql?.port || 3306}. Tables and records sync automatically.`}
+                </p>
+              </div>
+
+              {/* 1-Click Bootstrap Button */}
+              <div className="shrink-0 flex flex-col sm:flex-row md:flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={handleRunMigration}
+                  disabled={migratingMysql}
+                  className="px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/60 disabled:opacity-50"
+                >
+                  {migratingMysql ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>{lang === 'sw' ? 'Inatengeneza Tables...' : 'Creating Tables...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-emerald-200" />
+                      <span>{lang === 'sw' ? '⚡ Tengeneza Tables za MySQL Sasa' : '⚡ Bootstrap MySQL Tables Now'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {migrationFeedback && (
+              <div
+                className={`p-4 rounded-2xl flex items-center gap-3 text-xs font-bold ${
+                  migrationFeedback.success
+                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-200'
+                    : 'bg-rose-500/20 border border-rose-500/40 text-rose-200'
+                }`}
+              >
+                {migrationFeedback.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{migrationFeedback.message}</span>
+              </div>
+            )}
+
+            {/* MySQL Connection Details & Table Badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Database Name</span>
+                <div className="font-mono font-bold text-white text-sm">
+                  {healthData?.mysql?.database || 'tzwifi_billing'}
+                </div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Host & Port</span>
+                <div className="font-mono font-bold text-white text-sm">
+                  {healthData?.mysql?.host || 'localhost'}:{healthData?.mysql?.port || 3306}
+                </div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Jumla ya Tables</span>
+                <div className="font-mono font-bold text-emerald-400 text-sm">
+                  {healthData?.mysql?.tablesCount || 0} / 11 Tables
+                </div>
+              </div>
+            </div>
+
+            {/* List of created tables badges */}
+            {healthData?.mysql?.tables && healthData.mysql.tables.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                <span className="text-[11px] font-bold text-slate-300 block">
+                  Tables Zilizopo Kwenye MySQL:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {healthData.mysql.tables.map((tName) => (
+                    <span
+                      key={tName}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono text-[11px]"
+                    >
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>{tName}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-2">
+                <div className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                  <span>Kwanini mwanzoni ulikuwa huoni table hata moja (0 Tables)?</span>
+                </div>
+                <p className="text-[11px] text-amber-300/90 leading-relaxed">
+                  Mfumo wa VPS unafanya kazi kwa kasi ya juu kwa kutumia database ya faili (JSON persistent engine) ili usikwame hata kama MySQL haijawashwa. Kwenye VPS, script iliunda tu database ya <code>tzwifi_billing</code> lakini haikuwa ime-run <code>schema.sql</code>.
+                </p>
+                <p className="text-[11px] text-amber-200 leading-relaxed">
+                  Bonyeza kitufe cha kijani cha <strong>"⚡ Tengeneza Tables za MySQL Sasa"</strong> hapo juu au endesha amri <code>node scripts/migrate_to_mysql.js</code> kwenye VPS kutengeneza tables zote 11 mara moja!
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

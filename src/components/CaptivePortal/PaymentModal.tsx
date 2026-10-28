@@ -60,6 +60,38 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isVerifyingNow, setIsVerifyingNow] = useState(false);
+
+  const handleCheckPaymentNow = async () => {
+    setIsVerifyingNow(true);
+    try {
+      const res = await fetch(`/api/v1/payments/status/${externalReference}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status === 'SUCCESS') {
+        setStatus('SUCCESS');
+        setVoucherData(data.voucher);
+        if (data.hotspotLoginUrl) {
+          setHotspotUrl(data.hotspotLoginUrl);
+        }
+        if (data.voucher?.code) {
+          onPaymentSuccess(data.voucher.code, plan);
+          const targetLogin = data.hotspotLoginUrl || linkLogin;
+          const fullLoginUrl = `${targetLogin}?username=${data.voucher.code}&password=${data.voucher.password || data.voucher.code}&dst=${encodeURIComponent(linkOrig)}`;
+          generateQrCodeUrl(fullLoginUrl).then((url) => {
+            setQrCodeDataUrl(url);
+          });
+        }
+      } else if (data.status === 'FAILED') {
+        setStatus('FAILED');
+        setErrorMessage(data.failureReason || 'Malipo hayakukamilika.');
+      }
+    } catch (err) {
+      console.error('Manual check payment error:', err);
+    } finally {
+      setIsVerifyingNow(false);
+    }
+  };
 
   const carrierInfo = CARRIERS[carrier];
 
@@ -259,6 +291,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     : 'Awaiting carrier network response...'}
                 </span>
               </div>
+
+              {/* Instant Verification Button */}
+              <button
+                type="button"
+                onClick={handleCheckPaymentNow}
+                disabled={isVerifyingNow}
+                className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isVerifyingNow ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 text-emerald-100" />
+                )}
+                <span>
+                  {lang === 'sw'
+                    ? isVerifyingNow
+                      ? 'Inathibitisha malipo na mtandao...'
+                      : 'Nimeshaweka PIN • Thibitisha Malipo Sasa'
+                    : isVerifyingNow
+                    ? 'Checking gateway status...'
+                    : 'I have entered PIN • Verify Payment Now'}
+                </span>
+              </button>
 
               {/* Live Real-time Aggregator Status Banner */}
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-3.5 text-xs text-emerald-900 space-y-1.5">

@@ -60,6 +60,36 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
   const [confirming, setConfirming] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [countdown, setCountdown] = useState(60);
+  const [manualChecking, setManualChecking] = useState(false);
+
+  const handleVerifySubscriptionNow = async () => {
+    if (!paymentSession?.reference) return;
+    setManualChecking(true);
+    try {
+      const res = await fetch(`/api/v1/subscription/verify/${paymentSession.reference}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.paid && data.status === 'SUCCESS') {
+          setPaymentSuccess(true);
+          setTimeout(() => {
+            if (data.user) {
+              onRenewSuccess(data.user);
+            } else {
+              onRenewSuccess({
+                ...owner,
+                subscription_status: 'ACTIVE',
+                subscription_expires_at: data.expiresAt,
+              });
+            }
+          }, 1200);
+        }
+      }
+    } catch (err) {
+      console.error('Subscription verify error:', err);
+    } finally {
+      setManualChecking(false);
+    }
+  };
 
   const fee = owner.subscription_fee || owner.monthly_fee || 15000;
 
@@ -572,6 +602,20 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
                         : 'Enter your PIN on your mobile device. System is monitoring the live aggregator webhook.'}
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleVerifySubscriptionNow}
+                    disabled={manualChecking}
+                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {manualChecking ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-emerald-100" />}
+                    <span>
+                      {lang === 'sw'
+                        ? manualChecking ? 'Inathibitisha na mtandao sasa...' : 'Nimeshaweka PIN • Thibitisha Malipo Sasa'
+                        : manualChecking ? 'Checking network status...' : 'I have entered PIN • Verify Payment Now'}
+                    </span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(false)}

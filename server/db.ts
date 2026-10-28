@@ -700,7 +700,32 @@ const mergedEmail: EmailGatewayConfig = {
   }
 
   getTransactionByReference(ref: string): TransactionRecord | undefined {
-    return this.transactions.find((t) => t.external_reference === ref);
+    if (!ref) return undefined;
+    const cleanRef = String(ref).trim();
+
+    // 1. Exact match on external_reference
+    let found = this.transactions.find((t) => t.external_reference === cleanRef);
+    if (found) return found;
+
+    // 2. Exact match on transaction_id (uuid, order_id, or gateway reference)
+    found = this.transactions.find((t) => t.transaction_id && t.transaction_id === cleanRef);
+    if (found) return found;
+
+    // 3. Prefix or truncated match (e.g. DaliPay slices external_id to 30 chars)
+    found = this.transactions.find((t) => {
+      if (!t.external_reference) return false;
+      return t.external_reference.startsWith(cleanRef) || cleanRef.startsWith(t.external_reference);
+    });
+    if (found) return found;
+
+    // 4. Case-insensitive match on either reference or transaction_id
+    const lower = cleanRef.toLowerCase();
+    found = this.transactions.find(
+      (t) =>
+        t.external_reference?.toLowerCase() === lower ||
+        t.transaction_id?.toLowerCase() === lower
+    );
+    return found;
   }
 
   getNextTransactionId(): number {

@@ -107,6 +107,7 @@ export class PaymentGatewayService {
     ownerId?: number;
     macAddress?: string;
     userIp?: string;
+    callbackUrl?: string;
   }): Promise<PaymentInitiationResult> {
     const carrierResult = detectCarrier(params.phoneNumber);
     const provider = params.networkProvider || carrierResult.provider;
@@ -158,6 +159,12 @@ export class PaymentGatewayService {
     let isCustomOwnerAccount = true;
     let usedMerchantId = hasDaliPay ? dalipayKeyId : palmpesaUserId;
 
+    const resolvedCallbackUrl =
+      params.callbackUrl ||
+      (process.env.APP_URL && !process.env.APP_URL.includes('MY_APP_URL')
+        ? `${process.env.APP_URL.replace(/\/+$/, '')}/api/v1/payments/webhook`
+        : undefined);
+
     if (activeGateway === 'DALIPAY') {
       const collectionsUrl = getDaliPayCollectionsUrl(dalipayBase);
       const dalipayProvider = formatDaliPayProvider(provider);
@@ -165,6 +172,19 @@ export class PaymentGatewayService {
       gatewayMode = dalipayPublicKey.startsWith('gw_pk_test_') ? 'SANDBOX' : 'LIVE';
 
       try {
+        const payloadBody: any = {
+          account_number: dalipayAccount,
+          amount: plan.price,
+          currency: 'TZS',
+          provider: dalipayProvider,
+          external_id: externalRef.slice(0, 30),
+          customer_name: `Mteja Hotspot (${dalipayAccount})`,
+        };
+        if (resolvedCallbackUrl) {
+          payloadBody.callback_url = resolvedCallbackUrl;
+          payloadBody.webhook_url = resolvedCallbackUrl;
+        }
+
         const pushRes = await fetch(collectionsUrl, {
           method: 'POST',
           headers: {
@@ -173,14 +193,7 @@ export class PaymentGatewayService {
             'X-Secret-Key': dalipaySecretKey,
             ...(dalipayKeyId ? { 'X-Key-Id': dalipayKeyId } : {}),
           },
-          body: JSON.stringify({
-            account_number: dalipayAccount,
-            amount: plan.price,
-            currency: 'TZS',
-            provider: dalipayProvider,
-            external_id: externalRef.slice(0, 30),
-            customer_name: `Mteja Hotspot (${dalipayAccount})`,
-          }),
+          body: JSON.stringify(payloadBody),
           signal: AbortSignal.timeout(10000),
         });
 
@@ -403,6 +416,7 @@ export class PaymentGatewayService {
     ownerId: number;
     phoneNumber: string;
     carrier?: NetworkProvider;
+    callbackUrl?: string;
   }): Promise<{
     success: boolean;
     externalReference: string;
@@ -430,6 +444,12 @@ export class PaymentGatewayService {
 
     let externalTransactionId: string | null = null;
 
+    const resolvedCallbackUrl =
+      params.callbackUrl ||
+      (process.env.APP_URL && !process.env.APP_URL.includes('MY_APP_URL')
+        ? `${process.env.APP_URL.replace(/\/+$/, '')}/api/v1/payments/webhook`
+        : undefined);
+
     if (gateway === 'DALIPAY') {
       const dalipayConfig = settings.dalipay;
       const keyId = (dalipayConfig?.keyId || process.env.DALIPAY_KEY_ID || '').trim();
@@ -448,6 +468,19 @@ export class PaymentGatewayService {
       const dalipayAccount = formatDaliPayAccountNumber(params.phoneNumber);
 
       try {
+        const payloadBody: any = {
+          account_number: dalipayAccount,
+          amount: amount,
+          currency: 'TZS',
+          provider: dalipayProvider,
+          external_id: externalRef.slice(0, 30),
+          customer_name: owner.business_name || owner.name || 'Hotspot Owner',
+        };
+        if (resolvedCallbackUrl) {
+          payloadBody.callback_url = resolvedCallbackUrl;
+          payloadBody.webhook_url = resolvedCallbackUrl;
+        }
+
         const pushRes = await fetch(collectionsUrl, {
           method: 'POST',
           headers: {
@@ -456,14 +489,7 @@ export class PaymentGatewayService {
             'X-Secret-Key': secretKey,
             ...(keyId ? { 'X-Key-Id': keyId } : {}),
           },
-          body: JSON.stringify({
-            account_number: dalipayAccount,
-            amount: amount,
-            currency: 'TZS',
-            provider: dalipayProvider,
-            external_id: externalRef.slice(0, 30),
-            customer_name: owner.business_name || owner.name || 'Hotspot Owner',
-          }),
+          body: JSON.stringify(payloadBody),
           signal: AbortSignal.timeout(10000),
         });
 
@@ -509,14 +535,14 @@ export class PaymentGatewayService {
             amount: amount,
             reference: externalRef,
             network: provider,
-            callback_url: `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
+            callback_url: resolvedCallbackUrl || `${process.env.APP_URL || 'https://infotechwifi.com'}/api/v1/payments/webhook`,
           }),
           signal: AbortSignal.timeout(8000),
         });
 
         const pushData: any = await pushRes.json().catch(() => ({}));
         if (!pushRes.ok) throw new Error(pushData.message || 'PalmPesa push failed');
-        externalTransactionId = pushData.transaction_id || null;
+        externalTransactionId = pushData.transaction_id || pushData.order_id || null;
       } catch (err: any) {
         throw new Error(`Hitilafu ya PalmPesa: ${err.message}`);
       }
@@ -572,23 +598,37 @@ export class PaymentGatewayService {
     }
     try {
       const settings = db.getSettings();
-      const candidateSecrets = [
-        customSecret,
-        settings.dalipay?.webhookSecret,
-        process.env.DALIPAY_WEBHOOK_SECRET,
-        settings.webhookSecret,
+      const owners = db.getOwners();
+
+      // Collect all possible secrets configured in system or owners
+      const candidateSecrets = new Set<string>([
+        customSecret || '',
+        settings.dalipay?.webhookSecret || '',
+        settings.dalipay?.secretKey || '',
+        process.env.DALIPAY_WEBHOOK_SECRET || '',
+        process.env.DALIPAY_SECRET_KEY || '',
+        settings.webhookSecret || '',
         'tzwifi_secret_key_89230492',
-      ].filter(Boolean) as string[];
+      ]);
+
+      for (const o of owners) {
+        if (o.dalipay_secret_key) candidateSecrets.add(o.dalipay_secret_key);
+        if (o.dalipay_key_id) candidateSecrets.add(o.dalipay_key_id);
+        if (o.palmpesa_api_token) candidateSecrets.add(o.palmpesa_api_token);
+      }
+
+      const cleanSig = signatureHeader.replace(/^sha256=/i, '').trim();
 
       for (const secret of candidateSecrets) {
+        if (!secret) continue;
         const computedHash = crypto
           .createHmac('sha256', secret)
           .update(payloadRaw)
           .digest('hex');
 
         if (
-          computedHash.length === signatureHeader.length &&
-          crypto.timingSafeEqual(Buffer.from(computedHash, 'utf8'), Buffer.from(signatureHeader, 'utf8'))
+          computedHash.length === cleanSig.length &&
+          crypto.timingSafeEqual(Buffer.from(computedHash, 'utf8'), Buffer.from(cleanSig, 'utf8'))
         ) {
           return true;
         }
@@ -597,6 +637,225 @@ export class PaymentGatewayService {
     } catch {
       return false;
     }
+  }
+
+  // Throttling map to prevent querying external aggregators more than once every 1.5s per transaction
+  private static lastGatewayCheckMap = new Map<string, number>();
+
+  /**
+   * Actively queries the gateway (DaliPay / PalmPesa / AzamPay) to verify payment status in real-time.
+   * If the aggregator confirms SUCCESS, this immediately invokes processWebhookCallback,
+   * provisioning the voucher in MikroTik RouterOS or unlocking the Hotspot Owner's subscription!
+   */
+  static async checkTransactionStatus(reference: string): Promise<{
+    status: 'PENDING' | 'SUCCESS' | 'FAILED';
+    transaction?: TransactionRecord;
+    voucher?: VoucherRecord;
+    failureReason?: string;
+  }> {
+    const transaction = db.getTransactionByReference(reference);
+    if (!transaction) {
+      return { status: 'FAILED', failureReason: 'Transaction not found' };
+    }
+
+    if (transaction.status === 'SUCCESS') {
+      const voucher = db.getVoucherByTransactionId(transaction.id);
+      return { status: 'SUCCESS', transaction, voucher };
+    }
+
+    if (transaction.status === 'FAILED') {
+      return { status: 'FAILED', transaction, failureReason: transaction.failure_reason };
+    }
+
+    // Debounce checks per reference to avoid rate-limiting the aggregator API
+    const now = Date.now();
+    const lastCheck = this.lastGatewayCheckMap.get(reference) || 0;
+    if (now - lastCheck < 1500) {
+      return { status: 'PENDING', transaction };
+    }
+    this.lastGatewayCheckMap.set(reference, now);
+
+    try {
+      const owner = transaction.owner_id ? db.getOwnerById(transaction.owner_id) : undefined;
+      const router = transaction.router_id ? db.getRouterById(transaction.router_id) : undefined;
+      const settings = db.getSettings();
+
+      // 1. Check DaliPay Collections Status API
+      const isDaliPay =
+        transaction.gateway_provider?.includes('DALIPAY') ||
+        Boolean(transaction.vendor_merchant_id) ||
+        reference.startsWith('DALI-TEST-') ||
+        reference.startsWith('TZWF-') ||
+        reference.startsWith('SUB-');
+
+      if (isDaliPay) {
+        const dalipayKeyId = (owner?.dalipay_key_id || router?.dalipay_key_id || settings.dalipay?.keyId || process.env.DALIPAY_KEY_ID || '').trim();
+        const dalipayPublicKey = (owner?.dalipay_public_key || router?.dalipay_public_key || settings.dalipay?.publicKey || process.env.DALIPAY_PUBLIC_KEY || '').trim();
+        const dalipaySecretKey = (owner?.dalipay_secret_key || router?.dalipay_secret_key || settings.dalipay?.secretKey || process.env.DALIPAY_SECRET_KEY || '').trim();
+        const dalipayBase = (owner?.dalipay_api_endpoint || router?.dalipay_api_endpoint || settings.dalipay?.apiEndpoint || process.env.DALIPAY_ENDPOINT || 'https://app.dalipay.co.tz').trim();
+
+        if (dalipayPublicKey && dalipaySecretKey) {
+          const cleanBase = dalipayBase.replace(/\/+$/, '');
+          const uuid = transaction.transaction_id;
+
+          // Attempt check with UUID if available
+          let checkData: any = null;
+          if (uuid && !uuid.startsWith('GW-TX-') && !uuid.startsWith('MNO-')) {
+            try {
+              const statusUrl = `${cleanBase}/api/v1/collections/${uuid}/status`;
+              const statusRes = await fetch(statusUrl, {
+                method: 'GET',
+                headers: {
+                  'X-Public-Key': dalipayPublicKey,
+                  'X-Secret-Key': dalipaySecretKey,
+                  ...(dalipayKeyId ? { 'X-Key-Id': dalipayKeyId } : {}),
+                },
+                signal: AbortSignal.timeout(6000),
+              });
+              if (statusRes.ok) {
+                checkData = await statusRes.json().catch(() => null);
+              }
+            } catch (err) {
+              console.warn(`[DaliPay Status Query UUID error]:`, err);
+            }
+          }
+
+          // If no result by UUID, try querying by external_id or reference
+          if (!checkData && transaction.external_reference) {
+            try {
+              const extId = transaction.external_reference.slice(0, 30);
+              const queryUrl = `${cleanBase}/api/v1/collections?external_id=${encodeURIComponent(extId)}`;
+              const queryRes = await fetch(queryUrl, {
+                method: 'GET',
+                headers: {
+                  'X-Public-Key': dalipayPublicKey,
+                  'X-Secret-Key': dalipaySecretKey,
+                  ...(dalipayKeyId ? { 'X-Key-Id': dalipayKeyId } : {}),
+                },
+                signal: AbortSignal.timeout(6000),
+              });
+              if (queryRes.ok) {
+                const qJson: any = await queryRes.json().catch(() => null);
+                if (qJson?.data && Array.isArray(qJson.data) && qJson.data.length > 0) {
+                  checkData = { data: qJson.data[0] };
+                } else if (qJson?.data?.status) {
+                  checkData = qJson;
+                }
+              }
+            } catch (err) {
+              console.warn(`[DaliPay Status Query ExternalId error]:`, err);
+            }
+          }
+
+          if (checkData) {
+            const remoteData = checkData.data || checkData;
+            const remoteStatus = String(remoteData.status || checkData.status || '').toUpperCase();
+
+            if (
+              remoteStatus === 'SUCCESS' ||
+              remoteStatus === 'COMPLETED' ||
+              remoteStatus === 'PAID' ||
+              checkData.success === true
+            ) {
+              const result = await this.processWebhookCallback({
+                externalReference: transaction.external_reference,
+                transactionId: remoteData.uuid || remoteData.reference || uuid || `DALI-${Date.now()}`,
+                status: 'SUCCESS',
+                amount: Number(remoteData.amount || transaction.amount),
+                currency: remoteData.currency || 'TZS',
+                phoneNumber: remoteData.account_number || transaction.phone_number,
+                carrier: remoteData.provider || transaction.network_provider,
+                timestamp: new Date().toISOString(),
+                message: 'Malipo yamethibitishwa kupitia DaliPay Status API.',
+              });
+              return {
+                status: 'SUCCESS',
+                transaction: db.getTransactionByReference(reference),
+                voucher: result.voucher,
+              };
+            } else if (
+              remoteStatus === 'FAILED' ||
+              remoteStatus === 'CANCELLED' ||
+              remoteStatus === 'REJECTED' ||
+              remoteStatus === 'EXPIRED'
+            ) {
+              transaction.status = 'FAILED';
+              transaction.failure_reason = remoteData.message || 'Mteja alikataa au hakukamilisha malipo kwenye simu.';
+              transaction.updated_at = new Date().toISOString();
+              db.saveTransaction(transaction);
+              return {
+                status: 'FAILED',
+                transaction,
+                failureReason: transaction.failure_reason,
+              };
+            }
+          }
+        }
+      }
+
+      // 2. Check PalmPesa Payments Status API
+      const isPalmPesa = transaction.gateway_provider?.includes('PALMPESA');
+      if (isPalmPesa) {
+        const palmpesaApiToken = (owner?.palmpesa_api_token || router?.palmpesa_api_token || settings.palmpesa?.apiToken || process.env.PALMPESA_API_TOKEN || '').trim();
+        const palmpesaBase = settings.palmpesa?.isSandbox ? 'https://sandbox.palmpesa.com/api' : 'https://api.palmpesa.com/v1';
+        const orderId = transaction.transaction_id || transaction.external_reference;
+
+        if (palmpesaApiToken && orderId) {
+          try {
+            const ppRes = await fetch(`${palmpesaBase}/checkout/${orderId}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${palmpesaApiToken}`,
+              },
+              signal: AbortSignal.timeout(6000),
+            });
+
+            if (ppRes.ok) {
+              const ppData: any = await ppRes.json().catch(() => ({}));
+              const rawPpStatus = String(ppData.status || ppData.data?.status || '').toUpperCase();
+              if (rawPpStatus === 'COMPLETED' || rawPpStatus === 'SUCCESS') {
+                const result = await this.processWebhookCallback({
+                  externalReference: transaction.external_reference,
+                  transactionId: ppData.transaction_id || ppData.order_id || orderId,
+                  status: 'SUCCESS',
+                  amount: transaction.amount,
+                  currency: 'TZS',
+                  phoneNumber: transaction.phone_number,
+                  carrier: transaction.network_provider,
+                  timestamp: new Date().toISOString(),
+                  message: 'Malipo yamethibitishwa kupitia PalmPesa Status API.',
+                });
+                return {
+                  status: 'SUCCESS',
+                  transaction: db.getTransactionByReference(reference),
+                  voucher: result.voucher,
+                };
+              } else if (['FAILED', 'CANCELLED', 'REJECTED', 'EXPIRED'].includes(rawPpStatus)) {
+                transaction.status = 'FAILED';
+                transaction.failure_reason = ppData.message || 'Malipo ya PalmPesa yamekataliwa au yameisha muda.';
+                transaction.updated_at = new Date().toISOString();
+                db.saveTransaction(transaction);
+                return {
+                  status: 'FAILED',
+                  transaction,
+                  failureReason: transaction.failure_reason,
+                };
+              }
+            }
+          } catch (ppErr) {
+            console.warn('[PalmPesa Status Query error]:', ppErr);
+          }
+        }
+      }
+    } catch (checkErr) {
+      console.error('Error during active gateway status verification:', checkErr);
+    }
+
+    const finalStatus: 'PENDING' | 'SUCCESS' | 'FAILED' =
+      transaction.status === 'FAILED' ? 'FAILED' : 'PENDING';
+
+    return { status: finalStatus, transaction };
   }
 
   /**
@@ -656,16 +915,30 @@ export class PaymentGatewayService {
 
     // Update Transaction to SUCCESS
     transaction.status = 'SUCCESS';
-    transaction.transaction_id = transactionId;
+    if (transactionId) {
+      transaction.transaction_id = transactionId;
+    }
     transaction.updated_at = new Date().toISOString();
     db.saveTransaction(transaction);
 
-    // If this is a subscription payment (SUB-...), renew Hotspot Owner's account
-    if (externalReference.startsWith('SUB-') || (transaction.owner_id && !transaction.router_id)) {
+    const isSubscriptionTx =
+      externalReference.startsWith('SUB-') ||
+      Boolean(transaction.external_reference?.startsWith('SUB-'));
+
+    const isTestPushTx =
+      externalReference.startsWith('DALI-TEST-') ||
+      externalReference.startsWith('TEST-') ||
+      Boolean(transaction.external_reference?.startsWith('DALI-TEST-')) ||
+      Boolean(transaction.external_reference?.startsWith('TEST-'));
+
+    // 1. Subscription Renewal Flow
+    if (isSubscriptionTx) {
       if (transaction.owner_id) {
         const owner = db.getOwnerById(transaction.owner_id);
         if (owner) {
-          const currentExpiryTime = owner.subscription_expires_at ? new Date(owner.subscription_expires_at).getTime() : 0;
+          const currentExpiryTime = owner.subscription_expires_at
+            ? new Date(owner.subscription_expires_at).getTime()
+            : 0;
           const baseTime = currentExpiryTime > Date.now() ? currentExpiryTime : Date.now();
           owner.subscription_expires_at = new Date(baseTime + 30 * 86400000).toISOString();
           owner.subscription_status = 'ACTIVE';
@@ -693,11 +966,34 @@ export class PaymentGatewayService {
       };
     }
 
+    // 2. Test Push Flow
+    if (isTestPushTx) {
+      db.saveAuditLog({
+        id: Date.now() + 1,
+        transaction_id: transaction.id,
+        external_reference: externalReference,
+        event_type: 'TEST_PUSH_PAYMENT_CONFIRMED',
+        payload_json: {
+          ownerId: transaction.owner_id,
+          amount: transaction.amount,
+          mnoTransactionId: transactionId,
+          reference: externalReference,
+        },
+        created_at: new Date().toISOString(),
+      });
+
+      return {
+        success: true,
+        message: 'Test payment confirmed successfully via telecom carrier and DaliPay.',
+      };
+    }
+
+    // 3. Customer Hotspot Internet Voucher Flow (Captive Portal)
     // Retrieve Plan and Router
     const plan = db.getPlanById(transaction.plan_id);
     const router = transaction.router_id
       ? db.getRouterById(transaction.router_id)
-      : db.getRouters()[0];
+      : (db.getRouters()[0] || undefined);
 
     // Generate Voucher code & password (Distinct Phone format: e.g. PHO-7541-8920)
     const voucherCode = this.generatePhoneVoucherCode(transaction.phone_number);

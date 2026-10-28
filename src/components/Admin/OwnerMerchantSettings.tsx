@@ -101,6 +101,63 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
   const [sendingTest, setSendingTest] = useState(false);
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [activeTestRef, setActiveTestRef] = useState<string | null>(null);
+  const [testPaidStatus, setTestPaidStatus] = useState<'IDLE' | 'PENDING' | 'SUCCESS' | 'FAILED'>('IDLE');
+  const [testTxData, setTestTxData] = useState<any>(null);
+  const [checkingTestStatus, setCheckingTestStatus] = useState(false);
+
+  // Active polling to check if user has entered PIN on phone for test push
+  useEffect(() => {
+    if (!activeTestRef || testPaidStatus !== 'PENDING') return;
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/v1/payments/dalipay/test-push/status/${activeTestRef}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted) return;
+
+        if (data.isPaid || data.status === 'SUCCESS') {
+          setTestPaidStatus('SUCCESS');
+          setTestTxData(data);
+          setTestSuccess('Hongera! Malipo yamethibitishwa na mtandao!');
+        } else if (data.status === 'FAILED') {
+          setTestPaidStatus('FAILED');
+          setTestError(data.failureReason || 'Malipo hayakukamilika.');
+        }
+      } catch (err) {
+        console.error('Test push status poll error:', err);
+      }
+    }, 2500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeTestRef, testPaidStatus]);
+
+  const handleCheckTestStatusNow = async () => {
+    if (!activeTestRef) return;
+    setCheckingTestStatus(true);
+    try {
+      const res = await fetch(`/api/v1/payments/dalipay/test-push/status/${activeTestRef}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.isPaid || data.status === 'SUCCESS') {
+        setTestPaidStatus('SUCCESS');
+        setTestTxData(data);
+        setTestSuccess('Hongera! Malipo yamethibitishwa na mtandao!');
+      } else if (data.status === 'FAILED') {
+        setTestPaidStatus('FAILED');
+        setTestError(data.failureReason || 'Malipo hayakukamilika au yamekataliwa.');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCheckingTestStatus(false);
+    }
+  };
 
   // Fetch or sync owner data
   useEffect(() => {
@@ -344,15 +401,20 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success !== false) {
+        const ref = data.reference || data.transactionId;
+        setActiveTestRef(ref);
+        setTestPaidStatus('PENDING');
         setTestSuccess(
-          `✅ USSD Push Imefanikiwa Kutumwa! Ref: ${data.reference || data.transactionId || 'N/A'}. Angalia simu yako sasa kuweka PIN.`
+          `✅ USSD Push Imefanikiwa Kutumwa! Ref: ${ref || 'N/A'}. Angalia simu yako sasa kuweka PIN.`
         );
       } else {
+        setTestPaidStatus('FAILED');
         setTestError(
           `❌ Hitilafu ya Mtandao: ${data.error || data.message || 'API imekataa ombi. Hakikisha API Keys na namba ya simu ni sahihi.'}`
         );
       }
     } catch (err: any) {
+      setTestPaidStatus('FAILED');
       setTestError(`❌ Hitilafu ya Muunganisho (Network Error): ${err.message}`);
     } finally {
       setSendingTest(false);
@@ -975,7 +1037,90 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
               Jaribu kutuma ombi la USSD PIN kwenye simu yako kuthibitisha kama API Keys na Key ID ya DaliPay zinafanya kazi:
             </p>
 
-            {testSuccess && (
+            {testPaidStatus === 'PENDING' && (
+              <div className="p-4 bg-indigo-50/90 border border-indigo-200 rounded-2xl text-xs space-y-3 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping mt-1 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-indigo-950 text-xs">
+                      Ombi Limetumwa kwenye Simu ({testPhone})!
+                    </p>
+                    <p className="text-indigo-800 text-[11px] leading-relaxed">
+                      Weka sasa PIN ya {testCarrier} kwenye simu yako kuthibitisha TZS {Number(testAmount || 1000).toLocaleString()}. Mfumo unathibitisha moja kwa moja na DaliPay.
+                    </p>
+                    <p className="font-mono text-[10px] text-indigo-600">
+                      Rejea: {activeTestRef}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-indigo-100">
+                  <div className="flex items-center gap-1.5 text-[11px] text-indigo-700 font-medium">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                    <span>Inasubiri uthibitisho wa mtandao...</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCheckTestStatusNow}
+                    disabled={checkingTestStatus}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    {checkingTestStatus ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                    <span>Thibitisha Sasa</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {testPaidStatus === 'SUCCESS' && (
+              <div className="p-4 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs space-y-2.5 animate-in zoom-in shadow-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black shrink-0 shadow-sm">
+                    ✓
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm text-emerald-950">
+                      🎉 MALIPO YAMEFANIKIWA NA KUTHIBITISHWA!
+                    </h4>
+                    <p className="text-[11px] text-emerald-800">
+                      Taarifa imerudishwa kutoka mtandao wa simu kupitia DaliPay API.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white/90 rounded-xl p-2.5 font-mono text-[11px] text-slate-800 border border-emerald-200/80 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Kiasi Kilicholipwa:</span>
+                    <span className="font-bold text-emerald-700">TZS {testTxData?.amount?.toLocaleString() || Number(testAmount).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Mtandao:</span>
+                    <span className="font-bold">{testTxData?.carrier || testCarrier}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Simu:</span>
+                    <span className="font-bold">{testTxData?.phoneNumber || testPhone}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Rejea:</span>
+                    <span className="font-bold text-[10px]">{activeTestRef}</span>
+                  </div>
+                  {testTxData?.transactionId && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tx ID:</span>
+                      <span className="font-bold text-[10px] text-indigo-700">{testTxData.transactionId}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-2 rounded-lg bg-emerald-100/70 text-emerald-900 text-[11px] font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>Geti lako la DaliPay lipo tayari 100%! Wateja wa Wi-Fi na malipo ya subscription yatathibitishwa mara moja bila kuzunguka.</span>
+                </div>
+              </div>
+            )}
+
+            {testPaidStatus === 'IDLE' && testSuccess && (
               <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 text-xs font-semibold flex items-start gap-2 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>

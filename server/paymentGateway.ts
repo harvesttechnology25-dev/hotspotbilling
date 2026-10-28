@@ -750,13 +750,13 @@ export class PaymentGatewayService {
           if (checkData) {
             const remoteData = checkData.data || checkData;
             const remoteStatus = String(remoteData.status || checkData.status || '').toUpperCase();
-
-            if (
+            const isConfirmedPaid =
               remoteStatus === 'SUCCESS' ||
               remoteStatus === 'COMPLETED' ||
               remoteStatus === 'PAID' ||
-              checkData.success === true
-            ) {
+              remoteStatus === 'SUCCESSFUL';
+
+            if (isConfirmedPaid) {
               const result = await this.processWebhookCallback({
                 externalReference: transaction.external_reference,
                 transactionId: remoteData.uuid || remoteData.reference || uuid || `DALI-${Date.now()}`,

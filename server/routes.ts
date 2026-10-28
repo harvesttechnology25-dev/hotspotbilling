@@ -133,12 +133,25 @@ const handleIncomingWebhook = async (req: Request, res: Response) => {
       : String(req.body.status || req.body.result || req.body.state || '').toUpperCase();
 
     const eventName = String(req.body?.event || '').toLowerCase();
+    const isPending =
+      rawStatus === 'PENDING' ||
+      rawStatus === 'WAITING' ||
+      rawStatus === 'PROCESSING' ||
+      eventName.includes('pending') ||
+      eventName.includes('initiated');
+
     const isSuccess =
-      ['collection.success', 'charge.success', 'payment.success', 'collection.completed', 'payment.completed'].includes(eventName) ||
-      ['SUCCESS', 'COMPLETED', 'PAID', 'SUCCESSFUL', 'OK', '1'].includes(rawStatus) ||
-      req.body.success === true ||
-      req.body.status === 1 ||
-      req.body.status === '1';
+      !isPending &&
+      (['collection.success', 'charge.success', 'payment.success', 'collection.completed', 'payment.completed'].includes(eventName) ||
+       ['SUCCESS', 'COMPLETED', 'PAID', 'SUCCESSFUL'].includes(rawStatus));
+
+    if (isPending) {
+      return res.status(200).json({
+        received: true,
+        status: 'PENDING',
+        message: 'Payment prompt dispatched; waiting for subscriber PIN entry.',
+      });
+    }
 
     const extRef =
       daliData?.external_id ||

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { HotspotOwner, NetworkProvider } from '../../types/index.ts';
-import { detectCarrierFromInput, CARRIERS, formatTzs } from '../../utils/carrierInfo.ts';
+import { detectCarrierFromInput, CARRIERS, formatTzs, isInsufficientBalance } from '../../utils/carrierInfo.ts';
 import {
   CreditCard,
   CheckCircle2,
   Clock,
   ShieldCheck,
-  Zap,
   ArrowRight,
   Phone,
   RefreshCw,
@@ -19,6 +18,7 @@ import {
   ChevronRight,
   Layers,
   Building,
+  Wallet,
 } from 'lucide-react';
 
 interface SubscriptionGateProps {
@@ -59,6 +59,7 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
 
   const [confirming, setConfirming] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentFailedError, setPaymentFailedError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(60);
   const [manualChecking, setManualChecking] = useState(false);
 
@@ -71,6 +72,7 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
         const data = await res.json();
         if (data.paid && data.status === 'SUCCESS') {
           setPaymentSuccess(true);
+          setPaymentFailedError(null);
           setTimeout(() => {
             if (data.user) {
               onRenewSuccess(data.user);
@@ -82,6 +84,13 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
               });
             }
           }, 1200);
+        } else if (data.status === 'FAILED') {
+          const isNoFunds = isInsufficientBalance(data.failureReason);
+          setPaymentFailedError(
+            isNoFunds
+              ? 'Account haina salio la kutosha.'
+              : (data.failureReason || 'Malipo hayakukamilika.')
+          );
         }
       }
     } catch (err) {
@@ -132,6 +141,7 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
           if (data.paid && data.status === 'SUCCESS') {
             clearInterval(interval);
             setPaymentSuccess(true);
+            setPaymentFailedError(null);
             setTimeout(() => {
               if (data.user) {
                 onRenewSuccess(data.user);
@@ -143,6 +153,14 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
                 });
               }
             }, 1500);
+          } else if (data.status === 'FAILED') {
+            clearInterval(interval);
+            const isNoFunds = isInsufficientBalance(data.failureReason);
+            setPaymentFailedError(
+              isNoFunds
+                ? 'Account haina salio la kutosha.'
+                : (data.failureReason || 'Malipo hayakukamilika.')
+            );
           }
         }
       } catch (err) {
@@ -545,7 +563,86 @@ export const SubscriptionGate: React.FC<SubscriptionGateProps> = ({
               </div>
             </div>
 
-            {paymentSuccess ? (
+            {paymentFailedError ? (
+              /* FAILED / INSUFFICIENT BALANCE STATE */
+              <div className="py-4 text-center space-y-4 animate-in fade-in">
+                {isInsufficientBalance(paymentFailedError) ? (
+                  <>
+                    <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-inner border border-amber-200">
+                      <Wallet className="w-8 h-8 stroke-[2.2]" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <h4 className="text-lg font-black text-amber-950">
+                        {lang === 'sw' ? 'Account Haina Salio la Kutosha' : 'Insufficient Account Balance'}
+                      </h4>
+                      <p className="text-xs text-slate-700 leading-relaxed max-w-xs mx-auto">
+                        {lang === 'sw'
+                          ? `Salio kwenye akaunti yako ya simu (${phoneNumber}) halitoshi kulipia ada ya subscription ya TZS ${Number(fee).toLocaleString()}. Tafadhali weka salio kwenye simu yako kisha ujaribu tena.`
+                          : `Your mobile wallet (${phoneNumber}) does not have enough balance to pay TZS ${Number(fee).toLocaleString()} subscription. Please top up your wallet and try again.`}
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-900 font-medium text-left flex items-start gap-2">
+                      <span className="text-amber-600 font-bold shrink-0 text-sm">💡</span>
+                      <span>
+                        {lang === 'sw'
+                          ? 'Weka salio la kutosha kwenye akaunti yako ya mtandao, kisha bofya kitufe cha chini kujaribu tena.'
+                          : 'Deposit funds into your mobile money wallet, then click the button below to retry.'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentFailedError(null);
+                        handleInitiatePush();
+                      }}
+                      className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                    >
+                      {lang === 'sw' ? 'Weka Salio Kisha Jaribu Tena' : 'Top Up & Try Again'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentFailedError(null);
+                        setShowPaymentModal(false);
+                      }}
+                      className="w-full py-2 text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+                    >
+                      {lang === 'sw' ? 'Funga' : 'Close'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                      <AlertTriangle className="w-8 h-8" />
+                    </div>
+
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-900">
+                        {lang === 'sw' ? 'Malipo Hayakukamilika' : 'Payment Failed'}
+                      </h4>
+                      <p className="text-xs text-rose-600 mt-1 font-medium">
+                        {paymentFailedError}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentFailedError(null);
+                        setShowPaymentModal(false);
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition cursor-pointer"
+                    >
+                      {lang === 'sw' ? 'Jaribu Tena' : 'Close and Retry'}
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : paymentSuccess ? (
               /* Success Unlocked State */
               <div className="py-6 text-center space-y-3">
                 <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/20 animate-in zoom-in">

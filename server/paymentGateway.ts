@@ -61,6 +61,44 @@ export function getDaliPayCollectionsUrl(base: string): string {
   return `${clean}/api/v1/collections`;
 }
 
+/**
+ * Checks if raw gateway message or error code denotes insufficient account/wallet balance
+ */
+export function isInsufficientBalance(rawMessage?: string, rawCode?: string | number): boolean {
+  if (!rawMessage && !rawCode) return false;
+  const combined = `${rawMessage || ''} ${rawCode || ''}`.toLowerCase();
+  return (
+    combined.includes('insufficient') ||
+    combined.includes('salio') ||
+    combined.includes('not enough') ||
+    combined.includes('low balance') ||
+    combined.includes('low_balance') ||
+    combined.includes('not_enough') ||
+    combined.includes('haina salio') ||
+    combined.includes('hakuna salio') ||
+    combined.includes('1001') ||
+    combined.includes('1006') ||
+    (combined.includes('balance') && (combined.includes('low') || combined.includes('exceed') || combined.includes('not')))
+  );
+}
+
+/**
+ * Formats user-facing carrier failure reason consistently across STK, Captive Portal, and Subscription
+ */
+export function formatCarrierFailureReason(rawMessage?: string, rawCode?: string | number): string {
+  if (isInsufficientBalance(rawMessage, rawCode)) {
+    return 'Account haina salio la kutosha.';
+  }
+  const str = `${rawMessage || ''} ${rawCode || ''}`.toLowerCase();
+  if (str.includes('timeout') || str.includes('muda')) {
+    return 'Muda wa kusubiri malipo ya USSD umekwisha (Timeout).';
+  }
+  if (str.includes('cancel') || str.includes('kataa') || str.includes('reject')) {
+    return 'Mteja alikataa ombi la malipo kwenye simu.';
+  }
+  return rawMessage || 'Mteja hakukamilisha malipo.';
+}
+
 export class PaymentGatewayService {
   /**
    * Generates a unique external reference for carrier tracking
@@ -782,7 +820,9 @@ export class PaymentGatewayService {
               remoteStatus === 'EXPIRED'
             ) {
               transaction.status = 'FAILED';
-              transaction.failure_reason = remoteData.message || 'Mteja alikataa au hakukamilisha malipo kwenye simu.';
+              const rawMsg = remoteData.message || remoteData.desc || remoteData.failure_reason || '';
+              const rawCode = remoteData.code || remoteData.error_code || remoteData.status_code || '';
+              transaction.failure_reason = formatCarrierFailureReason(rawMsg, rawCode);
               transaction.updated_at = new Date().toISOString();
               db.saveTransaction(transaction);
               return {
@@ -835,7 +875,8 @@ export class PaymentGatewayService {
                 };
               } else if (['FAILED', 'CANCELLED', 'REJECTED', 'EXPIRED'].includes(rawPpStatus)) {
                 transaction.status = 'FAILED';
-                transaction.failure_reason = ppData.message || 'Malipo ya PalmPesa yamekataliwa au yameisha muda.';
+                const rawMsg = ppData.message || ppData.desc || '';
+                transaction.failure_reason = formatCarrierFailureReason(rawMsg, ppData.code);
                 transaction.updated_at = new Date().toISOString();
                 db.saveTransaction(transaction);
                 return {
@@ -906,12 +947,14 @@ export class PaymentGatewayService {
     // Handle FAILED callback
     if (status !== 'SUCCESS') {
       transaction.status = 'FAILED';
-      transaction.failure_reason = payload.message || 'Payment rejected or timeout by subscriber.';
+      const rawMsg = payload.message || '';
+      const rawCode = (payload as any).code || (payload as any).status_code || '';
+      transaction.failure_reason = formatCarrierFailureReason(rawMsg, rawCode);
       transaction.updated_at = new Date().toISOString();
       db.saveTransaction(transaction);
       return {
         success: false,
-        message: 'Payment was not successful.',
+        message: transaction.failure_reason,
       };
     }
 

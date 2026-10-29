@@ -418,7 +418,7 @@ apiRouter.get('/payments/status/:reference', async (req: Request, res: Response)
 
 // Sandbox / Simulation Trigger for testing USSD approval
 apiRouter.post('/payments/simulate-approval', async (req: Request, res: Response) => {
-  const { externalReference, status } = req.body;
+  const { externalReference, status = 'SUCCESS', reason, message } = req.body || {};
   if (!externalReference) {
     return res.status(400).json({ error: 'externalReference is required.' });
   }
@@ -428,16 +428,29 @@ apiRouter.post('/payments/simulate-approval', async (req: Request, res: Response
     return res.status(404).json({ error: 'Transaction not found.' });
   }
 
+  const isFailed = status === 'FAILED' || reason === 'INSUFFICIENT_FUNDS';
+  const isNoFunds =
+    reason === 'INSUFFICIENT_FUNDS' ||
+    (message && String(message).toLowerCase().includes('salio')) ||
+    (message && String(message).toLowerCase().includes('insufficient'));
+
+  let failureMsg = 'Mteja alikataa au hakukamilisha malipo kwenye simu.';
+  if (isNoFunds) {
+    failureMsg = 'Account haina salio la kutosha.';
+  } else if (message) {
+    failureMsg = String(message);
+  }
+
   const simulatedPayload: WebhookPayload = {
     externalReference,
     transactionId: `${transaction.network_provider.slice(0, 2)}${Date.now()}`,
-    status: status === 'FAILED' ? 'FAILED' : 'SUCCESS',
+    status: isFailed ? 'FAILED' : 'SUCCESS',
     amount: transaction.amount,
     currency: 'TZS',
     phoneNumber: transaction.phone_number,
     carrier: transaction.network_provider,
     timestamp: new Date().toISOString(),
-    message: status === 'FAILED' ? 'User cancelled USSD prompt' : 'Payment approved by customer',
+    message: isFailed ? failureMsg : 'Payment approved by customer',
   };
 
   const result = await PaymentGatewayService.processWebhookCallback(simulatedPayload);
@@ -3589,6 +3602,7 @@ apiRouter.get('/subscription/verify/:reference', async (req: Request, res: Respo
     externalReference: transaction.external_reference,
     transactionId: transaction.transaction_id,
     amount: transaction.amount,
+    failureReason: transaction.failure_reason,
     user: owner,
     expiresAt: owner?.subscription_expires_at,
   });
@@ -4554,7 +4568,7 @@ apiRouter.get('/routers/:id/mikrotik-login-file', (req: Request, res: Response) 
 // Transactions, Export & Analytics
 // =============================================================================
 apiRouter.get('/transactions', (req: Request, res: Response) => {
-  const { carrier, status, search, ownerId, routerId } = req.query;
+  const { carrier, status, search, ownerId, routerId, startDate, endDate } = req.query;
   let txs = db.getTransactions();
 
   if (ownerId) {
@@ -4584,6 +4598,16 @@ apiRouter.get('/transactions', (req: Request, res: Response) => {
         t.external_reference.toLowerCase().includes(q) ||
         (t.transaction_id && t.transaction_id.toLowerCase().includes(q))
     );
+  }
+
+  if (startDate) {
+    const startStr = String(startDate).slice(0, 10);
+    txs = txs.filter((t) => t.created_at && t.created_at.slice(0, 10) >= startStr);
+  }
+
+  if (endDate) {
+    const endStr = String(endDate).slice(0, 10);
+    txs = txs.filter((t) => t.created_at && t.created_at.slice(0, 10) <= endStr);
   }
 
   const plansMap = new Map(db.getPlans().map((p) => [p.id, p]));
@@ -4621,8 +4645,49 @@ apiRouter.get('/transactions', (req: Request, res: Response) => {
 });
 
 // CSV Export for transactions reconciliation
-apiRouter.get('/export/transactions/csv', (_req: Request, res: Response) => {
-  const txs = db.getTransactions();
+apiRouter.get('/export/transactions/csv', (req: Request, res: Response) => {
+  const { carrier, status, search, ownerId, routerId, startDate, endDate } = req.query;
+  let txs = db.getTransactions();
+
+  if (ownerId) {
+    const owner = db.getOwnerById(Number(ownerId));
+    if (owner && owner.role === 'HOTSPOT_OWNER') {
+      const allowed = new Set(owner.assigned_router_ids || []);
+      txs = txs.filter((t) => (t.router_id && allowed.has(t.router_id)) || t.owner_id === owner.id);
+    }
+  }
+
+  if (routerId && routerId !== 'ALL' && routerId !== 'all') {
+    const targetRouterId = Number(routerId);
+    txs = txs.filter((t) => t.router_id === targetRouterId);
+  }
+
+  if (carrier) {
+    txs = txs.filter((t) => t.network_provider === carrier);
+  }
+  if (status) {
+    txs = txs.filter((t) => t.status === status);
+  }
+  if (search) {
+    const q = String(search).toLowerCase();
+    txs = txs.filter(
+      (t) =>
+        t.phone_number.includes(q) ||
+        t.external_reference.toLowerCase().includes(q) ||
+        (t.transaction_id && t.transaction_id.toLowerCase().includes(q))
+    );
+  }
+
+  if (startDate) {
+    const startStr = String(startDate).slice(0, 10);
+    txs = txs.filter((t) => t.created_at && t.created_at.slice(0, 10) >= startStr);
+  }
+
+  if (endDate) {
+    const endStr = String(endDate).slice(0, 10);
+    txs = txs.filter((t) => t.created_at && t.created_at.slice(0, 10) <= endStr);
+  }
+
   const plansMap = new Map(db.getPlans().map((p) => [p.id, p]));
 
   let csv = 'ID,Date,Phone,Carrier,Amount (TZS),Plan,Status,External Reference,MNO Transaction ID\n';
@@ -5614,21 +5679,35 @@ apiRouter.post('/payments/simulate-approval', async (req: Request, res: Response
   }
 
   try {
-    const { externalReference, status = 'SUCCESS' } = req.body || {};
+    const { externalReference, status = 'SUCCESS', reason, message } = req.body || {};
     const tx = db.getTransactionByReference(externalReference);
     if (!tx) {
       return res.status(404).json({ success: false, error: 'Muamala haukupatikana.' });
     }
+
+    const isFailed = status === 'FAILED' || reason === 'INSUFFICIENT_FUNDS';
+    const isNoFunds =
+      reason === 'INSUFFICIENT_FUNDS' ||
+      (message && String(message).toLowerCase().includes('salio')) ||
+      (message && String(message).toLowerCase().includes('insufficient'));
+
+    let failureMsg = 'Mteja alikataa au hakukamilisha malipo kwenye simu.';
+    if (isNoFunds) {
+      failureMsg = 'Account haina salio la kutosha.';
+    } else if (message) {
+      failureMsg = String(message);
+    }
+
     const result = await PaymentGatewayService.processWebhookCallback({
       externalReference,
       transactionId: `SIM-${Date.now()}`,
-      status,
+      status: isFailed ? 'FAILED' : 'SUCCESS',
       amount: tx.amount,
       currency: 'TZS',
       phoneNumber: tx.phone_number,
       carrier: tx.network_provider,
       timestamp: new Date().toISOString(),
-      message: status === 'FAILED' ? 'Payment rejected by subscriber' : 'Transaction completed by subscriber',
+      message: isFailed ? failureMsg : 'Transaction completed by subscriber',
     });
     res.json(result);
   } catch (err: any) {

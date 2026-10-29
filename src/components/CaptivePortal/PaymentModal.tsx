@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NetworkProvider, Plan } from '../../types/index.ts';
-import { CARRIERS, formatTzs } from '../../utils/carrierInfo.ts';
+import { CARRIERS, formatTzs, isInsufficientBalance } from '../../utils/carrierInfo.ts';
 import { generateQrCodeUrl } from '../../utils/qrHelper.ts';
 import {
   Smartphone,
@@ -12,10 +12,11 @@ import {
   KeyRound,
   ExternalLink,
   ShieldCheck,
-  Zap,
   QrCode,
   Copy,
   Check,
+  AlertTriangle,
+  Wallet,
 } from 'lucide-react';
 
 interface PaymentModalProps {
@@ -55,7 +56,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   } | null>(null);
   const [hotspotUrl, setHotspotUrl] = useState<string>(linkLogin);
   const [secondsLeft, setSecondsLeft] = useState(90);
-  const [isSimulating, setIsSimulating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [showQr, setShowQr] = useState(false);
@@ -84,7 +84,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       } else if (data.status === 'FAILED') {
         setStatus('FAILED');
-        setErrorMessage(data.failureReason || 'Malipo hayakukamilika.');
+        const isNoFunds = isInsufficientBalance(data.failureReason);
+        setErrorMessage(
+          isNoFunds
+            ? 'Account haina salio la kutosha.'
+            : (data.failureReason || 'Malipo hayakukamilika.')
+        );
       }
     } catch (err) {
       console.error('Manual check payment error:', err);
@@ -125,7 +130,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           }
         } else if (data.status === 'FAILED') {
           setStatus('FAILED');
-          setErrorMessage(data.failureReason || 'Malipo hayakukamilika.');
+          const isNoFunds = isInsufficientBalance(data.failureReason);
+          setErrorMessage(
+            isNoFunds
+              ? 'Account haina salio la kutosha.'
+              : (data.failureReason || 'Malipo hayakukamilika.')
+          );
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -159,47 +169,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     return () => clearInterval(timer);
   }, [isOpen, status, lang]);
-
-  // Instant simulation or sandbox approval trigger
-  const handleSimulatePinEntered = async (outcome: 'SUCCESS' | 'FAILED' = 'SUCCESS') => {
-    setIsSimulating(true);
-    try {
-      const res = await fetch('/api/v1/payments/simulate-approval', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          externalReference,
-          status: outcome,
-        }),
-      });
-      const data = await res.json();
-      if (data.success && outcome === 'SUCCESS') {
-        setStatus('SUCCESS');
-        if (data.voucher) {
-          setVoucherData({
-            code: data.voucher.code,
-            password: data.voucher.password,
-            expiresAt: data.voucher.expires_at,
-          });
-          onPaymentSuccess(data.voucher.code, plan);
-
-          const fullLoginUrl = `${hotspotUrl}?username=${data.voucher.code}&password=${data.voucher.password || data.voucher.code}&dst=${encodeURIComponent(linkOrig)}`;
-          generateQrCodeUrl(fullLoginUrl).then(setQrCodeDataUrl);
-        }
-      } else {
-        setStatus('FAILED');
-        setErrorMessage(
-          lang === 'sw'
-            ? 'Uthibitisho wa PIN umekataliwa na mtandao.'
-            : 'PIN entry failed or was rejected.'
-        );
-      }
-    } catch {
-      // ignore
-    } finally {
-      setIsSimulating(false);
-    }
-  };
 
   const handleCopyCode = () => {
     if (!voucherData?.code) return;
@@ -460,26 +429,64 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* FAILED STATE */}
           {status === 'FAILED' && (
             <div className="text-center space-y-4 animate-in fade-in duration-300">
-              <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-                <XCircle className="w-9 h-9" />
-              </div>
+              {isInsufficientBalance(errorMessage) ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-inner border border-amber-200">
+                    <Wallet className="w-8 h-8 stroke-[2.2]" />
+                  </div>
 
-              <div>
-                <h4 className="text-lg font-bold text-slate-900">
-                  {lang === 'sw' ? 'Malipo Hayakukamilika' : 'Payment Failed'}
-                </h4>
-                <p className="text-xs text-rose-600 mt-1 font-medium">
-                  {errorMessage}
-                </p>
-              </div>
+                  <div className="space-y-1.5">
+                    <h4 className="text-lg font-black text-amber-950">
+                      {lang === 'sw' ? 'Account Haina Salio la Kutosha' : 'Insufficient Account Balance'}
+                    </h4>
+                    <p className="text-xs text-slate-700 leading-relaxed max-w-xs mx-auto">
+                      {lang === 'sw'
+                        ? `Salio kwenye akaunti yako ya ${carrierInfo.name} (${phoneNumber}) halitoshi kukamilisha malipo ya ${plan.name.split('(')[0]} (${formatTzs(plan.price)}). Tafadhali weka salio kwenye simu yako kisha ujaribu tena.`
+                        : `Your ${carrierInfo.name} account (${phoneNumber}) does not have enough balance to pay ${formatTzs(plan.price)}. Please top up your wallet and try again.`}
+                    </p>
+                  </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition"
-              >
-                {lang === 'sw' ? 'Jaribu Tena' : 'Close and Retry'}
-              </button>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] text-amber-900 font-medium text-left flex items-start gap-2">
+                    <span className="text-amber-600 font-bold shrink-0 text-sm">💡</span>
+                    <span>
+                      {lang === 'sw'
+                        ? 'Weka salio la kutosha kwenye akaunti yako ya mtandao, kisha bofya kitufe cha chini kuanzisha tena malipo.'
+                        : 'Deposit funds into your mobile money wallet, then click the button below to restart payment.'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    {lang === 'sw' ? 'Weka Salio Kisha Jaribu Tena' : 'Top Up & Try Again'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                    <XCircle className="w-9 h-9" />
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-900">
+                      {lang === 'sw' ? 'Malipo Hayakukamilika' : 'Payment Failed'}
+                    </h4>
+                    <p className="text-xs text-rose-600 mt-1 font-medium">
+                      {errorMessage}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition cursor-pointer"
+                  >
+                    {lang === 'sw' ? 'Jaribu Tena' : 'Close and Retry'}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

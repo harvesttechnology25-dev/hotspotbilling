@@ -92,3 +92,22 @@ export function formatSecondsToTime(seconds: number): string {
   if (m > 0 || parts.length === 0) parts.push(`${m}m`);
   return parts.join(' ');
 }
+
+export function isInsufficientBalance(msg?: string, code?: string | number): boolean {
+  if (!msg && !code) return false;
+  const combined = `${msg || ''} ${code || ''}`.toLowerCase();
+  return (
+    combined.includes('insufficient') ||
+    combined.includes('salio') ||
+    combined.includes('not enough') ||
+    combined.includes('low balance') ||
+    combined.includes('low_balance') ||
+    combined.includes('not_enough') ||
+    combined.includes('haina salio') ||
+    combined.includes('hakuna salio') ||
+    combined.includes('1001') ||
+    combined.includes('1006') ||
+    (combined.includes('balance') && (combined.includes('low') || combined.includes('exceed') || combined.includes('not')))
+  );
+}
+

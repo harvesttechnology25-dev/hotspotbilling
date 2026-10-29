@@ -83,16 +83,13 @@ pm2 status
 pm2 logs tz-wifi-billing
 ```
 
-### 1.7 Jinsi ya Kusasisha Mfumo Unapofanya Mabadiliko GitHub (CI/CD Updates)
-Kila ukifanya maboresho au kubadilisha msimbo na ku-push GitHub, unaingia tu kwenye VPS na kupiga:
+### 1.7 Jinsi ya Kusasisha Mfumo Bila Kupoteza Data Zako (Zero-Data-Loss Updates)
+Kila ukifanya maboresho au kubadilisha msimbo na ku-push GitHub, unaingia tu kwenye VPS na kuendesha amri hii moja:
 ```bash
 cd /var/www/tz-wifi-billing
-git pull origin main
-npm install
-npm run build
-pm2 restart tz-wifi-billing
+sudo bash update.sh
 ```
-*Mchakato huu unachukua chini ya sekunde 15 na hauathiri wateja wanaotumia intaneti!*
+*Script hii inalinda data zako zote kwa 100%: inatengeneza backup ya database.json, .env na MySQL kabla ya kuvuta kodi kutoka GitHub, kisha inajenga build na kurestart PM2 bila kupoteza data yoyote!*
 
 ### 1.8 Njia Mbadala: 1-Line Quick Deploy Script
 Kama hutaki kuandika amri moja baada ya nyingine, ukiwa ndani ya VPS unaweza kuendesha amri hii moja:

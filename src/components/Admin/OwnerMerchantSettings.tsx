@@ -23,8 +23,10 @@ import {
   Globe,
   Terminal,
   Lock,
+  Wallet,
 } from 'lucide-react';
 import { HotspotOwner, NetworkProvider } from '../../types/index.ts';
+import { isInsufficientBalance } from '../../utils/carrierInfo.ts';
 
 export interface OwnerMerchantSettingsProps {
   owner?: HotspotOwner | null;
@@ -124,7 +126,12 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
           setTestSuccess('Hongera! Malipo yamethibitishwa na mtandao!');
         } else if (data.status === 'FAILED') {
           setTestPaidStatus('FAILED');
-          setTestError(data.failureReason || 'Malipo hayakukamilika.');
+          const isNoFunds = isInsufficientBalance(data.failureReason);
+          setTestError(
+            isNoFunds
+              ? 'Account haina salio la kutosha.'
+              : (data.failureReason || 'Malipo hayakukamilika.')
+          );
         }
       } catch (err) {
         console.error('Test push status poll error:', err);
@@ -150,10 +157,43 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
         setTestSuccess('Hongera! Malipo yamethibitishwa na mtandao!');
       } else if (data.status === 'FAILED') {
         setTestPaidStatus('FAILED');
-        setTestError(data.failureReason || 'Malipo hayakukamilika au yamekataliwa.');
+        const isNoFunds = isInsufficientBalance(data.failureReason);
+        setTestError(
+          isNoFunds
+            ? 'Account haina salio la kutosha.'
+            : (data.failureReason || 'Malipo hayakukamilika au yamekataliwa.')
+        );
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setCheckingTestStatus(false);
+    }
+  };
+
+  const handleSimulateTestPushOutcome = async (outcome: 'SUCCESS' | 'INSUFFICIENT_FUNDS') => {
+    if (!activeTestRef) return;
+    setCheckingTestStatus(true);
+    try {
+      const res = await fetch('/api/v1/payments/simulate-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          externalReference: activeTestRef,
+          status: outcome === 'SUCCESS' ? 'SUCCESS' : 'FAILED',
+          reason: outcome === 'INSUFFICIENT_FUNDS' ? 'INSUFFICIENT_FUNDS' : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (outcome === 'SUCCESS') {
+        setTestPaidStatus('SUCCESS');
+        setTestSuccess('Hongera! Malipo yamethibitishwa na mtandao!');
+      } else {
+        setTestPaidStatus('FAILED');
+        setTestError('Account haina salio la kutosha.');
+      }
+    } catch (err) {
+      console.error('Simulate test error:', err);
     } finally {
       setCheckingTestStatus(false);
     }
@@ -1054,20 +1094,41 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-indigo-100">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-indigo-100">
                   <div className="flex items-center gap-1.5 text-[11px] text-indigo-700 font-medium">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
                     <span>Inasubiri uthibitisho wa mtandao...</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCheckTestStatusNow}
-                    disabled={checkingTestStatus}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-xs flex items-center gap-1 cursor-pointer"
-                  >
-                    {checkingTestStatus ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
-                    <span>Thibitisha Sasa</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleSimulateTestPushOutcome('INSUFFICIENT_FUNDS')}
+                      disabled={checkingTestStatus}
+                      className="px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition"
+                      title="Jaribu mwonekano wa akaunti isiyo na salio"
+                    >
+                      <Wallet className="w-3 h-3 text-amber-600" />
+                      <span>Jaribu: Salio Halitoshi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSimulateTestPushOutcome('SUCCESS')}
+                      disabled={checkingTestStatus}
+                      className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Simulate Success</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCheckTestStatusNow}
+                      disabled={checkingTestStatus}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] shadow-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      {checkingTestStatus ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                      <span>Thibitisha Sasa</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1131,11 +1192,37 @@ export const OwnerMerchantSettings: React.FC<OwnerMerchantSettingsProps> = ({
             )}
 
             {testError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 text-xs font-semibold flex items-start gap-2 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-rose-950">Hitilafu Imegundulika (STK Error Alert):</p>
-                  <p className="mt-0.5 text-rose-800 font-mono text-[11px] break-all">{testError}</p>
+              <div
+                className={`p-4 rounded-2xl text-xs font-semibold flex items-start gap-3 animate-in fade-in ${
+                  isInsufficientBalance(testError)
+                    ? 'bg-amber-50 border-2 border-amber-300 text-amber-950'
+                    : 'bg-rose-50 border border-rose-200 text-rose-900'
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold ${
+                    isInsufficientBalance(testError)
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'bg-rose-100 text-rose-600'
+                  }`}
+                >
+                  {isInsufficientBalance(testError) ? (
+                    <Wallet className="w-4 h-4" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <p className="font-bold text-sm">
+                    {isInsufficientBalance(testError)
+                      ? 'ACCOUNT HAINA SALIO LA KUTOSHA'
+                      : 'Hitilafu Imegundulika (STK Error Alert):'}
+                  </p>
+                  <p className="text-xs leading-relaxed font-medium">
+                    {isInsufficientBalance(testError)
+                      ? 'Account haina salio la kutosha kukamilisha muamala huu wa majaribio. Tafadhali weka salio kwenye namba ya simu au jaribu namba yenye salio la kutosha.'
+                      : testError}
+                  </p>
                 </div>
               </div>
             )}

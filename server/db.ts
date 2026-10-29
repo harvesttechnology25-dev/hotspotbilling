@@ -409,9 +409,71 @@ class PersistentDatabase {
         this.saveToDisk();
       }
     } catch (err) {
-      console.error('Failed to load database from disk, using defaults:', err);
-      this.seedDefaults();
+      console.error('Failed to load database from disk, checking backups directory for valid database snapshot...', err);
+      const restored = this.tryRestoreFromLatestBackup();
+      if (!restored) {
+        console.error('No valid backup found, seeding defaults...');
+        this.seedDefaults();
+      }
     }
+  }
+
+  private tryRestoreFromLatestBackup(): boolean {
+    try {
+      const candidates: string[] = [];
+      const backupsRoot = path.resolve(process.cwd(), 'backups');
+      if (fs.existsSync(backupsRoot)) {
+        const entries = fs.readdirSync(backupsRoot).sort().reverse();
+        for (const entry of entries) {
+          const p1 = path.join(backupsRoot, entry, 'data', 'database.json');
+          const p2 = path.join(backupsRoot, entry, 'database.json');
+          if (fs.existsSync(p1)) candidates.push(p1);
+          if (fs.existsSync(p2)) candidates.push(p2);
+        }
+      }
+      const varBackups = '/var/backups/tzwifi';
+      if (fs.existsSync(varBackups)) {
+        const entries = fs.readdirSync(varBackups).sort().reverse();
+        for (const entry of entries) {
+          const p1 = path.join(varBackups, entry, 'data', 'database.json');
+          const p2 = path.join(varBackups, entry, 'database.json');
+          if (fs.existsSync(p1)) candidates.push(p1);
+          if (fs.existsSync(p2)) candidates.push(p2);
+        }
+      }
+
+      for (const candidate of candidates) {
+        try {
+          const raw = fs.readFileSync(candidate, 'utf8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.owners) && parsed.owners.length > 0) {
+            console.log(`[Auto-Recovery] Successfully recovered database from backup: ${candidate}`);
+            fs.writeFileSync(DB_FILE, raw, 'utf8');
+            this.owners = parsed.owners || [];
+            this.routers = parsed.routers || [];
+            this.plans = parsed.plans || [];
+            this.transactions = parsed.transactions || [];
+            this.vouchers = parsed.vouchers || [];
+            this.voucherBatches = parsed.voucherBatches || [];
+            this.radcheck = parsed.radcheck || [];
+            this.radreply = parsed.radreply || [];
+            this.nasList = parsed.nasList || [];
+            this.auditLogs = parsed.auditLogs || [];
+            this.freeTrialClaims = parsed.freeTrialClaims || [];
+            this.manualSubRequests = parsed.manualSubRequests || [];
+            this.freeTrialConfig = { ...DEFAULT_FREE_TRIAL_CONFIG, ...(parsed.freeTrialConfig || {}) };
+            this.companyInfo = { ...DEFAULT_COMPANY_INFO, ...(parsed.companyInfo || {}) };
+            this.settings = { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) };
+            return true;
+          }
+        } catch {
+          // try next candidate
+        }
+      }
+    } catch (e) {
+      console.error('[Auto-Recovery] Error searching for backups:', e);
+    }
+    return false;
   }
 
   private saveToDisk() {

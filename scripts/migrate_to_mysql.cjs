@@ -66,8 +66,41 @@ async function runMigration() {
       return;
     }
 
-    const jsonRaw = fs.readFileSync(DB_FILE, 'utf8');
-    const data = JSON.parse(jsonRaw);
+    let data;
+    try {
+      const jsonRaw = fs.readFileSync(DB_FILE, 'utf8');
+      data = JSON.parse(jsonRaw);
+    } catch (parseErr) {
+      console.warn('⚠️ Onyo: data/database.json ina hitilafu ya sintaksia (conflict markers). Inatafuta backup safi kwenye backups/...');
+      const backupsRoot = path.resolve(process.cwd(), 'backups');
+      let recovered = false;
+      if (fs.existsSync(backupsRoot)) {
+        const dirs = fs.readdirSync(backupsRoot).sort().reverse();
+        for (const d of dirs) {
+          const cand = path.join(backupsRoot, d, 'data', 'database.json');
+          const cand2 = path.join(backupsRoot, d, 'database.json');
+          const chosen = fs.existsSync(cand) ? cand : (fs.existsSync(cand2) ? cand2 : null);
+          if (chosen) {
+            try {
+              const testRaw = fs.readFileSync(chosen, 'utf8');
+              const parsedTest = JSON.parse(testRaw);
+              if (parsedTest.owners) {
+                data = parsedTest;
+                fs.writeFileSync(DB_FILE, testRaw, 'utf8');
+                console.log(`✓ Data imerejeshwa kikamilifu kutoka kwenye backup safi: ${chosen}`);
+                recovered = true;
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+      if (!recovered) {
+        console.error('✗ Hakuna backup safi iliyopatikana. Migration ya data imerukwa ili kulinda data za MySQL.');
+        await connection.end();
+        return;
+      }
+    }
 
     console.log('\n--- Migrating Data from database.json into MySQL ---');
 

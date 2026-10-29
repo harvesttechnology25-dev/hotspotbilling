@@ -94,12 +94,16 @@ npm run build
 # 6. Sanidi na Tengeneza Table zote za MySQL (Auto Database Migration)
 echo ""
 echo -e "${YELLOW}🗄️ 4/6: Inakagua na kutengeneza Jedwali (Tables) zote za MySQL...${NC}"
-if [ -f "$PROJECT_DIR/scripts/migrate_to_mysql.js" ]; then
+if [ -f "$PROJECT_DIR/scripts/migrate_to_mysql.cjs" ]; then
+  node "$PROJECT_DIR/scripts/migrate_to_mysql.cjs" || {
+    echo -e "${YELLOW}⚠️ Migration script iliripoti onyo, mfumo unaendelea na JSON/Database fallback salama.${NC}"
+  }
+elif [ -f "$PROJECT_DIR/scripts/migrate_to_mysql.js" ]; then
   node "$PROJECT_DIR/scripts/migrate_to_mysql.js" || {
     echo -e "${YELLOW}⚠️ Migration script iliripoti onyo, mfumo unaendelea na JSON/Database fallback salama.${NC}"
   }
 else
-  echo -e "${YELLOW}ℹ️ scripts/migrate_to_mysql.js haikupatikana, database ipo salama.${NC}"
+  echo -e "${YELLOW}ℹ️ scripts/migrate_to_mysql.cjs haikupatikana, database ipo salama.${NC}"
 fi
 
 # 7. Washa Upya Huduma ya PM2 (Zero-Downtime Reload)

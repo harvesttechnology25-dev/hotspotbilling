@@ -30,6 +30,7 @@ const DB_FILE = path.join(DATA_DIR, 'database.json');
 
 const DEFAULT_SETTINGS: GatewaySettings = {
   activeGateway: 'PALMPESA',
+  subscriptionMonthlyFee: 15000,
   webhookSecret: process.env.AZAMPAY_WEBHOOK_SECRET || 'tzwifi_secret_key_89230492',
   palmpesa: {
     userRef: process.env.PALMPESA_USER_REF || '',

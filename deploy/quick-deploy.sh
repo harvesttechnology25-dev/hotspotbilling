@@ -48,10 +48,12 @@ if command -v node >/dev/null 2>&1 && [ -f scripts/migrate_to_mysql.js ]; then
   node scripts/migrate_to_mysql.js || echo "⚠️ MySQL migration notice (Mfumo utaendelea na faili la database)"
 fi
 
-# 5. Fungua port 80 na 3000 kwenye firewall
+# 5. Fungua port 80, 3000 na 29810 (Omada AP Inform) kwenye firewall
 if command -v ufw >/dev/null 2>&1; then
   ufw allow 80/tcp >/dev/null 2>&1 || true
   ufw allow 3000/tcp >/dev/null 2>&1 || true
+  ufw allow 29810/tcp >/dev/null 2>&1 || true
+  ufw allow 29810/udp >/dev/null 2>&1 || true
 fi
 
 # 6. Washa mfumo kwa PM2

@@ -51,6 +51,8 @@ export interface Transaction {
   created_at: string;
   updated_at: string;
   plan?: Plan;
+  is_subscription?: boolean;
+  plan_name?: string;
 }
 
 export interface Voucher {
@@ -400,6 +402,7 @@ export interface GatewaySettings {
   activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX' | 'LIVE_SANDBOX';
   subscriptionGateway?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'ACTIVE_DEFAULT';
   subscriptionAggregatorAccount?: string;
+  subscriptionMonthlyFee?: number;
   webhookSecret: string;
   palmpesa?: PalmPesaConfig;
   dalipay?: DaliPayConfig;

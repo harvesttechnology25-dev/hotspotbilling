@@ -36,7 +36,7 @@ export class ScriptGeneratorService {
    * disables FastTrack (essential for hotspot queue counters), and configures RADIUS client with CoA.
    */
   static generateVpnScript(router: RouterRecord, params?: Partial<VpnConfigParams>): string {
-    const serverHost = params?.serverHost || process.env.APP_URL?.replace(/^https?:\/\//, '') || '167.99.120.45';
+    const serverHost = params?.serverHost || process.env.VPS_IP || process.env.APP_URL?.replace(/^https?:\/\//, '') || '13.140.173.98';
     const vpnPort = params?.vpnPort || 1195;
     const assignedIp = params?.assignedIp || router.vpn_assigned_ip || '100.108.0.2';
     const radiusIp = params?.radiusIp || '100.108.0.1';
@@ -444,9 +444,9 @@ ${pppoe}
   /**
    * 5. Ruijie Reyee Cloud AP & Gateway Configuration Guide and Parameters
    */
-  static generateRuijieConfig(router: RouterRecord, baseUrl = 'https://wifi.infotech.co.tz') {
+  static generateRuijieConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
     const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=ruijie`;
-    const radiusIp = '167.99.120.45';
+    const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const radiusSecret = router.radius_secret || 'radius_secret_2026';
 
     const walledGardenDomains = [
@@ -499,9 +499,9 @@ ${pppoe}
   /**
    * 6. TP-Link Omada Controller / Standalone EAP Configuration
    */
-  static generateOmadaConfig(router: RouterRecord, baseUrl = 'https://wifi.infotech.co.tz') {
+  static generateOmadaConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
     const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=omada`;
-    const radiusIp = '167.99.120.45';
+    const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const radiusSecret = router.radius_secret || 'radius_secret_2026';
 
     const walledGardenDomains = [
@@ -547,9 +547,9 @@ ${pppoe}
   /**
    * 7. Cudy & OpenWrt (CoovaChilli) Configuration File & Shell Script
    */
-  static generateOpenWrtChilliConfig(router: RouterRecord, baseUrl = 'https://wifi.infotech.co.tz') {
+  static generateOpenWrtChilliConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
     const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=coovachilli`;
-    const radiusIp = '167.99.120.45';
+    const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const radiusSecret = router.radius_secret || 'radius_secret_2026';
 
     const chilliConf = `# ==============================================================================
@@ -634,9 +634,9 @@ echo ">>> Hotspot is ACTIVE! Test by connecting a client to WiFi."
    * 8. TP-Link Pharos CPE Series Configuration & Hotspot Bridge Guide
    * Supports CPE210, CPE220 (2.4GHz Hotspot AP), CPE510, CPE610, CPE710 (5GHz PtP/PtMP Bridge)
    */
-  static generatePharosCpeConfig(router: RouterRecord, baseUrl = 'https://wifi.infotech.co.tz') {
+  static generatePharosCpeConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
     const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=tplink_cpe`;
-    const radiusIp = '167.99.120.45';
+    const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const cpeModel = router.model_name || 'TP-Link Pharos CPE210 (2.4GHz 9dBi Outdoor AP)';
     const ssid = router.ssid || `${(router.brand_name || 'HOTSPOT').replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}-WIFI`;
 

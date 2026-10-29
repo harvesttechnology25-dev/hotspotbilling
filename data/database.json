@@ -79,7 +79,7 @@
       "api_password_hash": "adminPassword123",
       "ap_username": "admin",
       "ap_password": "adminPassword123",
-      "inform_url": "http://167.99.120.45:29810/inform",
+      "inform_url": "http://13.140.173.98:29810/inform",
       "brand_name": "TZ-WiFi Hotspot",
       "ssid": "KARIAKOO-FREE-WIFI",
       "hotspot_server_name": "omada-portal",
@@ -98,7 +98,12 @@
       "is_custom_model": false,
       "created_at": "2026-10-26T11:54:38.888Z",
       "updated_at": "2026-10-26T11:54:46.789Z",
-      "owner_name": "Kelvin Mrema (Vendor HQ) (TZ-WiFi Cloud Vendor Platform)"
+      "owner_name": "Kelvin Mrema (Vendor HQ) (TZ-WiFi Cloud Vendor Platform)",
+      "vpn_assigned_ip": "100.108.0.6",
+      "vendor_name": "PalmPesa",
+      "vendor_merchant_id": "PP-MERCHANT-10001",
+      "platform_commission_percent": 5,
+      "payout_channel": "PALMPESA"
     }
   ],
   "plans": [],
@@ -229,7 +234,7 @@
         "macAddress": "50:D4:F7:2B:8C:1A",
         "modelName": "TP-Link Omada EAP610 (Wi-Fi 6 AX1800)",
         "ssid": "KARIAKOO-FREE-WIFI",
-        "informUrl": "http://167.99.120.45:29810/inform",
+        "informUrl": "http://13.140.173.98:29810/inform",
         "apUsername": "admin",
         "adoptedAt": "2026-10-26T11:54:38.888Z"
       },

@@ -23,6 +23,9 @@ import {
   Terminal,
   Send,
   Zap,
+  Eye,
+  EyeOff,
+  Key,
 } from 'lucide-react';
 import { RouterItem } from '../../types/index.ts';
 
@@ -39,14 +42,18 @@ interface OmadaAdoptionModalProps {
 
 const OMADA_MODELS = [
   // TP-Link Omada EAP Series
-  { model: 'EAP610', name: 'TP-Link Omada EAP610 (Wi-Fi 6 AX1800 Ceiling Mount)', category: 'OMADA_EAP', type: 'Wi-Fi 6' },
+  { model: 'EAP110', name: 'TP-Link Omada EAP110 (300Mbps Wireless N Ceiling Mount AP)', category: 'OMADA_EAP', type: 'Ceiling' },
+  { model: 'EAP110-Outdoor', name: 'TP-Link Omada EAP110-Outdoor (300Mbps High-Power Long Range Outdoor)', category: 'OMADA_EAP', type: 'Outdoor' },
   { model: 'EAP225', name: 'TP-Link Omada EAP225 (AC1350 Dual-Band Gigabit)', category: 'OMADA_EAP', type: 'AC Wave 2' },
+  { model: 'EAP225-Outdoor', name: 'TP-Link Omada EAP225-Outdoor (AC1200 Gigabit Waterproof)', category: 'OMADA_EAP', type: 'Outdoor' },
+  { model: 'EAP610', name: 'TP-Link Omada EAP610 (Wi-Fi 6 AX1800 Ceiling Mount)', category: 'OMADA_EAP', type: 'Wi-Fi 6' },
+  { model: 'EAP610-Outdoor', name: 'TP-Link Omada EAP610-Outdoor (AX1800 Wi-Fi 6 Outdoor AP)', category: 'OMADA_EAP', type: 'Outdoor' },
   { model: 'EAP245', name: 'TP-Link Omada EAP245 (AC1750 High-Performance)', category: 'OMADA_EAP', type: 'AC Wave 2' },
   { model: 'EAP650', name: 'TP-Link Omada EAP650 (Ultra-Slim AX3000 Wi-Fi 6)', category: 'OMADA_EAP', type: 'Wi-Fi 6' },
-  { model: 'EAP110-Outdoor', name: 'TP-Link Omada EAP110-Outdoor (300Mbps High-Power Long Range)', category: 'OMADA_EAP', type: 'Outdoor' },
-  { model: 'EAP225-Outdoor', name: 'TP-Link Omada EAP225-Outdoor (AC1200 Gigabit Waterproof)', category: 'OMADA_EAP', type: 'Outdoor' },
   { model: 'EAP670', name: 'TP-Link Omada EAP670 (AX5400 Ultra-Speed Wi-Fi 6)', category: 'OMADA_EAP', type: 'Wi-Fi 6' },
   { model: 'EAP620-HD', name: 'TP-Link Omada EAP620 HD (High-Density AX1800)', category: 'OMADA_EAP', type: 'Wi-Fi 6' },
+  { model: 'EAP115', name: 'TP-Link Omada EAP115 (300Mbps Wireless N Ceiling Mount AP)', category: 'OMADA_EAP', type: 'Ceiling' },
+  { model: 'EAP115-Wall', name: 'TP-Link Omada EAP115-Wall (300Mbps In-Wall Access Point)', category: 'OMADA_EAP', type: 'In-Wall' },
   
   // TP-Link Pharos CPE Series (Outdoor Long Range Hotspot / Sector & Bridge)
   { model: 'CPE210', name: 'TP-Link Pharos CPE210 (2.4GHz 300Mbps 9dBi Outdoor AP / CPE)', category: 'PHAROS_CPE', type: '2.4GHz Hotspot/CPE' },
@@ -73,6 +80,11 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   // Wizard steps: 0 (Live Tester) -> 1 (AP Info & MAC) -> 2 (Inform URL) -> 3 (SSID & Device Auth) -> 4 (Adoption Execution & Verification)
   const [activeStep, setActiveStep] = useState<number>(initialStep);
 
+  const generateNewPassword = () => {
+    const randDigits = Math.floor(1000 + Math.random() * 9000);
+    return `Omada@${randDigits}!Tz`;
+  };
+
   useEffect(() => {
     if (isOpen && initialStep !== undefined) {
       setActiveStep(initialStep);
@@ -87,12 +99,19 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   const [location, setLocation] = useState('Dar es Salaam, Kariakoo');
   const [brandName, setBrandName] = useState(ownerName || 'Kariakoo Fast Wi-Fi');
   const [ssid, setSsid] = useState('');
-  const [apUsername, setApUsername] = useState('admin');
-  const [apPassword, setApPassword] = useState('');
 
-  // Inform parameters from server
-  const [informUrl, setInformUrl] = useState('http://167.99.120.45:29810/inform');
-  const [vpsIp, setVpsIp] = useState('167.99.120.45');
+  // Auto-generated credentials for AP device account
+  const [apUsername, setApUsername] = useState('admin');
+  const [apPassword, setApPassword] = useState(() => 'Omada@' + Math.floor(1000 + Math.random() * 9000) + '!Tz');
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedUsername, setCopiedUsername] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+  const [copiedDomainInform, setCopiedDomainInform] = useState(false);
+
+  // Inform parameters from server (default to user's VPS: 13.140.173.98 & site: https://infotechwifi.com)
+  const [informUrl, setInformUrl] = useState('http://13.140.173.98:29810/inform');
+  const [vpsIp, setVpsIp] = useState('13.140.173.98');
+  const [domainInformUrl, setDomainInformUrl] = useState('https://infotechwifi.com/inform');
   const [copiedInform, setCopiedInform] = useState(false);
   const [copiedIp, setCopiedIp] = useState(false);
 
@@ -101,6 +120,24 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   const [adoptionProgressStep, setAdoptionProgressStep] = useState<number>(0);
   const [adoptionResult, setAdoptionResult] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const handleRegeneratePassword = () => {
+    const newPass = generateNewPassword();
+    setApPassword(newPass);
+    setCopiedPassword(false);
+  };
+
+  const handleCopyUsername = () => {
+    navigator.clipboard.writeText(apUsername || 'admin');
+    setCopiedUsername(true);
+    setTimeout(() => setCopiedUsername(false), 2500);
+  };
+
+  const handleCopyPassword = () => {
+    navigator.clipboard.writeText(apPassword);
+    setCopiedPassword(true);
+    setTimeout(() => setCopiedPassword(false), 2500);
+  };
 
   // Populate from existing router if editing or checking adoption
   useEffect(() => {
@@ -126,7 +163,11 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       setBrandName(existingRouter.brand_name || ownerName || 'Kariakoo Fast Wi-Fi');
       setSsid(existingRouter.ssid || '');
       setApUsername(existingRouter.ap_username || 'admin');
-      setApPassword(existingRouter.ap_password || '');
+      if (existingRouter.ap_password) {
+        setApPassword(existingRouter.ap_password);
+      } else {
+        setApPassword(generateNewPassword());
+      }
       if (existingRouter.inform_url) setInformUrl(existingRouter.inform_url);
       if (existingRouter.adoption_status === 'ADOPTED') {
         setActiveStep(4);
@@ -134,10 +175,12 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
     } else {
       const defaultBrand = ownerName || 'Kariakoo Fast Wi-Fi';
       setBrandName(defaultBrand);
-      setApName('Omada-EAP610-Kariakoo');
+      setApName('Omada-EAP110-Kariakoo');
       setSsid(`${defaultBrand.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10)}-WIFI`);
       setIsCustomModel(false);
       setCustomModelText('');
+      setApUsername('admin');
+      setApPassword(generateNewPassword());
     }
   }, [existingRouter, ownerName]);
 
@@ -177,6 +220,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         .then((data) => {
           if (data.informUrl) setInformUrl(data.informUrl);
           if (data.vpsIp) setVpsIp(data.vpsIp);
+          if (data.domainInformUrl) setDomainInformUrl(data.domainInformUrl);
         })
         .catch((err) => console.error('Failed to fetch Omada inform info:', err));
 
@@ -839,24 +883,33 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                     <label className="text-xs font-black text-slate-900 block">
                       MAC Address ya AP <span className="text-rose-500">*</span>
                     </label>
-                    <span className="text-[10px] text-teal-800 font-mono font-bold">
-                      Format: XX:XX:XX:XX:XX:XX
+                    <span className="text-[10px] text-teal-800 font-mono font-bold bg-teal-100 px-2 py-0.5 rounded-md">
+                      Format: &quot;-&quot; au &quot;:&quot; zote zinakubaliwa
                     </span>
                   </div>
                   <input
                     type="text"
                     required
-                    maxLength={17}
+                    maxLength={18}
                     value={macAddress}
                     onChange={(e) => formatMacInput(e.target.value)}
-                    placeholder="50:D4:F7:2B:8C:1A"
+                    placeholder="D4-F7-2B-8C-1A au 50:D4:F7:2B:8C:1A"
                     className="w-full px-4 py-3 text-sm font-mono font-bold rounded-xl border border-teal-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-inner"
                   />
-                  <div className="flex items-center gap-2 text-[11px] text-slate-600">
-                    <span>💡 Mfano: Angalia kibandiko kilicho chini ya AP kinachoandikwa</span>
-                    <code className="bg-white px-1.5 py-0.5 rounded border border-teal-200 font-bold text-teal-800">
-                      MAC: 50-D4-F7-2B-8C-1A
-                    </code>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600 flex-wrap">
+                    <span className="flex items-center gap-1 text-emerald-800 font-medium">
+                      <span>✓ Hakuna tatizo ukitumia alama ya kistari (<strong>50-D4-F7-2B-8C-1A</strong> au <strong>D4-F7-2B-8C-1A</strong>) — mfumo unazipokea na kuzisawazisha automatiki!</span>
+                    </span>
+                    {macAddress && (
+                      <div className="flex items-center gap-2 font-mono text-[10px]">
+                        <span className="bg-white text-slate-700 px-1.5 py-0.5 rounded border border-teal-200">
+                          Kistari: {macAddress.replace(/:/g, '-')}
+                        </span>
+                        <span className="bg-teal-100 text-teal-900 px-1.5 py-0.5 rounded border border-teal-300 font-bold">
+                          Standard: {macAddress}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1055,52 +1108,100 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   </h3>
                   <p className="text-xs text-slate-500">
                     {lang === 'sw'
-                      ? 'Nenda kwenye AP ya TP-Link Omada na uweke anwani ya VPS yetu ili AP ijitambulishe kwenye mfumo.'
-                      : 'Go to your Omada AP settings and enter the controller inform URL to point it to our cloud server.'}
+                      ? 'Nenda kwenye AP ya TP-Link Omada (EAP110) na uweke anwani ya VPS yako (13.140.173.98) ili AP ijitambulishe.'
+                      : 'Configure the controller inform URL on your Omada AP (13.140.173.98) so it communicates with the server.'}
                   </p>
                 </div>
-                <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-bold border border-indigo-200">
-                  Discovery & Heartbeat
+                <span className="px-2.5 py-1 rounded-lg bg-teal-50 text-teal-800 text-[11px] font-bold border border-teal-200">
+                  VPS: 13.140.173.98
                 </span>
               </div>
 
-              {/* Inform URL Highlight Box */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-950 text-white border border-slate-800 space-y-3 shadow-lg">
+              {/* Clarification banner explaining why EAP110 failed previously */}
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs text-amber-950">
+                <div className="flex items-center gap-2 font-black text-amber-900">
+                  <span className="text-base">💡</span>
+                  <span>Kwanini Adoption ya TP-Link 110 (EAP110) Ilishindikana Awali?</span>
+                </div>
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  1. Mfumo ulikuwa na anwani ya zamani ya majaribio (<code className="bg-amber-100 font-mono font-bold px-1 rounded">167.99.120.45</code>) badala ya IP halisi ya VPS yako: <strong className="font-mono text-amber-950 font-black">13.140.173.98</strong> na tovuti yako <strong className="font-mono text-amber-950 font-black">https://infotechwifi.com</strong>.
+                </p>
+                <p className="text-[11px] text-amber-900 leading-relaxed">
+                  2. Sasa tumerekebisha! Tumia URL mpya sahihi zilizo hapa chini. Pia kwenye hatua inayofuata, mfumo umekutengenezea <strong>Username na Password kiotomatiki</strong> ili ukabandike kwenye AP yako moja kwa moja bila kukisia.
+                </p>
+              </div>
+
+              {/* Inform URL Highlight Box with 13.140.173.98 */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-950 text-white border border-slate-800 space-y-3.5 shadow-lg">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">
-                    Controller Inform URL (Omada Discovery)
+                  <span className="text-xs font-black text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wifi className="w-4 h-4 text-teal-400" />
+                    <span>Controller Inform URL (Inayopendekezwa kwa EAP110):</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">Port 29810 (UDP) / 29811 (TCP)</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Port 29810 (UDP/TCP)</span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <div className="flex-1 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700 text-xs font-mono font-bold text-emerald-300 break-all select-all">
-                    {informUrl}
+                {/* Primary: IP with Port 29810 */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-300">
+                    <span className="font-bold">1. IP Inform URL (TP-Link EAP110 Native):</span>
+                    <span className="text-[10px] bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded font-bold">Standard</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(informUrl, 'inform')}
-                    className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-md"
-                  >
-                    {copiedInform ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedInform ? 'Imenakiliwa!' : 'Nakili Inform URL'}</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex-1 bg-slate-800/90 px-4 py-2.5 rounded-xl border border-slate-700 text-xs font-mono font-black text-emerald-300 break-all select-all">
+                      http://13.140.173.98:29810/inform
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy('http://13.140.173.98:29810/inform', 'inform')}
+                      className="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-md"
+                    >
+                      {copiedInform ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedInform ? 'Imenakiliwa!' : 'Nakili Inform URL'}</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                {/* Alternative: Domain Inform URL */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-300">
+                    <span className="font-bold">2. Domain Inform URL (Kupitia infotechwifi.com):</span>
+                    <span className="text-[10px] text-slate-400">SSL Web</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex-1 bg-slate-800/60 px-4 py-2 rounded-xl border border-slate-700 text-xs font-mono font-bold text-teal-200 break-all select-all">
+                      https://infotechwifi.com/inform
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('https://infotechwifi.com/inform');
+                        setCopiedDomainInform(true);
+                        setTimeout(() => setCopiedDomainInform(false), 2500);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 border border-slate-700"
+                    >
+                      {copiedDomainInform ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedDomainInform ? 'Imenakiliwa!' : 'Nakili Domain URL'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Raw IP */}
+                <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-400">Au weka Controller Host IP tu:</span>
-                    <span className="font-mono font-bold text-amber-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                      {vpsIp}
+                    <span className="text-slate-400">Au weka Controller Host IP pekee:</span>
+                    <span className="font-mono font-black text-amber-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                      13.140.173.98
                     </span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCopy(vpsIp, 'ip')}
-                    className="text-[11px] text-teal-300 hover:underline flex items-center gap-1 cursor-pointer"
+                    onClick={() => handleCopy('13.140.173.98', 'ip')}
+                    className="text-[11px] text-teal-300 hover:underline flex items-center gap-1 cursor-pointer font-bold"
                   >
-                    {copiedIp ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedIp ? 'IP Imenakiliwa!' : 'Nakili IP'}</span>
+                    {copiedIp ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedIp ? 'IP Imenakiliwa!' : 'Nakili IP: 13.140.173.98'}</span>
                   </button>
                 </div>
               </div>
@@ -1108,39 +1209,30 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
               {/* Exact Step-by-Step Instructions */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <h4 className="font-black text-slate-900 text-xs flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px]">
+                  <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-black">
                     ✓
                   </span>
-                  <span>Mwongozo wa Kuingiza Inform URL Kwenye TP-Link Omada AP:</span>
+                  <span>Mwongozo wa Kuingiza Inform URL Kwenye TP-Link Omada AP (EAP110):</span>
                 </h4>
                 <ol className="list-decimal list-inside space-y-2 text-xs text-slate-700 pl-1 leading-relaxed">
                   <li>
-                    Fungua browser ya kompyuta au simu yako na uingie kwenye ukurasa wa AP (IP ya kawaida:{' '}
+                    Unganisha simu au kompyuta yako kwenye mtandao wa AP kisha fungua browser na uingie:{' '}
                     <code className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-800 font-mono font-bold">
                       http://192.168.0.254
                     </code>{' '}
-                    au IP aliyopewa na router).
+                    (au IP ya DHCP iliyopewa na router yako).
                   </li>
                   <li>
-                    Ingia kwa username na password ya AP (kawaida AP mpya huwa{' '}
-                    <code className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-800 font-mono">admin / admin</code>).
+                    Nenda kwenye menyu ya <strong>Management</strong> &rarr; <strong>Controller Settings</strong> (au <strong>Omada Controller Setting</strong>).
                   </li>
                   <li>
-                    Nenda kwenye menyu ya <strong>Management</strong> &rarr; <strong>Controller Settings</strong> (au{' '}
-                    <strong>Omada Controller Setting</strong>).
+                    Kwenye sehemu ya <strong>"Controller Inform URL"</strong> (au Controller Host/IP), bandika anwani uliyonakili hapo juu:{' '}
+                    <code className="bg-teal-100 text-teal-900 px-1.5 py-0.5 rounded font-mono font-black">
+                      http://13.140.173.98:29810/inform
+                    </code>
                   </li>
                   <li>
-                    Tafuta sehemu iliyoandikwa <strong>"Controller Inform URL"</strong> au <strong>"Controller Host / IP"</strong>.
-                  </li>
-                  <li>
-                    Weka ile URL uliyonakili hapo juu (
-                    <code className="bg-teal-100 text-teal-900 px-1 rounded font-mono font-bold">{informUrl}</code>
-                    ) au IP ya VPS (
-                    <code className="bg-teal-100 text-teal-900 px-1 rounded font-mono font-bold">{vpsIp}</code>
-                    ).
-                  </li>
-                  <li>
-                    Bofya <strong>Save</strong> au <strong>Apply</strong>. Sasa AP itaanza kutuma mawasiliano (inform packet) kwa VPS yetu!
+                    Bofya <strong>Save</strong> au <strong>Apply</strong>. AP ya EAP110 itaanza kutuma mawasiliano (inform packet) kwa VPS yetu papo hapo!
                   </li>
                 </ol>
               </div>
@@ -1158,35 +1250,136 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   onClick={() => setActiveStep(3)}
                   className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md"
                 >
-                  <span>Endelea na Hatua ya 3: Weka SSID & Password</span>
+                  <span>Endelea na Hatua ya 3: Weka Password Iliyozalishwa Kiotomatiki</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 3: SSID & DEVICE ACCOUNT */}
+          {/* STEP 3: SSID & AUTO-GENERATED AP DEVICE ACCOUNT */}
           {activeStep === 3 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <div>
-                  <h3 className="font-black text-slate-900 text-sm">
-                    {lang === 'sw'
-                      ? 'Hatua ya 3: Weka Jina la Wi-Fi (SSID) & Password ya AP'
-                      : 'Step 3: Wi-Fi SSID & AP Credentials'}
+                  <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-teal-600" />
+                    <span>{lang === 'sw' ? 'Hatua ya 3: Username na Password Zilizozalishwa Kiotomatiki' : 'Step 3: Auto-Generated AP Credentials & SSID'}</span>
                   </h3>
                   <p className="text-xs text-slate-500">
                     {lang === 'sw'
-                      ? 'Weka jina la Wi-Fi ambalo wateja wataunganisha, na username/password ya AP uliyoweka kwenye AP.'
-                      : 'Define the hotspot SSID to broadcast, and the device management account credentials.'}
+                      ? 'Mfumo umetengeneza Username na Password salama ya AP yako. Unachotakiwa kufanya ni kuzinakili na kuzibandika kwenye AP!'
+                      : 'The system has auto-generated strong management credentials for your AP. Simply copy and paste them into your AP device.'}
                   </p>
                 </div>
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
-                  Authentication & Wi-Fi
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-200">
+                  ⚡ Auto-Generated
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ⭐ THE AUTO-GENERATED CREDENTIALS HERO CARD ⭐ */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-teal-950 via-slate-900 to-indigo-950 text-white border-2 border-teal-500/40 shadow-xl space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center">
+                      <Key className="w-4 h-4 text-teal-300" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-teal-300">
+                        Taarifa za Kuingia Kwenye AP (Device Account) - Zimetengenezwa Kiotomatiki
+                      </h4>
+                      <p className="text-[11px] text-slate-300">
+                        Nakili taarifa hizi mbili kisha kazibandike kwenye ukurasa wa AP yako (http://192.168.0.254):
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRegeneratePassword}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border border-slate-700 shadow-sm"
+                    title="Tengeneza nenosiri jipya lenye herufi kubwa, ndogo, namba na alama maalum"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>🔄 Tengeneza Password Nyingine</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Auto-Generated Username */}
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-700 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-bold uppercase tracking-wider text-[10px]">AP Management Username:</span>
+                      <span className="text-teal-400 text-[10px] font-mono">Standard Admin</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={apUsername}
+                        onChange={(e) => setApUsername(e.target.value)}
+                        className="flex-1 bg-slate-950 px-3 py-2 rounded-lg border border-slate-700 text-sm font-mono font-black text-white focus:outline-none focus:border-teal-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyUsername}
+                        className="px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs flex items-center gap-1 cursor-pointer transition shrink-0 shadow-sm"
+                        title="Nakili Username"
+                      >
+                        {copiedUsername ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span>{copiedUsername ? 'Imenakiliwa!' : 'Nakili'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Auto-Generated Password */}
+                  <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-700 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-bold uppercase tracking-wider text-[10px] text-teal-300">
+                        AP Management Password (Nenosiri):
+                      </span>
+                      <span className="text-emerald-400 text-[10px] font-bold">Inakidhi vigezo vya Omada</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={apPassword}
+                          onChange={(e) => setApPassword(e.target.value)}
+                          className="w-full bg-slate-950 px-3 py-2 pr-9 rounded-lg border border-teal-500/60 text-sm font-mono font-black text-emerald-300 tracking-wider focus:outline-none focus:border-teal-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                          title={showPassword ? 'Ficha password' : 'Onyesha password'}
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyPassword}
+                        className="px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-xs flex items-center gap-1 cursor-pointer transition shrink-0 shadow-sm"
+                        title="Nakili Password"
+                      >
+                        {copiedPassword ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        <span>{copiedPassword ? 'Imenakiliwa!' : 'Nakili'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Practical Advice */}
+                <div className="p-3 bg-slate-950/70 rounded-xl border border-teal-500/20 text-xs text-slate-300 space-y-1">
+                  <div className="flex items-center gap-2 text-teal-300 font-bold">
+                    <span>👉 Jinsi ya kutumia taarifa hizi:</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-slate-300">
+                    Kwenye ukurasa wa AP yako (<strong>http://192.168.0.254</strong>), wakati wa <em>First-Time Setup</em> au kwenye <em>Management &rarr; Device Account</em>, bandika Username na Password hii. Mfumo wetu utatumia taarifa hizi kuingia kwenye AP na kuikamilisha (Adopted)!
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 {/* Brand Name */}
                 <div>
                   <label className="text-xs font-bold text-slate-800 block mb-1">
@@ -1197,8 +1390,8 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                     required
                     value={brandName}
                     onChange={(e) => setBrandName(e.target.value)}
-                    placeholder="mfano: Kariakoo Cyber WiFi"
-                    className="w-full px-3.5 py-2.5 text-xs font-bold rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-teal-500"
+                    placeholder="mfano: Infotech Hotspot"
+                    className="w-full px-3.5 py-2.5 text-xs font-bold rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 shadow-xs"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">
                     Jina litakaloonekana kwenye ukurasa wa wateja wanapofungua Wi-Fi.
@@ -1206,7 +1399,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                 </div>
 
                 {/* Hotspot SSID */}
-                <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-200/80">
+                <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200">
                   <label className="text-xs font-black text-emerald-950 block mb-1">
                     Jina la Wi-Fi (SSID) Litakalorushwa Hewani <span className="text-rose-500">*</span>
                   </label>
@@ -1215,47 +1408,11 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                     required
                     value={ssid}
                     onChange={(e) => setSsid(e.target.value)}
-                    placeholder="mfano: KARIAKOO-FREE-WIFI"
-                    className="w-full px-3.5 py-2.5 text-xs font-mono font-bold rounded-lg border border-emerald-300 bg-white text-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="mfano: INFOTECH-WIFI"
+                    className="w-full px-3.5 py-2.5 text-xs font-mono font-black rounded-lg border border-emerald-300 bg-white text-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <span className="text-[10px] text-emerald-700 mt-1 block font-medium">
-                    AP itarusha jina hili la Wi-Fi kwa 2.4GHz na 5GHz bila nenosiri (Open with Captive Portal).
-                  </span>
-                </div>
-
-                {/* AP Username */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    AP Management Username <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={apUsername}
-                    onChange={(e) => setApUsername(e.target.value)}
-                    placeholder="admin"
-                    className="w-full px-3.5 py-2.5 text-xs font-mono rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
-                  />
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    Jina la mtumiaji la AP (default ni <code className="font-bold">admin</code>).
-                  </span>
-                </div>
-
-                {/* AP Password */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    AP Management Password <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={apPassword}
-                    onChange={(e) => setApPassword(e.target.value)}
-                    placeholder="Password ya AP uliyoweka"
-                    className="w-full px-3.5 py-2.5 text-xs font-mono rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
-                  />
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    Nenosiri uliloweka wakati unasanidi AP au kuweka Controller Inform URL.
+                    AP itarusha jina hili bila nenosiri (Open Hotspot yenye ukurasa wa malipo ya simu).
                   </span>
                 </div>
               </div>
@@ -1264,7 +1421,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
               <div className="p-3.5 bg-slate-900 rounded-2xl text-white text-xs space-y-2 border border-slate-800">
                 <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold border-b border-slate-800 pb-1.5">
                   <span>Mambo Yatakayosanidiwa Moja kwa Moja Baada ya Adoption:</span>
-                  <span className="text-emerald-400">Automated Push</span>
+                  <span className="text-emerald-400 font-bold">Automated Push</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                   <div>
@@ -1274,12 +1431,12 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   <div>
                     <span className="text-slate-400 block text-[10px]">External Portal URL:</span>
                     <span className="text-emerald-300 font-bold truncate block">
-                      https://wifi.infotech.co.tz/?ap_vendor=omada
+                      https://infotechwifi.com/?ap_vendor=omada
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">RADIUS Server:</span>
-                    <span className="text-amber-300 font-bold">{vpsIp}:1812</span>
+                    <span className="text-amber-300 font-bold">13.140.173.98:1812</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">RADIUS CoA Port:</span>
@@ -1299,8 +1456,8 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (!ssid.trim() || !apPassword.trim()) {
-                      setErrorMessage('Tafadhali weka SSID ya Wi-Fi na Password ya AP kabla ya ku-adopt.');
+                    if (!ssid.trim()) {
+                      setErrorMessage('Tafadhali weka SSID ya Wi-Fi kabla ya ku-adopt.');
                       return;
                     }
                     setErrorMessage('');
@@ -1336,7 +1493,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                 </span>
               </div>
 
-              {/* Ready to adopt summary or live status */}
+              {/* Ready to adopt summary with quick copy buttons */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200">
@@ -1353,14 +1510,24 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   </div>
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 block uppercase font-bold">AP Device Account</span>
-                    <span className="font-mono font-bold text-slate-800 text-xs mt-0.5 block truncate">
-                      {apUsername} / ••••••••
-                    </span>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className="font-mono font-bold text-slate-800 text-xs truncate">
+                        {apUsername} / {showPassword ? apPassword : '••••••••'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyPassword}
+                        className="text-[10px] text-teal-700 hover:text-teal-900 cursor-pointer font-bold"
+                        title="Nakili Password ya AP"
+                      >
+                        {copiedPassword ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 block uppercase font-bold">Inform Server Host</span>
                     <span className="font-mono font-bold text-teal-700 text-xs mt-0.5 block truncate">
-                      {vpsIp}:29810
+                      13.140.173.98:29810
                     </span>
                   </div>
                 </div>

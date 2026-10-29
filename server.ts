@@ -50,10 +50,11 @@ async function startServer() {
   });
 
   // Omada Controller Inform discovery / heartbeat handler
-  app.all(['/inform', '/api/v1/omada/inform', '/api/omada/inform'], (req, res) => {
+  app.all(['/inform', '/inform/', '/api/v1/omada/inform', '/api/omada/inform'], (req, res) => {
     const payload = req.body && Object.keys(req.body).length > 0 ? req.body : req.query;
     const clientIp = (req.ip || req.socket.remoteAddress || '192.168.0.254').replace(/^::ffff:/, '');
     const result = OmadaAdoptionService.recordIncomingInform(payload, clientIp, req.method);
+    res.setHeader('Content-Type', 'application/json');
     res.json(result);
   });
 
@@ -79,6 +80,19 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[TZ-WiFi] Server listening on http://0.0.0.0:${PORT}`);
   });
+
+  // Bind to Omada Controller Inform port (29810) if available on VPS
+  const OMADA_INFORM_PORT = Number(process.env.OMADA_INFORM_PORT) || 29810;
+  try {
+    const omadaServer = app.listen(OMADA_INFORM_PORT, '0.0.0.0', () => {
+      console.log(`[TZ-WiFi] TP-Link Omada Controller Inform listener active on http://0.0.0.0:${OMADA_INFORM_PORT}/inform`);
+    });
+    omadaServer.on('error', (err: any) => {
+      console.warn(`[TZ-WiFi] Omada port ${OMADA_INFORM_PORT} notice: ${err.message} (requests can also route via Nginx or port 3000)`);
+    });
+  } catch (e: any) {
+    console.warn(`[TZ-WiFi] Could not bind Omada port ${OMADA_INFORM_PORT}:`, e?.message);
+  }
 }
 
 startServer().catch((err) => {

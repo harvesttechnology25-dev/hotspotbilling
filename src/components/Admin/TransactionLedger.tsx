@@ -11,6 +11,7 @@ import {
   Code2,
   FileText,
   MapPin,
+  CalendarCheck,
 } from 'lucide-react';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 import { RouterItem } from '../../types/index.ts';
@@ -83,10 +84,37 @@ export const TransactionLedger: React.FC<{
     setCurrentPage(1);
   }, [carrierFilter, statusFilter, ownerId, search]);
 
-  const paginatedTransactions =
-    pageSize === 'ALL'
-      ? transactions
-      : transactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const isSubscriptionTx = (t: Transaction) => {
+    return (
+      Boolean(t.is_subscription) ||
+      t.plan_id === 0 ||
+      t.plan?.id === 0 ||
+      t.plan?.name?.toLowerCase().includes('subscription') ||
+      t.plan_name?.toLowerCase().includes('subscription') ||
+      t.external_reference?.toUpperCase().startsWith('SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('MAN-SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('BULK-SUB-') ||
+      (t.transaction_id && t.transaction_id.toUpperCase().startsWith('SUB-')) ||
+      (t.transaction_id && t.transaction_id.toUpperCase().startsWith('MAN-SUB-')) ||
+      (t.external_reference && /sub/i.test(t.external_reference))
+    );
+  };
+
+  const renderPlanBadge = (t: Transaction) => {
+    if (isSubscriptionTx(t)) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[11px] shadow-2xs whitespace-nowrap">
+          <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+          <span>Monthly Subscription Fee</span>
+        </span>
+      );
+    }
+    return (
+      <span className="text-slate-700 font-medium">
+        {t.plan ? t.plan.name.split('(')[0] : (t.plan_id ? `Plan #${t.plan_id}` : 'Monthly Subscription Fee')}
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-5">
@@ -231,8 +259,8 @@ export const TransactionLedger: React.FC<{
                     <td className="px-4 py-3.5 font-mono text-slate-500 text-[11px]">
                       {t.transaction_id || '—'}
                     </td>
-                    <td className="px-4 py-3.5 text-slate-700">
-                      {t.plan ? t.plan.name.split('(')[0] : `Plan #${t.plan_id}`}
+                    <td className="px-4 py-3.5">
+                      {renderPlanBadge(t)}
                     </td>
                     <td className="px-4 py-3.5">
                       <span
@@ -315,8 +343,8 @@ export const TransactionLedger: React.FC<{
                       <div className="font-black font-mono text-base text-slate-900">
                         {formatTzs(t.amount)}
                       </div>
-                      <div className="text-[11px] text-slate-500 font-medium">
-                        {t.plan ? t.plan.name.split('(')[0] : `Plan #${t.plan_id}`}
+                      <div className="text-[11px] font-medium pt-0.5">
+                        {renderPlanBadge(t)}
                       </div>
                     </div>
 

@@ -2602,7 +2602,8 @@ apiRouter.get('/subscriptions/report', (req: Request, res: Response) => {
 
     const items = allOwners.map((owner) => {
       const ownerRouters = allRouters.filter((r) => r.owner_id === owner.id);
-      const monthlyFee = Number(owner.monthly_fee || owner.subscription_fee || 15000);
+      const defaultFee = db.getSettings().subscriptionMonthlyFee || 15000;
+      const monthlyFee = Number(owner.monthly_fee || owner.subscription_fee || defaultFee);
 
       const expiresAt = owner.subscription_expires_at ? new Date(owner.subscription_expires_at) : null;
       const expiresAtMs = expiresAt ? expiresAt.getTime() : 0;
@@ -2704,7 +2705,10 @@ apiRouter.get('/subscriptions/report', (req: Request, res: Response) => {
       .reduce((sum, i) => sum + (i.total_paid_in_range > 0 ? i.total_paid_in_range : i.monthly_fee), 0);
     const totalPending = items.filter((i) => !i.is_paid).reduce((sum, i) => sum + i.monthly_fee, 0);
 
+    const defaultSubPrice = db.getSettings().subscriptionMonthlyFee || 15000;
+
     return res.json({
+      default_subscription_price: defaultSubPrice,
       summary: {
         total_owners: totalOwners,
         paid_count: paidCount,
@@ -3248,7 +3252,7 @@ apiRouter.get('/subscription/status', (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Owner not found.' });
   }
 
-  const fee = owner.subscription_fee || 15000;
+  const fee = owner.subscription_fee || owner.monthly_fee || db.getSettings().subscriptionMonthlyFee || 15000;
   const expiresAt = owner.subscription_expires_at || new Date(Date.now() + 30 * 86400000).toISOString();
   const diffMs = new Date(expiresAt).getTime() - Date.now();
   const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
@@ -3393,7 +3397,7 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
     }
 
     const vendorAggregator = resolveVendorAggregatorForSubscription();
-    const fee = owner.subscription_fee || 15000;
+    const fee = owner.subscription_fee || owner.monthly_fee || db.getSettings().subscriptionMonthlyFee || 15000;
 
     // Add 30 days of active subscription
     const currentExpiryTime = owner.subscription_expires_at ? new Date(owner.subscription_expires_at).getTime() : 0;
@@ -3415,6 +3419,9 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
       existingTx.vendor_merchant_id = vendorAggregator.merchantId;
       existingTx.vendor_amount = fee;
       existingTx.gateway_provider = vendorAggregator.aggregatorName;
+      existingTx.is_subscription = true;
+      existingTx.plan_id = 0;
+      existingTx.plan_name = 'Monthly Subscription Fee';
       existingTx.updated_at = new Date().toISOString();
       db.saveTransaction(existingTx);
     } else {
@@ -3426,7 +3433,9 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
         external_reference: externalReference || `SUB-${owner.id}-${Date.now()}`,
         transaction_id: txId,
         status: 'SUCCESS',
-        plan_id: 1,
+        plan_id: 0,
+        is_subscription: true,
+        plan_name: 'Monthly Subscription Fee',
         owner_id: owner.id,
         vendor_merchant_id: vendorAggregator.merchantId,
         vendor_amount: fee, // 100% credited to Vendor Aggregator
@@ -3465,6 +3474,97 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Hitilafu ya kukamilisha malipo.' });
+  }
+});
+
+// Get active subscription price & settings
+apiRouter.get('/subscription/settings/price', (_req: Request, res: Response) => {
+  const settings = db.getSettings();
+  res.json({
+    price: settings.subscriptionMonthlyFee || 15000,
+    activeGateway: settings.subscriptionGateway || settings.activeGateway,
+  });
+});
+
+// Update global subscription price & optionally apply to all hotspot owners
+apiRouter.post('/subscription/settings/price', (req: Request, res: Response) => {
+  try {
+    const { price, applyToAllOwners = true } = req.body;
+    const numPrice = Number(price);
+    if (!numPrice || isNaN(numPrice) || numPrice <= 0) {
+      return res.status(400).json({ error: 'Tafadhali weka kiasi sahihi cha bei ya subscription (namba chanya).' });
+    }
+
+    const settings = db.getSettings();
+    settings.subscriptionMonthlyFee = numPrice;
+    db.saveSettings(settings);
+
+    let updatedCount = 0;
+    if (applyToAllOwners) {
+      const owners = db.getOwners();
+      for (const o of owners) {
+        if (o.role === 'HOTSPOT_OWNER' && !o.is_sub_user && !o.parent_owner_id) {
+          o.subscription_fee = numPrice;
+          o.monthly_fee = numPrice;
+          o.updated_at = new Date().toISOString();
+          db.saveOwner(o);
+          updatedCount++;
+        }
+      }
+    }
+
+    db.saveAuditLog({
+      id: Date.now(),
+      external_reference: `SUB-PRICE-${Date.now()}`,
+      event_type: 'SUBSCRIPTION_PRICE_UPDATED',
+      payload_json: {
+        newPrice: numPrice,
+        applyToAllOwners,
+        updatedCount,
+      },
+      created_at: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      price: numPrice,
+      updatedOwnersCount: updatedCount,
+      message: `Bei mpya ya subscription imewekwa TZS ${numPrice.toLocaleString()}/mwezi${
+        applyToAllOwners ? ` na kusasishwa kwa wamiliki ${updatedCount}.` : '.'
+      }`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Hitilafu ya kubadilisha bei ya subscription.' });
+  }
+});
+
+// Update specific hotspot owner's monthly subscription fee
+apiRouter.post('/owners/:id/subscription-fee', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { fee } = req.body;
+    const numFee = Number(fee);
+    if (isNaN(numFee) || numFee <= 0) {
+      return res.status(400).json({ error: 'Tafadhali weka kiasi sahihi cha ada ya subscription.' });
+    }
+
+    const owner = db.getOwnerById(id);
+    if (!owner) {
+      return res.status(404).json({ error: 'Mmiliki hakupatikana.' });
+    }
+
+    owner.subscription_fee = numFee;
+    owner.monthly_fee = numFee;
+    owner.updated_at = new Date().toISOString();
+    db.saveOwner(owner);
+
+    return res.json({
+      success: true,
+      owner,
+      message: `Ada ya kila mwezi ya mmiliki '${owner.business_name}' imewekwa TZS ${numFee.toLocaleString()}.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Hitilafu ya kusasisha ada ya mmiliki.' });
   }
 });
 
@@ -3688,7 +3788,9 @@ apiRouter.post('/subscription/manual-approve', (req: Request, res: Response) => 
       external_reference: externalRef,
       transaction_id: txId,
       status: 'SUCCESS',
-      plan_id: 1,
+      plan_id: 0,
+      is_subscription: true,
+      plan_name: 'Monthly Subscription Fee',
       owner_id: owner.id,
       vendor_merchant_id: 'VENDOR-MANUAL-VERIFICATION',
       vendor_amount: amount,
@@ -4015,12 +4117,7 @@ apiRouter.post('/omada/adopt', async (req: Request, res: Response) => {
       });
     }
 
-    if (!apPassword) {
-      return res.status(400).json({
-        success: false,
-        error: 'Tafadhali weka Password ya AP (Device Account Password) uliyoweka kwenye AP yako au Controller.',
-      });
-    }
+    const effectiveApPassword = apPassword || OmadaAdoptionService.generateSecurePassword();
 
     const result = await OmadaAdoptionService.adoptAp({
       routerId: routerId ? Number(routerId) : undefined,
@@ -4032,7 +4129,7 @@ apiRouter.post('/omada/adopt', async (req: Request, res: Response) => {
       informUrl,
       ssid,
       apUsername,
-      apPassword,
+      apPassword: effectiveApPassword,
       location,
       ownerId: ownerId ? Number(ownerId) : undefined,
     });
@@ -4057,6 +4154,13 @@ apiRouter.post('/omada/check-adoption/:id', (req: Request, res: Response) => {
 apiRouter.get('/omada/status/:id', (req: Request, res: Response) => {
   const routerId = Number(req.params.id);
   const result = OmadaAdoptionService.checkAdoptionStatus(routerId);
+  res.json(result);
+});
+
+// Real-time AP / Router Performance Telemetry (RAM, CPU, Wireless Signal, Uplink)
+apiRouter.get(['/omada/performance/:id', '/routers/:id/performance'], (req: Request, res: Response) => {
+  const routerId = Number(req.params.id);
+  const result = OmadaAdoptionService.getApPerformance(routerId);
   res.json(result);
 });
 
@@ -4483,10 +4587,35 @@ apiRouter.get('/transactions', (req: Request, res: Response) => {
   }
 
   const plansMap = new Map(db.getPlans().map((p) => [p.id, p]));
-  const enriched = txs.map((t) => ({
-    ...t,
-    plan: plansMap.get(t.plan_id),
-  }));
+  const enriched = txs.map((t) => {
+    const isSub =
+      Boolean((t as any).is_subscription) ||
+      t.plan_id === 0 ||
+      t.external_reference?.toUpperCase().startsWith('SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('MAN-SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('BULK-SUB-') ||
+      (t.transaction_id && t.transaction_id.toUpperCase().startsWith('SUB-')) ||
+      (t.transaction_id && t.transaction_id.toUpperCase().startsWith('MAN-SUB-')) ||
+      (t.external_reference && /sub/i.test(t.external_reference));
+
+    const plan = isSub
+      ? {
+          id: 0,
+          name: 'Monthly Subscription Fee',
+          price: t.amount,
+          duration_seconds: 2592000,
+          validity_label: '30 Days',
+        }
+      : plansMap.get(t.plan_id);
+
+    return {
+      ...t,
+      is_subscription: isSub,
+      plan_id: isSub ? 0 : t.plan_id,
+      plan_name: isSub ? 'Monthly Subscription Fee' : (plan?.name || (t as any).plan_name),
+      plan,
+    };
+  });
 
   res.json(enriched);
 });
@@ -4498,8 +4627,15 @@ apiRouter.get('/export/transactions/csv', (_req: Request, res: Response) => {
 
   let csv = 'ID,Date,Phone,Carrier,Amount (TZS),Plan,Status,External Reference,MNO Transaction ID\n';
   txs.forEach((t) => {
-    const plan = plansMap.get(t.plan_id);
-    csv += `"${t.id}","${t.created_at}","${t.phone_number}","${t.network_provider}",${t.amount},"${plan?.name || ''}","${t.status}","${t.external_reference}","${t.transaction_id || ''}"\n`;
+    const isSub =
+      Boolean((t as any).is_subscription) ||
+      t.plan_id === 0 ||
+      t.external_reference?.toUpperCase().startsWith('SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('MAN-SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('BULK-SUB-') ||
+      (t.external_reference && /sub/i.test(t.external_reference));
+    const planName = isSub ? 'Monthly Subscription Fee' : (plansMap.get(t.plan_id)?.name || '');
+    csv += `"${t.id}","${t.created_at}","${t.phone_number}","${t.network_provider}",${t.amount},"${planName}","${t.status}","${t.external_reference}","${t.transaction_id || ''}"\n`;
   });
 
   res.setHeader('Content-Disposition', 'attachment; filename="tzwifi_transactions.csv"');

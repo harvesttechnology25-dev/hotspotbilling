@@ -433,9 +433,9 @@ export class PaymentGatewayService {
 
     const carrierResult = detectCarrier(params.phoneNumber);
     const provider = params.carrier || carrierResult.provider || 'VODACOM';
-    const amount = owner.subscription_fee || 15000;
-    const externalRef = `SUB-${owner.id}-${Date.now()}`;
     const settings = db.getSettings();
+    const amount = owner.subscription_fee || owner.monthly_fee || settings.subscriptionMonthlyFee || 15000;
+    const externalRef = `SUB-${owner.id}-${Date.now()}`;
 
     const gateway =
       settings.subscriptionGateway && settings.subscriptionGateway !== 'ACTIVE_DEFAULT'
@@ -557,7 +557,9 @@ export class PaymentGatewayService {
       external_reference: externalRef,
       transaction_id: externalTransactionId,
       status: 'PENDING',
-      plan_id: 1,
+      plan_id: 0,
+      is_subscription: true,
+      plan_name: 'Monthly Subscription Fee',
       owner_id: owner.id,
       vendor_amount: amount,
       platform_fee: 0,

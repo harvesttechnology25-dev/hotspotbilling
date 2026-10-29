@@ -116,10 +116,13 @@ ufw allow ${SSTP_PORT}/tcp comment "SoftEther SSTP Router Tunnel"
 # Restricted to Router VPN Fleet Subnet (100.108.0.0/18)
 ufw allow from ${VPN_SUBNET} to any port 1812 proto udp comment "FreeRADIUS Authentication"
 ufw allow from ${VPN_SUBNET} to any port 1813 proto udp comment "FreeRADIUS Accounting"
-ufw allow from ${VPN_SUBNET} to any port 3799 proto udp comment "FreeRADIUS CoA / Disconnect-Request"
+# TP-Link Omada AP Inform & Adoption Ports
+ufw allow 29810/udp comment "TP-Link Omada AP Discovery / Inform"
+ufw allow 29810/tcp comment "TP-Link Omada Controller Inform HTTP"
+ufw allow 29811/tcp comment "TP-Link Omada Controller Management"
 
 echo "y" | ufw enable
-log_success "Firewall enabled: RADIUS 1812/1813 & CoA 3799 isolated to VPN Subnet."
+log_success "Firewall enabled: Web (80/443), VPN, Omada Inform (29810), & isolated RADIUS."
 
 # ------------------------------------------------------------------------------
 # 3. Node.js 20 LTS, TypeScript & PM2 Engine

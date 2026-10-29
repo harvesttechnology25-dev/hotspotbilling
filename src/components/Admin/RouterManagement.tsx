@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { ApSetupGuideModal, ApGuideTab } from './ApSetupGuideModal.tsx';
 import { OmadaAdoptionModal } from './OmadaAdoptionModal.tsx';
+import { DevicePerformanceModal } from './DevicePerformanceModal.tsx';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 
 export const DEVICE_PROFILES: Record<DeviceType, {
@@ -169,12 +170,14 @@ export const RouterManagement: React.FC<{
   selectedRouterId?: number;
   onSelectRouter?: (id: number) => void;
   onRoutersUpdated?: () => void;
+  lang?: 'sw' | 'en';
 }> = ({
   ownerId,
   ownerName,
   selectedRouterId,
   onSelectRouter,
   onRoutersUpdated,
+  lang = 'sw',
 }) => {
   const [routers, setRouters] = useState<RouterItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,6 +274,9 @@ export const RouterManagement: React.FC<{
       setRebootingOmada(false);
     }
   };
+
+  // Performance & Details modal state
+  const [performanceModalRouter, setPerformanceModalRouter] = useState<RouterItem | null>(null);
 
   // Add & Edit router / AP modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -548,8 +554,8 @@ export const RouterManagement: React.FC<{
     if (activeScriptTab === 'ruijie') {
       return (
         `# Ruijie Reyee Cloud Captive Portal Settings\n` +
-        `Portal URL: ${deviceConfigData?.ruijie?.portalUrl || 'https://wifi.infotech.co.tz/?routerId=' + selectedScriptRouter?.id}\n` +
-        `RADIUS Server IP: ${deviceConfigData?.ruijie?.radiusIp || '167.99.120.45'}\n` +
+        `Portal URL: ${deviceConfigData?.ruijie?.portalUrl || 'https://infotechwifi.com/?routerId=' + selectedScriptRouter?.id}\n` +
+        `RADIUS Server IP: ${deviceConfigData?.ruijie?.radiusIp || '13.140.173.98'}\n` +
         `RADIUS Auth Port: 1812\n` +
         `RADIUS Acct Port: 1813\n` +
         `RADIUS CoA Port: 3799\n` +
@@ -561,8 +567,8 @@ export const RouterManagement: React.FC<{
     if (activeScriptTab === 'omada') {
       return (
         `# TP-Link Omada Controller Hotspot Settings\n` +
-        `External Web Portal URL: ${deviceConfigData?.omada?.portalUrl || 'https://wifi.infotech.co.tz/?routerId=' + selectedScriptRouter?.id}\n` +
-        `RADIUS Server IP: ${deviceConfigData?.omada?.radiusIp || '167.99.120.45'}\n` +
+        `External Web Portal URL: ${deviceConfigData?.omada?.portalUrl || 'https://infotechwifi.com/?routerId=' + selectedScriptRouter?.id}\n` +
+        `RADIUS Server IP: ${deviceConfigData?.omada?.radiusIp || '13.140.173.98'}\n` +
         `RADIUS Auth Port: 1812\n` +
         `RADIUS Acct Port: 1813\n` +
         `RADIUS CoA Port: 3799\n` +
@@ -573,8 +579,8 @@ export const RouterManagement: React.FC<{
       return (
         `# TP-Link Pharos CPE Configuration (PharOS Web: 192.168.0.254)\n` +
         `Model: ${selectedScriptRouter?.model_name || 'TP-Link Pharos CPE'}\n` +
-        `External Portal URL: ${deviceConfigData?.cpe?.portalUrl || 'https://wifi.infotech.co.tz/?routerId=' + selectedScriptRouter?.id}\n` +
-        `RADIUS Server IP: ${deviceConfigData?.cpe?.radiusIp || '167.99.120.45'}\n` +
+        `External Portal URL: ${deviceConfigData?.cpe?.portalUrl || 'https://infotechwifi.com/?routerId=' + selectedScriptRouter?.id}\n` +
+        `RADIUS Server IP: ${deviceConfigData?.cpe?.radiusIp || '13.140.173.98'}\n` +
         `RADIUS Secret: ${selectedScriptRouter?.radius_secret || 'radius_secret_2026'}\n\n` +
         `# Mwongozo Muhimu wa PharOS (Kwenye Web GUI 192.168.0.254):\n` +
         `1. Operation Mode: Access Point (AP) kwa ajili ya Hotspot, au Client kwa Wireless PtP Bridge.\n` +
@@ -589,9 +595,9 @@ export const RouterManagement: React.FC<{
     if (activeScriptTab === 'unifi') {
       return (
         `# Ubiquiti UniFi Guest Hotspot Settings\n` +
-        `External Portal Server IP / Host: wifi.infotech.co.tz\n` +
-        `Portal URL: https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter?.id}\n` +
-        `RADIUS Server IP: 167.99.120.45\n` +
+        `External Portal Server IP / Host: infotechwifi.com\n` +
+        `Portal URL: https://infotechwifi.com/?routerId=${selectedScriptRouter?.id}\n` +
+        `RADIUS Server IP: 13.140.173.98\n` +
         `Port: 1812 / 1813\n` +
         `Secret: ${selectedScriptRouter?.radius_secret || 'radius_secret_2026'}`
       );
@@ -600,8 +606,8 @@ export const RouterManagement: React.FC<{
       return (
         `# D-Link / Generic Access Point External Portal & Cloud RADIUS Settings\n` +
         `Portal Mode: External Captive Portal / Web Authentication\n` +
-        `External Portal URL: https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter?.id}&ap_vendor=generic\n` +
-        `Primary RADIUS Server IP: 167.99.120.45\n` +
+        `External Portal URL: https://infotechwifi.com/?routerId=${selectedScriptRouter?.id}&ap_vendor=generic\n` +
+        `Primary RADIUS Server IP: 13.140.173.98\n` +
         `Authentication Port (UDP): 1812\n` +
         `Accounting Port (UDP): 1813\n` +
         `RADIUS CoA / Disconnect Port (RFC 5176): 3799\n` +
@@ -816,6 +822,12 @@ export const RouterManagement: React.FC<{
     if (deviceFilter === 'PHAROS_CPE') {
       const isCpe = (r.model_name && (r.model_name.includes('CPE') || r.model_name.includes('Pharos') || r.model_name.includes('WBS'))) || r.cpe_mode;
       if (!isCpe) return false;
+    } else if (deviceFilter === 'TPLINK_OMADA') {
+      const isOmada =
+        r.device_type === 'TPLINK_OMADA' ||
+        (r.device_type as string) === 'OMADA' ||
+        (r.model_name && (r.model_name.toUpperCase().includes('OMADA') || r.model_name.toUpperCase().includes('EAP')));
+      if (!isOmada) return false;
     } else if (deviceFilter !== 'ALL' && r.device_type !== deviceFilter) {
       return false;
     }
@@ -1029,13 +1041,17 @@ export const RouterManagement: React.FC<{
                 className="w-full sm:w-auto text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600"
               >
                 <option value="ALL">Vifaa Vyote ({routers.length})</option>
-                <option value="MIKROTIK">🔴 MikroTik RouterOS</option>
-                <option value="TPLINK_OMADA">🟢 TP-Link Omada EAPs</option>
-                <option value="PHAROS_CPE">📡 TP-Link Pharos CPEs</option>
-                <option value="RUIJIE">🟠 Ruijie Reyee Cloud AP</option>
-                <option value="OPENWRT_CUDY">🔵 Cudy / OpenWrt</option>
-                <option value="UBIQUITI_UNIFI">🟣 Ubiquiti UniFi</option>
-                <option value="GENERIC_RADIUS">⚪ Generic RADIUS</option>
+                <option value="MIKROTIK">🔴 MikroTik RouterOS ({routers.filter(r => !r.device_type || r.device_type === 'MIKROTIK').length})</option>
+                <option value="TPLINK_OMADA">
+                  🟢 TP-Link Omada EAPs ({routers.filter(r => r.device_type === 'TPLINK_OMADA' || (r.device_type as string) === 'OMADA' || (r.model_name && (r.model_name.toUpperCase().includes('OMADA') || r.model_name.toUpperCase().includes('EAP')))).length})
+                </option>
+                <option value="PHAROS_CPE">
+                  📡 TP-Link Pharos CPEs ({routers.filter(r => (r.model_name && (r.model_name.includes('CPE') || r.model_name.includes('Pharos') || r.model_name.includes('WBS'))) || r.cpe_mode).length})
+                </option>
+                <option value="RUIJIE">🟠 Ruijie Reyee Cloud AP ({routers.filter(r => r.device_type === 'RUIJIE').length})</option>
+                <option value="OPENWRT_CUDY">🔵 Cudy / OpenWrt ({routers.filter(r => r.device_type === 'OPENWRT_CUDY').length})</option>
+                <option value="UBIQUITI_UNIFI">🟣 Ubiquiti UniFi ({routers.filter(r => r.device_type === 'UBIQUITI_UNIFI').length})</option>
+                <option value="GENERIC_RADIUS">⚪ Generic RADIUS ({routers.filter(r => r.device_type === 'GENERIC_RADIUS').length})</option>
               </select>
             </div>
           </div>
@@ -1180,17 +1196,21 @@ export const RouterManagement: React.FC<{
 
                     <span
                       className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border flex items-center gap-1 ${
-                        router.status === 'ONLINE'
+                        router.status === 'ONLINE' || (router.status as string) === 'CONNECTED' || (router.device_type === 'TPLINK_OMADA' && router.adoption_status === 'ADOPTED')
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-rose-50 text-rose-700 border-rose-200'
                       }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
-                          router.status === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                          router.status === 'ONLINE' || (router.status as string) === 'CONNECTED' || (router.device_type === 'TPLINK_OMADA' && router.adoption_status === 'ADOPTED') ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
                         }`}
                       />
-                      {router.status}
+                      <span>
+                        {router.device_type === 'TPLINK_OMADA' && (router.status === 'ONLINE' || router.adoption_status === 'ADOPTED')
+                          ? 'CONNECTED'
+                          : router.status}
+                      </span>
                     </span>
 
                     <button
@@ -1225,20 +1245,40 @@ export const RouterManagement: React.FC<{
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px] uppercase font-bold">AP Device Account</span>
-                        <span className="font-bold text-slate-800 truncate block">
-                          {router.ap_username || 'admin'} / ••••••••
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold text-slate-800 text-[11px] truncate block">
+                            {router.ap_username || 'admin'} / {router.ap_password ? router.ap_password : '••••••••'}
+                          </span>
+                          {router.ap_password && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(router.ap_password || '');
+                                setPortalUrlCopiedId(router.id + 9500);
+                                setTimeout(() => setPortalUrlCopiedId(null), 2500);
+                              }}
+                              className="text-[10px] text-teal-700 hover:text-teal-900 cursor-pointer"
+                              title="Nakili Password ya AP"
+                            >
+                              {portalUrlCopiedId === router.id + 9500 ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[10px] uppercase font-bold">Controller Inform</span>
                         <div className="flex items-center gap-1">
                           <span className="font-bold text-teal-800 text-[11px] truncate block">
-                            167.99.120.45:29810
+                            13.140.173.98:29810
                           </span>
                           <button
                             type="button"
                             onClick={() => {
-                              navigator.clipboard.writeText('http://167.99.120.45:29810/inform');
+                              navigator.clipboard.writeText('http://13.140.173.98:29810/inform');
                               setPortalUrlCopiedId(router.id + 9000);
                               setTimeout(() => setPortalUrlCopiedId(null), 2500);
                             }}
@@ -1285,7 +1325,7 @@ export const RouterManagement: React.FC<{
                     <div>
                       <span className="text-slate-400 block text-[10px]">FreeRADIUS Server</span>
                       <span className="font-semibold text-emerald-700">
-                        167.99.120.45:1812
+                        13.140.173.98:1812
                       </span>
                     </div>
                     <div>
@@ -1435,6 +1475,16 @@ export const RouterManagement: React.FC<{
 
                       <button
                         type="button"
+                        onClick={() => setPerformanceModalRouter(router)}
+                        className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center justify-center gap-1.5 border border-slate-300 cursor-pointer"
+                        title="Tazama Utendaji wa RAM, CPU, na Taarifa za Kifaa"
+                      >
+                        <Activity className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>📊 Maelezo & Performance (RAM, CPU)</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => handleOpenScript(router)}
                         className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                       >
@@ -1448,7 +1498,7 @@ export const RouterManagement: React.FC<{
                       <button
                         type="button"
                         onClick={() => {
-                          const pUrl = `https://wifi.infotech.co.tz/?routerId=${router.id}&ap_vendor=${(router.device_type || 'generic').toLowerCase()}`;
+                          const pUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=${(router.device_type || 'generic').toLowerCase()}`;
                           navigator.clipboard.writeText(pUrl);
                           setPortalUrlCopiedId(router.id);
                           setTimeout(() => setPortalUrlCopiedId(null), 2500);
@@ -1480,6 +1530,17 @@ export const RouterManagement: React.FC<{
                         </button>
                       ) : router.device_type === 'TPLINK_OMADA' ? (
                         <div className="flex flex-wrap items-center gap-2 w-full">
+                          {/* 0. Primary Details & Performance Modal Button */}
+                          <button
+                            type="button"
+                            onClick={() => setPerformanceModalRouter(router)}
+                            className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 hover:from-teal-600 hover:to-slate-800 text-white font-black text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer border border-teal-500/40"
+                            title="Fungua Maelezo Kamili ya Utendaji wa RAM, CPU, Signal ya Wi-Fi na Model ya Kifaa"
+                          >
+                            <Activity className="w-4 h-4 text-emerald-300 animate-pulse" />
+                            <span>📊 Details & Performance (RAM, CPU & Signal)</span>
+                          </button>
+
                           {/* 1. Direct Check Adoption Button */}
                           <button
                             type="button"
@@ -1941,16 +2002,16 @@ export const RouterManagement: React.FC<{
                       <span className="text-[10px] text-slate-400 block uppercase">1. External Web Portal URL</span>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-emerald-400 truncate">
-                          {deviceConfigData?.ruijie?.portalUrl || `https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter.id}`}
+                          {deviceConfigData?.ruijie?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter.id}`}
                         </span>
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(deviceConfigData?.ruijie?.portalUrl || `https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter.id}`);
+                            navigator.clipboard.writeText(deviceConfigData?.ruijie?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter.id}`);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
-                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] shrink-0 font-sans"
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] shrink-0 font-sans cursor-pointer"
                         >
                           {copied ? '✓ Nakili' : 'Nakili URL'}
                         </button>
@@ -1960,7 +2021,7 @@ export const RouterManagement: React.FC<{
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 block uppercase">2. Primary RADIUS Server IP</span>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-amber-400">167.99.120.45</span>
+                        <span className="font-bold text-amber-400">13.140.173.98</span>
                         <span className="text-slate-400 text-[10px]">Auth: 1812 | Acct: 1813</span>
                       </div>
                     </div>
@@ -1978,7 +2039,7 @@ export const RouterManagement: React.FC<{
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
-                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] shrink-0 font-sans"
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] shrink-0 font-sans cursor-pointer"
                         >
                           Nakili Secret
                         </button>
@@ -2004,7 +2065,7 @@ export const RouterManagement: React.FC<{
                       <li>Ingia kwenye akaunti yako ya <strong>cloud.ruijienetworks.com</strong> au kupitia app ya simu ya <strong>Ruijie Reyee</strong>.</li>
                       <li>Fungua Project yako → Nenda <strong>Configuration</strong> → <strong>Auth Portal</strong>.</li>
                       <li>Washa <strong>Captive Portal</strong>, chagua aina ya <strong>"External Web Portal"</strong> na ubandike ile <em>Portal URL</em> hapo juu.</li>
-                      <li>Kwenye Authentication, chagua <strong>External RADIUS</strong>, weka IP: <code>167.99.120.45</code>, Auth Port: <code>1812</code>, Secret: <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
+                      <li>Kwenye Authentication, chagua <strong>External RADIUS</strong>, weka IP: <code>13.140.173.98</code>, Auth Port: <code>1812</code>, Secret: <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
                       <li>Washa <strong>RADIUS CoA</strong> (Port 3799) na ubonyeze <strong>Save & Deliver</strong>. AP yako itaanza kusukuma wateja kwenye mfumo wa malipo papo hapo!</li>
                     </ol>
                   </div>
@@ -2017,7 +2078,7 @@ export const RouterManagement: React.FC<{
                     <div>
                       <h4 className="font-bold text-sm text-teal-300">TP-Link Omada Controller & AP: Hotspot Direct</h4>
                       <p className="text-slate-300 mt-1 leading-relaxed">
-                        TP-Link Omada inakuruhusu kusanidi External Web Portal Server na External RADIUS Profile bila kutegemea router ya MikroTik.
+                        TP-Link Omada (k.m. EAP110, EAP110-Outdoor, EAP225, EAP610) inakuruhusu kusanidi External Web Portal Server na External RADIUS Profile bila kutegemea router ya MikroTik.
                       </p>
                     </div>
                   </div>
@@ -2031,31 +2092,31 @@ export const RouterManagement: React.FC<{
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 block uppercase">External Portal URL</span>
                       <span className="font-bold text-emerald-400 truncate block">
-                        {deviceConfigData?.omada?.portalUrl || `https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter.id}`}
+                        {deviceConfigData?.omada?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter.id}`}
                       </span>
                     </div>
 
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 block uppercase">RADIUS IP & Secret</span>
                       <span className="font-bold text-amber-400 block">
-                        167.99.120.45 (Secret: {selectedScriptRouter.radius_secret || 'radius_secret_2026'})
+                        13.140.173.98 (Secret: {selectedScriptRouter.radius_secret || 'radius_secret_2026'})
                       </span>
                     </div>
 
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-                      <span className="text-[10px] text-slate-400 block uppercase">RADIUS CoA Port</span>
-                      <span className="font-bold text-indigo-400">Port 3799 (Active)</span>
+                      <span className="text-[10px] text-slate-400 block uppercase">Controller Inform URL</span>
+                      <span className="font-bold text-cyan-400 truncate block">http://13.140.173.98:29810/inform</span>
                     </div>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-                    <h4 className="font-bold text-sm text-white">Hatua za Omada Controller (v5.x+):</h4>
+                    <h4 className="font-bold text-sm text-white">Hatua za Omada Controller / Standalone AP:</h4>
                     <ol className="list-decimal list-inside space-y-1.5 text-slate-300 leading-relaxed pl-1">
                       <li>Kwenye Omada Controller (OC200 au Software), nenda <strong>Settings</strong> → <strong>Authentication</strong> → <strong>Hotspot</strong>.</li>
                       <li>Washa Hotspot kwenye SSID ya wateja (mfano <strong>{selectedScriptRouter.ssid || 'HOTSPOT-WIFI'}</strong>).</li>
-                      <li>Chagua <strong>External Portal Server</strong> na ubandike ile URL ya mfumo wetu.</li>
-                      <li>Unda <strong>RADIUS Profile</strong> yenye IP <code>167.99.120.45</code> na Secret <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
-                      <li>Washa <strong>RADIUS CoA</strong> na uhifadhi (Apply). Kila mteja anayeunganisha TP-Link atalipia kwa simu!</li>
+                      <li>Chagua <strong>External Portal Server</strong> na ubandike Portal URL: <code>https://infotechwifi.com/?routerId={selectedScriptRouter.id}</code>.</li>
+                      <li>Unda <strong>RADIUS Profile</strong> yenye IP <code>13.140.173.98</code> na Secret <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
+                      <li>Kwenye Standalone AP (kama EAP110), nenda <strong>Management</strong> → <strong>Controller Settings</strong> na weka Inform URL: <code>http://13.140.173.98:29810/inform</code>.</li>
                     </ol>
                   </div>
                 </div>
@@ -2092,12 +2153,12 @@ export const RouterManagement: React.FC<{
                       <span className="text-[10px] text-slate-400 block uppercase font-sans">External Portal URL</span>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-emerald-400 truncate">
-                          {deviceConfigData?.cpe?.portalUrl || `https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter?.id}`}
+                          {deviceConfigData?.cpe?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter?.id}`}
                         </span>
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(deviceConfigData?.cpe?.portalUrl || `https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter?.id}`);
+                            navigator.clipboard.writeText(deviceConfigData?.cpe?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter?.id}`);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
@@ -2111,7 +2172,7 @@ export const RouterManagement: React.FC<{
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 block uppercase font-sans">RADIUS Server IP & Secret</span>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-amber-400">167.99.120.45</span>
+                        <span className="font-bold text-amber-400">13.140.173.98</span>
                         <span className="text-cyan-400 text-[10px] truncate max-w-[120px]">
                           {selectedScriptRouter?.radius_secret || 'radius_secret_2026'}
                         </span>
@@ -2211,8 +2272,8 @@ export const RouterManagement: React.FC<{
                   <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
                     <ol className="list-decimal list-inside space-y-1.5 text-slate-300 leading-relaxed pl-1">
                       <li>Kwenye UniFi Controller, fungua <strong>Settings</strong> → <strong>Guest Hotspot</strong>.</li>
-                      <li>Chagua <strong>External Portal Server</strong> na weka Host: <code>wifi.infotech.co.tz</code> na Portal URL yenye Router ID.</li>
-                      <li>Kwenye <strong>Profiles</strong> → Unda RADIUS Profile yenye IP: <code>167.99.120.45</code> na Secret: <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
+                      <li>Chagua <strong>External Portal Server</strong> na weka Host: <code>infotechwifi.com</code> na Portal URL yenye Router ID.</li>
+                      <li>Kwenye <strong>Profiles</strong> → Unda RADIUS Profile yenye IP: <code>13.140.173.98</code> na Secret: <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
                       <li>Hifadhi na utume kwenye Access Point zako za UniFi!</li>
                     </ol>
                   </div>
@@ -2236,12 +2297,12 @@ export const RouterManagement: React.FC<{
                       <span className="text-[10px] text-slate-400 block uppercase">1. External Captive Portal URL</span>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-emerald-400 truncate">
-                          {`https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter.id}&ap_vendor=generic`}
+                          {`https://infotechwifi.com/?routerId=${selectedScriptRouter.id}&ap_vendor=generic`}
                         </span>
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(`https://wifi.infotech.co.tz/?routerId=${selectedScriptRouter.id}&ap_vendor=generic`);
+                            navigator.clipboard.writeText(`https://infotechwifi.com/?routerId=${selectedScriptRouter.id}&ap_vendor=generic`);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
@@ -2255,7 +2316,7 @@ export const RouterManagement: React.FC<{
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 block uppercase">2. RADIUS Server IP</span>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-amber-400">167.99.120.45</span>
+                        <span className="font-bold text-amber-400">13.140.173.98</span>
                         <span className="text-slate-400 text-[10px]">Auth: 1812 | Acct: 1813</span>
                       </div>
                     </div>
@@ -2295,8 +2356,8 @@ export const RouterManagement: React.FC<{
                       <li>Ingia kwenye ukurasa wa web wa Access Point yako (k.m. <code>192.168.0.50</code> au app ya usimamizi).</li>
                       <li>Nenda kwenye menyu ya <strong>Captive Portal / Web Authentication / Hotspot</strong>.</li>
                       <li>Chagua aina ya <strong>External Web Portal</strong> na weka Portal URL hapo juu.</li>
-                      <li>Kwenye <strong>RADIUS Server</strong>, weka IP: <code>167.99.120.45</code>, Auth Port: <code>1812</code>, Secret: <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
-                      <li>Kwenye <strong>Walled Garden / Free Pass List</strong>, weka: <code>*.palmpesa.com</code>, <code>*.azampay.com</code>, <code>*.vodacom.co.tz</code>, <code>*.tigo.co.tz</code>, <code>*.airtel.co.tz</code>, na <code>wifi.infotech.co.tz</code>.</li>
+                      <li>Kwenye <strong>RADIUS Server</strong>, weka IP: <code>13.140.173.98</code>, Auth Port: <code>1812</code>, Secret: <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
+                      <li>Kwenye <strong>Walled Garden / Free Pass List</strong>, weka: <code>*.palmpesa.com</code>, <code>*.azampay.com</code>, <code>*.vodacom.co.tz</code>, <code>*.tigo.co.tz</code>, <code>*.airtel.co.tz</code>, na <code>infotechwifi.com</code>.</li>
                       <li>Hifadhi na uwasha Wi-Fi. Mteja akijiunga atapata ukurasa wa kulipia simu mara moja!</li>
                     </ol>
                   </div>
@@ -2323,7 +2384,7 @@ export const RouterManagement: React.FC<{
                       <span>Kuweka Ruijie Reyee bila MikroTik</span>
                     </h4>
                     <p className="text-slate-300 leading-relaxed pl-2">
-                      Fungua app ya <strong>Ruijie Reyee</strong> au <strong>cloud.ruijienetworks.com</strong>, chagua <em>Auth Portal → External Web Portal</em>, na ubandike ile Portal URL pamoja na RADIUS Server IP: 167.99.120.45.
+                      Fungua app ya <strong>Ruijie Reyee</strong> au <strong>cloud.ruijienetworks.com</strong>, chagua <em>Auth Portal → External Web Portal</em>, na ubandike ile Portal URL pamoja na RADIUS Server IP: 13.140.173.98.
                     </p>
                   </div>
 
@@ -2870,12 +2931,12 @@ export const RouterManagement: React.FC<{
                     <div>
                       <span className="text-slate-500 block">External Portal:</span>
                       <span className="text-emerald-400 font-semibold truncate block">
-                        https://wifi.infotech.co.tz/?routerId=[Auto]&ap_vendor={(formData.device_type || 'generic').toLowerCase()}
+                        https://infotechwifi.com/?routerId=[Auto]&ap_vendor={(formData.device_type || 'generic').toLowerCase()}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-500 block">FreeRADIUS Server IP:</span>
-                      <span className="text-amber-400 font-semibold">167.99.120.45 (Auth: 1812 / Acct: 1813)</span>
+                      <span className="text-amber-400 font-semibold">13.140.173.98 (Auth: 1812 / Acct: 1813)</span>
                     </div>
                     <div>
                       <span className="text-slate-500 block">RADIUS Shared Secret:</span>
@@ -3192,6 +3253,14 @@ export const RouterManagement: React.FC<{
           </div>
         </div>
       )}
+
+      {/* Device Performance & Details Modal */}
+      <DevicePerformanceModal
+        isOpen={Boolean(performanceModalRouter)}
+        onClose={() => setPerformanceModalRouter(null)}
+        router={performanceModalRouter}
+        lang={lang}
+      />
     </div>
   );
 };

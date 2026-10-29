@@ -27,6 +27,8 @@ import {
   TrendingUp,
   DollarSign,
   Users,
+  Edit3,
+  Tag,
 } from 'lucide-react';
 import { HotspotOwner } from '../../types/index.ts';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
@@ -128,6 +130,18 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
   // USSD Push state
   const [isSendingPush, setIsSendingPush] = useState<number | null>(null);
 
+  // Subscription Price Customization State
+  const [currentSubscriptionPrice, setCurrentSubscriptionPrice] = useState<number>(15000);
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState<boolean>(false);
+  const [newPriceInput, setNewPriceInput] = useState<string>('15000');
+  const [applyToAllOwners, setApplyToAllOwners] = useState<boolean>(true);
+  const [isSavingPrice, setIsSavingPrice] = useState<boolean>(false);
+
+  // Individual Owner Custom Fee Modal State
+  const [customFeeTarget, setCustomFeeTarget] = useState<SubscriptionItem | null>(null);
+  const [customFeeAmount, setCustomFeeAmount] = useState<number>(15000);
+  const [isSavingCustomFee, setIsSavingCustomFee] = useState<boolean>(false);
+
   // Fetch report data
   const fetchReport = async () => {
     setIsLoading(true);
@@ -145,6 +159,9 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
       }
       const data = await res.json();
       setOwnersList(data.owners || []);
+      if (data.default_subscription_price) {
+        setCurrentSubscriptionPrice(Number(data.default_subscription_price));
+      }
       setSummary(
         data.summary || {
           total_owners: 0,
@@ -159,6 +176,78 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
       setActionMessage({ type: 'error', text: err.message || 'Imeshindikana kupakia data ya subscription.' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveSubscriptionPrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = Number(newPriceInput);
+    if (!val || val <= 0) {
+      setActionMessage({ type: 'error', text: 'Tafadhali weka bei halali ya subscription (namba chanya).' });
+      return;
+    }
+
+    setIsSavingPrice(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch('/api/v1/subscription/settings/price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          price: val,
+          applyToAllOwners,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Imeshindikana kusasisha bei ya subscription.');
+
+      setCurrentSubscriptionPrice(val);
+      setIsPriceModalOpen(false);
+      setActionMessage({
+        type: 'success',
+        text: data.message || `✓ Bei ya subscription imewekwa TZS ${val.toLocaleString()}/mwezi kikamilifu!`,
+      });
+      await fetchReport();
+      if (onOwnersUpdated) onOwnersUpdated();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
+
+  const handleSaveOwnerCustomFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customFeeTarget) return;
+
+    const val = Number(customFeeAmount);
+    if (isNaN(val) || val <= 0) {
+      setActionMessage({ type: 'error', text: 'Tafadhali weka ada halali.' });
+      return;
+    }
+
+    setIsSavingCustomFee(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch(`/api/v1/owners/${customFeeTarget.id}/subscription-fee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fee: val }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Imeshindikana kusasisha ada ya mmiliki.');
+
+      setCustomFeeTarget(null);
+      setActionMessage({
+        type: 'success',
+        text: data.message || `✓ Ada ya ${customFeeTarget.business_name} imewekwa TZS ${val.toLocaleString()}.`,
+      });
+      await fetchReport();
+      if (onOwnersUpdated) onOwnersUpdated();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsSavingCustomFee(false);
     }
   };
 
@@ -385,6 +474,22 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            onClick={() => {
+              setNewPriceInput(String(currentSubscriptionPrice));
+              setIsPriceModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 transition cursor-pointer"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>
+              {lang === 'sw'
+                ? `Badilisha Bei (TZS ${currentSubscriptionPrice.toLocaleString()})`
+                : `Edit Fee (TZS ${currentSubscriptionPrice.toLocaleString()})`}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={fetchReport}
             disabled={isLoading}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-2xs transition cursor-pointer"
@@ -430,6 +535,41 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
           </button>
         </div>
       )}
+
+      {/* Prominent Subscription Pricing & Policy Banner */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-800/60 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600/40 border border-indigo-400/30 flex items-center justify-center shrink-0 shadow-inner">
+            <Tag className="w-6 h-6 text-indigo-300" />
+          </div>
+          <div>
+            <div className="text-xs text-indigo-300 font-bold uppercase tracking-wider flex items-center gap-2">
+              <span>{lang === 'sw' ? 'Ada ya Mwezi ya Subscription (Hotspot Tenant Fee)' : 'Standard Monthly Tenant Fee'}</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                {lang === 'sw' ? 'Inatumika Sasa' : 'Active Rate'}
+              </span>
+            </div>
+            <div className="text-2xl font-black text-white font-mono mt-0.5 flex items-baseline gap-2">
+              <span>TZS {currentSubscriptionPrice.toLocaleString()}</span>
+              <span className="text-xs font-medium text-slate-400 font-sans">
+                {lang === 'sw' ? '/ mwezi kwa kila mmiliki' : '/ month per tenant'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setNewPriceInput(String(currentSubscriptionPrice));
+            setIsPriceModalOpen(true);
+          }}
+          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+        >
+          <Edit3 className="w-4 h-4" />
+          <span>{lang === 'sw' ? 'Badilisha Bei ya Subscription' : 'Change Subscription Price'}</span>
+        </button>
+      </div>
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
@@ -736,9 +876,21 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
                       </span>
                     </td>
 
-                    {/* Monthly Fee */}
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                      TZS {owner.monthly_fee.toLocaleString()}
+                      <div className="flex items-center gap-1.5">
+                        <span>TZS {owner.monthly_fee.toLocaleString()}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomFeeTarget(owner);
+                            setCustomFeeAmount(owner.monthly_fee);
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                          title={lang === 'sw' ? 'Badilisha ada ya mmiliki huyu' : 'Edit fee for this owner'}
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </td>
 
                     {/* Status Badge */}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NetworkProvider, Plan } from '../../types/index.ts';
-import { CARRIERS, formatTzs, isInsufficientBalance } from '../../utils/carrierInfo.ts';
+import { CARRIERS, formatTzs, isInsufficientBalance, isUserCancelled, isTimedOut, isWrongPin } from '../../utils/carrierInfo.ts';
 import { generateQrCodeUrl } from '../../utils/qrHelper.ts';
 import {
   Smartphone,
@@ -84,12 +84,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       } else if (data.status === 'FAILED') {
         setStatus('FAILED');
-        const isNoFunds = isInsufficientBalance(data.failureReason);
-        setErrorMessage(
-          isNoFunds
-            ? 'Account haina salio la kutosha.'
-            : (data.failureReason || 'Malipo hayakukamilika.')
-        );
+        const rawReason = data.failureReason || '';
+        if (isInsufficientBalance(rawReason)) {
+          setErrorMessage('Account haina salio la kutosha.');
+        } else if (isUserCancelled(rawReason)) {
+          setErrorMessage('Mteja alighairi au amecancel STK Push kwenye simu.');
+        } else if (isTimedOut(rawReason)) {
+          setErrorMessage('Muda wa kusubiri malipo ya USSD umekwisha. Tafadhali jaribu tena.');
+        } else if (isWrongPin(rawReason)) {
+          setErrorMessage('PIN ya simu iliyowekwa si sahihi.');
+        } else {
+          setErrorMessage(
+            rawReason && !rawReason.includes('collection.failed')
+              ? rawReason.replace(/^Event:\s*/i, '')
+              : 'Account haina salio la kutosha au muamala ulikataliwa na mtandao.'
+          );
+        }
       }
     } catch (err) {
       console.error('Manual check payment error:', err);
@@ -130,12 +140,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           }
         } else if (data.status === 'FAILED') {
           setStatus('FAILED');
-          const isNoFunds = isInsufficientBalance(data.failureReason);
-          setErrorMessage(
-            isNoFunds
-              ? 'Account haina salio la kutosha.'
-              : (data.failureReason || 'Malipo hayakukamilika.')
-          );
+          const rawReason = data.failureReason || '';
+          if (isInsufficientBalance(rawReason)) {
+            setErrorMessage('Account haina salio la kutosha.');
+          } else if (isUserCancelled(rawReason)) {
+            setErrorMessage('Mteja alighairi au amecancel STK Push kwenye simu.');
+          } else if (isTimedOut(rawReason)) {
+            setErrorMessage('Muda wa kusubiri malipo ya USSD umekwisha. Tafadhali jaribu tena.');
+          } else if (isWrongPin(rawReason)) {
+            setErrorMessage('PIN ya simu iliyowekwa si sahihi.');
+          } else {
+            setErrorMessage(
+              rawReason && !rawReason.includes('collection.failed')
+                ? rawReason.replace(/^Event:\s*/i, '')
+                : 'Account haina salio la kutosha au muamala ulikataliwa na mtandao.'
+            );
+          }
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -461,6 +481,65 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
                   >
                     {lang === 'sw' ? 'Weka Salio Kisha Jaribu Tena' : 'Top Up & Try Again'}
+                  </button>
+                </>
+              ) : isUserCancelled(errorMessage) ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto shadow-inner border border-orange-200">
+                    <XCircle className="w-8 h-8 stroke-[2.2]" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h4 className="text-lg font-black text-orange-950">
+                      {lang === 'sw' ? 'Umeghairi Malipo ya STK Push' : 'STK Push Cancelled'}
+                    </h4>
+                    <p className="text-xs text-slate-700 leading-relaxed max-w-xs mx-auto">
+                      {lang === 'sw'
+                        ? `Umeghairi au umekataa kuingiza namba ya siri (PIN) kwenye simu yako ya ${carrierInfo.name} (${phoneNumber}). Ikiwa ungependa kuendelea kutumia intaneti, bofya kitufe hapa chini kutuma tena ombi la malipo.`
+                        : `You cancelled or declined the payment request on your ${carrierInfo.name} phone (${phoneNumber}). Click below to request a new payment prompt.`}
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-2xl text-[11px] text-orange-900 font-medium text-left flex items-start gap-2">
+                    <span className="text-orange-600 font-bold shrink-0 text-sm">💡</span>
+                    <span>
+                      {lang === 'sw'
+                        ? 'Hakikisha unaingiza PIN yako mara ujumbe wa mtandao unapojitokeza kwenye kioo cha simu yako.'
+                        : 'Enter your PIN immediately when the mobile network prompt pops up on your screen.'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-3 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    {lang === 'sw' ? 'Tuma STK Push Tena' : 'Resend STK Push'}
+                  </button>
+                </>
+              ) : isTimedOut(errorMessage) ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mx-auto shadow-inner border border-slate-200">
+                    <Clock className="w-8 h-8 stroke-[2.2]" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h4 className="text-lg font-black text-slate-900">
+                      {lang === 'sw' ? 'Muda wa STK Push Umekwisha' : 'STK Push Timed Out'}
+                    </h4>
+                    <p className="text-xs text-slate-700 leading-relaxed max-w-xs mx-auto">
+                      {lang === 'sw'
+                        ? 'Muda wa kusubiri uthibitisho wa malipo kwenye simu yako umekwisha kabla ya kukamilika. Tafadhali hakikisha simu yako iko tayari kisha ubofye kitufe hapa chini.'
+                        : 'The USSD prompt expired before confirmation. Please verify your phone is unlocked and try again.'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    {lang === 'sw' ? 'Jaribu Tena' : 'Retry Payment'}
                   </button>
                 </>
               ) : (

@@ -112,6 +112,7 @@ export interface HotspotOwner {
   subscription_status?: 'ACTIVE' | 'EXPIRED' | 'TRIAL';
   subscription_expires_at?: string;
   subscription_fee?: number;
+  subscription_package_id?: number;
   vendor_merchant_id?: string;
   payout_channel?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY_SUB' | 'VODACOM_DIRECT' | 'TIGO_DIRECT' | 'AIRTEL_DIRECT' | 'MANUAL';
   wallet_account_number?: string;
@@ -129,6 +130,49 @@ export interface HotspotOwner {
   created_at: string;
   updated_at: string;
 }
+
+export interface SubscriptionPackage {
+  id: number;
+  name: string;
+  price: number; // in TZS per month
+  billing_cycle_days: number; // default 30
+  max_routers_ap: number; // idadi ya routers na APs (-1 = bila kikomo)
+  max_users: number; // idadi ya users/vouchers (-1 = bila kikomo)
+  max_sites: number; // idadi ya maeneo/sites (-1 = bila kikomo)
+  max_staff_accounts: number; // idadi ya staff accounts (-1 = bila kikomo)
+  features: string[];
+  badge?: 'POPULAR' | 'BEST_VALUE' | 'STARTER' | 'ENTERPRISE' | 'CUSTOM' | 'NONE';
+  description_sw: string;
+  description_en?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantFreeTrialSettings {
+  enabled: boolean;
+  trial_days: number;
+  package_id?: number;
+  max_routers_ap: number;
+  max_users: number;
+  max_sites: number;
+  max_staff_accounts: number;
+  name: string;
+  description_sw: string;
+  updated_at?: string;
+}
+
+export const DEFAULT_TENANT_FREE_TRIAL_SETTINGS: TenantFreeTrialSettings = {
+  enabled: true,
+  trial_days: 14,
+  package_id: undefined,
+  max_routers_ap: 2,
+  max_users: 500,
+  max_sites: 1,
+  max_staff_accounts: 2,
+  name: 'Majaribio ya Bure (Free Trial)',
+  description_sw: 'Pata siku 14 za majaribio ya bure mara tu unapojisajili. Jaribu mfumo mzima bila malipo ya awali!',
+};
 
 export type DeviceType = 'MIKROTIK' | 'RUIJIE' | 'TPLINK_OMADA' | 'OPENWRT_CUDY' | 'UBIQUITI_UNIFI' | 'GENERIC_RADIUS';
 
@@ -376,6 +420,7 @@ export interface WebhookPayload {
   carrier: string;
   timestamp: string;
   message?: string;
+  code?: string | number;
 }
 
 export interface AzamPayConfig {

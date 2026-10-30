@@ -29,8 +29,25 @@ import {
   Users,
   Edit3,
   Tag,
+  Plus,
+  Trash2,
+  Edit,
+  Package,
+  MapPin,
+  UserCheck,
+  Radio,
+  Sparkles,
+  Layers,
+  Gift,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
-import { HotspotOwner } from '../../types/index.ts';
+import {
+  HotspotOwner,
+  SubscriptionPackage,
+  TenantFreeTrialSettings,
+  DEFAULT_TENANT_FREE_TRIAL_SETTINGS,
+} from '../../types/index.ts';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 import { isInsufficientBalance } from '../../utils/carrierInfo.ts';
 
@@ -44,6 +61,8 @@ export interface SubscriptionItem {
   monthly_fee: number;
   subscription_status: string;
   subscription_expires_at: string | null;
+  subscription_package_id?: number | null;
+  subscription_package?: SubscriptionPackage | null;
   is_paid: boolean;
   days_remaining: number;
   days_overdue: number;
@@ -142,6 +161,260 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
   const [customFeeTarget, setCustomFeeTarget] = useState<SubscriptionItem | null>(null);
   const [customFeeAmount, setCustomFeeAmount] = useState<number>(15000);
   const [isSavingCustomFee, setIsSavingCustomFee] = useState<boolean>(false);
+
+  // Tab State: 'ledger' | 'packages'
+  const [activeTab, setActiveTab] = useState<'ledger' | 'packages'>('ledger');
+
+  // Subscription Packages State
+  const [packagesList, setPackagesList] = useState<SubscriptionPackage[]>([]);
+  const [isLoadingPackages, setIsLoadingPackages] = useState<boolean>(false);
+  const [isPkgModalOpen, setIsPkgModalOpen] = useState<boolean>(false);
+  const [editingPkg, setEditingPkg] = useState<SubscriptionPackage | null>(null);
+
+  // Package Form State
+  const [pkgName, setPkgName] = useState<string>('');
+  const [pkgPrice, setPkgPrice] = useState<number>(15000);
+  const [pkgBillingCycle, setPkgBillingCycle] = useState<number>(30);
+  const [pkgMaxRoutersAp, setPkgMaxRoutersAp] = useState<number>(2);
+  const [pkgMaxUsers, setPkgMaxUsers] = useState<number>(500);
+  const [pkgMaxSites, setPkgMaxSites] = useState<number>(1);
+  const [pkgMaxStaff, setPkgMaxStaff] = useState<number>(2);
+  const [pkgBadge, setPkgBadge] = useState<'POPULAR' | 'BEST_VALUE' | 'STARTER' | 'ENTERPRISE' | 'CUSTOM' | 'NONE'>('NONE');
+  const [pkgDescSw, setPkgDescSw] = useState<string>('');
+  const [pkgFeaturesText, setPkgFeaturesText] = useState<string>('');
+  const [pkgIsActive, setPkgIsActive] = useState<boolean>(true);
+  const [isSavingPkg, setIsSavingPkg] = useState<boolean>(false);
+
+  // Assign Package to Owner Modal
+  const [assignModalTarget, setAssignModalTarget] = useState<SubscriptionItem | null>(null);
+  const [selectedAssignPkgId, setSelectedAssignPkgId] = useState<number | ''>('');
+  const [isAssigningPkg, setIsAssigningPkg] = useState<boolean>(false);
+
+  // Tenant Free Trial Settings State
+  const [freeTrialSettings, setFreeTrialSettings] = useState<TenantFreeTrialSettings>({
+    ...DEFAULT_TENANT_FREE_TRIAL_SETTINGS,
+  });
+  const [isLoadingTrial, setIsLoadingTrial] = useState<boolean>(false);
+  const [isSavingTrial, setIsSavingTrial] = useState<boolean>(false);
+
+  // Fetch Free Trial Settings
+  const fetchFreeTrialSettings = async () => {
+    setIsLoadingTrial(true);
+    try {
+      const res = await fetch('/api/v1/subscription/free-trial');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.enabled === 'boolean') {
+          setFreeTrialSettings(data);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching tenant free trial settings:', e);
+    } finally {
+      setIsLoadingTrial(false);
+    }
+  };
+
+  const handleToggleFreeTrial = async () => {
+    const newEnabled = !freeTrialSettings.enabled;
+    const updated = { ...freeTrialSettings, enabled: newEnabled };
+    setFreeTrialSettings(updated);
+    await handleSaveFreeTrial(updated);
+  };
+
+  const handleSaveFreeTrial = async (customPayload?: TenantFreeTrialSettings) => {
+    setIsSavingTrial(true);
+    setActionMessage(null);
+    try {
+      const payload = customPayload || freeTrialSettings;
+      const res = await fetch('/api/v1/subscription/free-trial', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Imeshindikana kuhifadhi mipangilio ya free trial.');
+      }
+      setFreeTrialSettings(data.settings || payload);
+      setActionMessage({
+        type: 'success',
+        text: (data.settings || payload).enabled
+          ? `✓ Kifurushi cha Majaribio (Free Trial) kimewashwa kwa siku ${(data.settings || payload).trial_days}! Mteja mpya akijisajili atapata siku hizo za majaribio moja kwa moja.`
+          : '✓ Kifurushi cha Majaribio kimezimwa. Wateja wapya watatakiwa kulipia kifurushi ili kutumia mfumo.',
+      });
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsSavingTrial(false);
+    }
+  };
+
+  // Fetch Packages
+  const fetchPackages = async () => {
+    setIsLoadingPackages(true);
+    try {
+      const res = await fetch('/api/v1/subscription/packages?includeInactive=true');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setPackagesList(data);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching subscription packages:', e);
+    } finally {
+      setIsLoadingPackages(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPackages();
+    fetchFreeTrialSettings();
+  }, []);
+
+  const handleOpenCreatePkgModal = () => {
+    setEditingPkg(null);
+    setPkgName('');
+    setPkgPrice(15000);
+    setPkgBillingCycle(30);
+    setPkgMaxRoutersAp(2);
+    setPkgMaxUsers(500);
+    setPkgMaxSites(1);
+    setPkgMaxStaff(2);
+    setPkgBadge('NONE');
+    setPkgDescSw('Inafaa kwa watumiaji wa biashara na wamiliki wa hotspot.');
+    setPkgFeaturesText('Routers & Access Points: Hadi 2\nWateja / Vouchers: Hadi 500\nMaeneo / Sites: Eneo 1 (1 Site)\nAkaunti za Wahudumu: Wahudumu 2 (Staff)\nMalipo ya Simu (M-Pesa, Tigo, Airtel, Halo)\nCaptive Portal ya Kisasa');
+    setPkgIsActive(true);
+    setIsPkgModalOpen(true);
+  };
+
+  const handleOpenEditPkgModal = (pkg: SubscriptionPackage) => {
+    setEditingPkg(pkg);
+    setPkgName(pkg.name);
+    setPkgPrice(pkg.price);
+    setPkgBillingCycle(pkg.billing_cycle_days || 30);
+    setPkgMaxRoutersAp(pkg.max_routers_ap);
+    setPkgMaxUsers(pkg.max_users);
+    setPkgMaxSites(pkg.max_sites);
+    setPkgMaxStaff(pkg.max_staff_accounts);
+    setPkgBadge(pkg.badge || 'NONE');
+    setPkgDescSw(pkg.description_sw || '');
+    setPkgFeaturesText((pkg.features || []).join('\n'));
+    setPkgIsActive(pkg.is_active !== false);
+    setIsPkgModalOpen(true);
+  };
+
+  const handleSavePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pkgName.trim() || Number(pkgPrice) <= 0) {
+      setActionMessage({ type: 'error', text: 'Tafadhali jaza jina la kifurushi na bei halali ya kila mwezi.' });
+      return;
+    }
+
+    setIsSavingPkg(true);
+    setActionMessage(null);
+    try {
+      const features = pkgFeaturesText
+        .split('\n')
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0);
+
+      const payload = {
+        name: pkgName.trim(),
+        price: Number(pkgPrice),
+        billing_cycle_days: Number(pkgBillingCycle) || 30,
+        max_routers_ap: Number(pkgMaxRoutersAp),
+        max_users: Number(pkgMaxUsers),
+        max_sites: Number(pkgMaxSites),
+        max_staff_accounts: Number(pkgMaxStaff),
+        badge: pkgBadge,
+        description_sw: pkgDescSw.trim(),
+        description_en: pkgDescSw.trim(),
+        features,
+        is_active: pkgIsActive,
+      };
+
+      const url = editingPkg
+        ? `/api/v1/subscription/packages/${editingPkg.id}`
+        : '/api/v1/subscription/packages';
+      const method = editingPkg ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Imeshindikana kuhifadhi kifurushi cha subscription.');
+      }
+
+      setIsPkgModalOpen(false);
+      setActionMessage({
+        type: 'success',
+        text: editingPkg
+          ? `✓ Kifurushi cha '${payload.name}' kimesasishwa kikamilifu!`
+          : `✓ Kifurushi kipya cha '${payload.name}' kimeundwa na kiko hewani!`,
+      });
+      await fetchPackages();
+      await fetchReport();
+      if (onOwnersUpdated) onOwnersUpdated();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsSavingPkg(false);
+    }
+  };
+
+  const handleDeletePackage = async (pkg: SubscriptionPackage) => {
+    if (!window.confirm(`Je, una uhakika unataka kufuta kifurushi cha '${pkg.name}'?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/v1/subscription/packages/${pkg.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Imeshindikana kufuta kifurushi.');
+
+      setActionMessage({ type: 'success', text: `✓ Kifurushi cha '${pkg.name}' kimefutwa kikamilifu.` });
+      await fetchPackages();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleAssignPackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignModalTarget || !selectedAssignPkgId) return;
+
+    setIsAssigningPkg(true);
+    setActionMessage(null);
+    try {
+      const res = await fetch(`/api/v1/owners/${assignModalTarget.id}/assign-package`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId: Number(selectedAssignPkgId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Imeshindikana kugawa kifurushi kwa mmiliki.');
+
+      setAssignModalTarget(null);
+      setActionMessage({
+        type: 'success',
+        text: data.message || `✓ Kifurushi kimepangiwa kwa ${assignModalTarget.business_name} kikamilifu!`,
+      });
+      await fetchReport();
+      if (onOwnersUpdated) onOwnersUpdated();
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsAssigningPkg(false);
+    }
+  };
 
   // Fetch report data
   const fetchReport = async () => {
@@ -566,21 +839,70 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
           </div>
         </div>
 
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleOpenCreatePkgModal}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{lang === 'sw' ? '+ Kifurushi Kipya' : '+ New Package'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setNewPriceInput(currentSubscriptionPrice);
+              setIsPriceModalOpen(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>{lang === 'sw' ? 'Badilisha Bei ya Msingi' : 'Change Default Fee'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
         <button
           type="button"
-          onClick={() => {
-            setNewPriceInput(currentSubscriptionPrice);
-            setIsPriceModalOpen(true);
-          }}
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          onClick={() => setActiveTab('ledger')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+            activeTab === 'ledger'
+              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
         >
-          <Edit3 className="w-4 h-4" />
-          <span>{lang === 'sw' ? 'Badilisha Bei ya Subscription' : 'Change Subscription Price'}</span>
+          <Receipt className="w-4 h-4" />
+          <span>{lang === 'sw' ? 'Daftari la Malipo ya Wamiliki (Ledger)' : 'Owner Subscription Ledger'}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'ledger' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
+            {summary.total_owners}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('packages')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+            activeTab === 'packages'
+              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>{lang === 'sw' ? 'Vifurushi vya Subscription (Packages & Quotas)' : 'Subscription Packages'}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'packages' ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-700'}`}>
+            {packagesList.length}
+          </span>
         </button>
       </div>
 
-      {/* Summary Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+      {/* LEDGER TAB CONTENT */}
+      {activeTab === 'ledger' && (
+        <>
+          {/* Summary Stat Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -828,6 +1150,7 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
             <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 select-none">
               <tr>
                 <th className="py-3 px-4">{lang === 'sw' ? 'Mmiliki & Biashara' : 'Owner & Business'}</th>
+                <th className="py-3 px-4">{lang === 'sw' ? 'Kifurushi (Package)' : 'Package'}</th>
                 <th className="py-3 px-4">{lang === 'sw' ? 'Mawasiliano' : 'Contact'}</th>
                 <th className="py-3 px-3 text-center">{lang === 'sw' ? 'Routers' : 'Routers'}</th>
                 <th className="py-3 px-4">{lang === 'sw' ? 'Ada ya Mwezi' : 'Monthly Fee'}</th>
@@ -840,14 +1163,14 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" />
                     <span>{lang === 'sw' ? 'Inapakia data ya wamiliki...' : 'Loading subscription data...'}</span>
                   </td>
                 </tr>
               ) : paginatedOwners.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     <CalendarX className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">
                       {lang === 'sw' ? 'Hakuna mmiliki aliyepatikana kwa vigezo hivi.' : 'No owners matched current criteria.'}
@@ -866,6 +1189,31 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
                         <span>{owner.business_name}</span>
                       </div>
                       <div className="text-[11px] text-slate-500 font-medium">{owner.name}</div>
+                    </td>
+
+                    {/* Subscription Package */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/70 px-2.5 py-0.5 rounded-lg text-[11px]">
+                          {owner.subscription_package?.name || 'Starter WiFi'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAssignModalTarget(owner);
+                            setSelectedAssignPkgId(owner.subscription_package_id || packagesList[0]?.id || '');
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition cursor-pointer"
+                          title={lang === 'sw' ? 'Panga / Badilisha Kifurushi' : 'Assign Package'}
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
+                        <span>📡 {owner.subscription_package?.max_routers_ap === -1 ? '∞ APs' : `${owner.subscription_package?.max_routers_ap || 2} APs`}</span>
+                        <span>•</span>
+                        <span>👥 {owner.subscription_package?.max_users === -1 ? '∞ Users' : `${(owner.subscription_package?.max_users || 500).toLocaleString()}`}</span>
+                      </div>
                     </td>
 
                     {/* Contact */}
@@ -903,7 +1251,12 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
 
                     {/* Status Badge */}
                     <td className="py-3.5 px-4">
-                      {owner.is_paid ? (
+                      {owner.subscription_status === 'TRIAL' ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[11px] shadow-2xs">
+                          <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                          <span>{lang === 'sw' ? 'MAJARIBIO (TRIAL)' : 'FREE TRIAL'}</span>
+                        </div>
+                      ) : owner.is_paid ? (
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 font-bold text-[11px]">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                           <span>{lang === 'sw' ? 'AMELIPIA' : 'PAID'}</span>
@@ -1039,6 +1392,473 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
           pageSizeOptions={[5, 10, 15, 20]}
         />
       </div>
+    </>
+  )}
+
+  {/* PACKAGES TAB CONTENT */}
+  {activeTab === 'packages' && (
+    <div className="space-y-6">
+      {/* Header & New Package CTA */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 mb-2">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Tiered SaaS Packages & Quotas</span>
+          </div>
+          <h3 className="text-lg font-black text-slate-900">
+            {lang === 'sw' ? 'Mipango na Vifurushi vya Subscription ya Kila Mwezi' : 'Subscription Plans & Quota Management'}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+            {lang === 'sw'
+              ? 'Bainisha na udhibiti vifurushi vya mfumo. Kila kifurushi kinaweka mipaka ya Routers na AP, idadi ya wateja (users / vocha), maeneo (sites), na akaunti za wahudumu (staff). Vifurushi hivi vinaonekana moja kwa moja kwenye Ukurasa Mkuu (Home Page).'
+              : 'Define and manage subscription tiers. Each package sets quotas for Routers & APs, active users / vouchers, sites, and staff operator accounts. These tiers are displayed publicly on the Home Page.'}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleOpenCreatePkgModal}
+          className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 cursor-pointer shrink-0 transition"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{lang === 'sw' ? 'Ongeza Kifurushi Kipya' : 'Add New Tier'}</span>
+        </button>
+      </div>
+
+      {/* =======================================================================
+          FREE TRIAL CONFIGURATION CARD (Hotspot Owner SaaS Signup Trial)
+          ======================================================================= */}
+      <div
+        className={`p-6 rounded-3xl border transition-all duration-300 shadow-sm ${
+          freeTrialSettings.enabled
+            ? 'bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-amber-50/60 border-amber-300 ring-2 ring-amber-400/20'
+            : 'bg-white border-slate-200'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/70 pb-4">
+          <div className="flex items-center gap-3.5">
+            <div
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${
+                freeTrialSettings.enabled
+                  ? 'bg-amber-500 text-white shadow-amber-500/30'
+                  : 'bg-slate-100 text-slate-400'
+              }`}
+            >
+              <Gift className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-base font-black text-slate-900">
+                  {lang === 'sw'
+                    ? 'Kifurushi cha Majaribio ya Bure (Free Trial Package)'
+                    : 'Customer Free Trial Package Settings'}
+                </h4>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    freeTrialSettings.enabled
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {freeTrialSettings.enabled
+                    ? lang === 'sw' ? '● IMEWASHWA (ACTIVE)' : '● ENABLED'
+                    : lang === 'sw' ? '○ IMEZIMWA (OFF)' : '○ DISABLED'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {lang === 'sw'
+                  ? 'Weka idadi ya siku za bure mteja anazopata akijisajili tu kwenye mfumo bila kulipia kabla. Unaweza kuiwasha au kuizima wakati wowote.'
+                  : 'Configure how many free trial days new hotspot owners get immediately upon registration with zero upfront payment.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Master ON/OFF Switch */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleFreeTrial}
+              disabled={isSavingTrial}
+              className={`px-4 py-2.5 rounded-2xl font-black text-xs transition flex items-center gap-2 cursor-pointer shadow-md ${
+                freeTrialSettings.enabled
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                  : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+              }`}
+            >
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  freeTrialSettings.enabled ? 'bg-white animate-pulse' : 'bg-slate-500'
+                }`}
+              />
+              <span>
+                {freeTrialSettings.enabled
+                  ? lang === 'sw' ? 'Washa/Zima: IMEWASHWA' : 'Toggle: ENABLED'
+                  : lang === 'sw' ? 'Washa/Zima: IMEZIMWA' : 'Toggle: DISABLED'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Form Inputs Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-5">
+          {/* Trial Days Input */}
+          <div className="sm:col-span-2 lg:col-span-1 space-y-1.5">
+            <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>{lang === 'sw' ? 'Siku za Majaribio' : 'Trial Days'}</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={freeTrialSettings.trial_days}
+                onChange={(e) =>
+                  setFreeTrialSettings({
+                    ...freeTrialSettings,
+                    trial_days: Math.max(1, Number(e.target.value) || 1),
+                  })
+                }
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-mono text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">
+                {lang === 'sw' ? 'siku' : 'days'}
+              </span>
+            </div>
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1.5 pt-1">
+              {[7, 14, 30].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setFreeTrialSettings({ ...freeTrialSettings, trial_days: days })}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer border ${
+                    freeTrialSettings.trial_days === days
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {days}d
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quota: Routers & APs */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <Radio className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{lang === 'sw' ? 'Routers & APs' : 'Routers & APs'}</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={freeTrialSettings.max_routers_ap}
+              onChange={(e) =>
+                setFreeTrialSettings({
+                  ...freeTrialSettings,
+                  max_routers_ap: Number(e.target.value) || 1,
+                })
+              }
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-mono text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-[10px] text-slate-400 block">Kikomo wakati wa majaribio</span>
+          </div>
+
+          {/* Quota: Max Users */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{lang === 'sw' ? 'Wateja (Users / Vocha)' : 'Max Users'}</span>
+            </label>
+            <input
+              type="number"
+              min="10"
+              step="50"
+              value={freeTrialSettings.max_users}
+              onChange={(e) =>
+                setFreeTrialSettings({
+                  ...freeTrialSettings,
+                  max_users: Number(e.target.value) || 100,
+                })
+              }
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-mono text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-[10px] text-slate-400 block">Vocha & wateja kwa mwezi</span>
+          </div>
+
+          {/* Quota: Max Sites */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{lang === 'sw' ? 'Maeneo (Sites)' : 'Max Sites'}</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={freeTrialSettings.max_sites}
+              onChange={(e) =>
+                setFreeTrialSettings({
+                  ...freeTrialSettings,
+                  max_sites: Number(e.target.value) || 1,
+                })
+              }
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-mono text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-[10px] text-slate-400 block">Idadi ya matawi/locations</span>
+          </div>
+
+          {/* Quota: Max Staff */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{lang === 'sw' ? 'Wahudumu (Staff)' : 'Staff Accounts'}</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={freeTrialSettings.max_staff_accounts}
+              onChange={(e) =>
+                setFreeTrialSettings({
+                  ...freeTrialSettings,
+                  max_staff_accounts: Number(e.target.value) || 1,
+                })
+              }
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-mono text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <span className="text-[10px] text-slate-400 block">Wahudumu wa keshia/POS</span>
+          </div>
+        </div>
+
+        {/* Bottom Status Info & Save CTA */}
+        <div className="mt-5 pt-4 border-t border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs">
+            {freeTrialSettings.enabled ? (
+              <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  {lang === 'sw'
+                    ? `Mteja mpya akijisajili atapata Siku ${freeTrialSettings.trial_days} za majaribio ya bure moja kwa moja bila kuzuiliwa.`
+                    : `New registrations automatically receive ${freeTrialSettings.trial_days} days of full active trial access.`}
+                </span>
+              </span>
+            ) : (
+              <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                <XCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>
+                  {lang === 'sw'
+                    ? 'Majaribio yamezimwa. Wateja wapya wakijisajili akaunti itakuwa EXPIRED na watalazimika kulipia kabla ya kuanza.'
+                    : 'Free trial disabled. New accounts are created as EXPIRED and require payment before activation.'}
+                </span>
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleSaveFreeTrial()}
+            disabled={isSavingTrial}
+            className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-md shadow-amber-600/20 transition flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            {isSavingTrial ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            <span>
+              {lang === 'sw' ? 'Hifadhi Mipangilio ya Majaribio' : 'Save Trial Settings'}
+            </span>
+          </button>
+        </div>
+      </div>
+      {isLoadingPackages ? (
+        <div className="py-16 text-center bg-white rounded-3xl border border-slate-200">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto text-indigo-600 mb-3" />
+          <p className="text-xs text-slate-500 font-bold">Inapakia vifurushi vya subscription...</p>
+        </div>
+      ) : packagesList.length === 0 ? (
+        <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
+          <Package className="w-12 h-12 mx-auto text-slate-300" />
+          <h4 className="font-bold text-slate-800">Hakuna vifurushi vilivyopatikana</h4>
+          <p className="text-xs text-slate-500">Bofya kitufe cha "+ Ongeza Kifurushi Kipya" kuanzisha kifurushi cha kwanza.</p>
+          <button
+            type="button"
+            onClick={handleOpenCreatePkgModal}
+            className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Ongeza Kifurushi</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {packagesList.map((pkg) => {
+            const isPopular = pkg.badge === 'POPULAR';
+            const isEnterprise = pkg.badge === 'ENTERPRISE';
+            const isBestValue = pkg.badge === 'BEST_VALUE';
+
+            return (
+              <div
+                key={pkg.id}
+                className={`relative bg-white rounded-3xl border transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-sm hover:shadow-xl ${
+                  isPopular
+                    ? 'border-indigo-500 ring-2 ring-indigo-500/20'
+                    : isEnterprise
+                    ? 'border-slate-800'
+                    : 'border-slate-200 hover:border-indigo-300'
+                }`}
+              >
+                {/* Top Ribbon Badge */}
+                <div className="p-6 pb-4">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    {pkg.badge && pkg.badge !== 'NONE' ? (
+                      <span
+                        className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider uppercase border shadow-2xs ${
+                          isPopular
+                            ? 'bg-indigo-600 text-white border-indigo-500'
+                            : isEnterprise
+                            ? 'bg-slate-900 text-amber-300 border-slate-800'
+                            : isBestValue
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {pkg.badge === 'POPULAR'
+                          ? '⭐ INAYOPENDWA ZAIDI'
+                          : pkg.badge === 'ENTERPRISE'
+                          ? '👑 KAMPUNI KUBWA (ENTERPRISE)'
+                          : pkg.badge === 'BEST_VALUE'
+                          ? '🔥 CHAGUO BORA'
+                          : pkg.badge}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        KIFURUSHI CHA SAAS
+                      </span>
+                    )}
+
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        pkg.is_active !== false
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      {pkg.is_active !== false ? '● Kiko Hewani' : '○ Kimezimwa'}
+                    </span>
+                  </div>
+
+                  {/* Package Title & Price */}
+                  <h4 className="text-xl font-black text-slate-900">{pkg.name}</h4>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{pkg.description_sw}</p>
+
+                  <div className="mt-4 pb-4 border-b border-slate-100 flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black font-mono text-slate-900">
+                      TZS {pkg.price.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      / siku {pkg.billing_cycle_days || 30}
+                    </span>
+                  </div>
+
+                  {/* 4 Quotas Cards */}
+                  <div className="mt-5 space-y-2.5">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                      Mipaka ya Kifurushi (Tiers & Quotas):
+                    </span>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {/* 1. Routers & APs */}
+                      <div className="p-2.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center gap-2">
+                        <Radio className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">Routers & APs</div>
+                          <div className="font-bold text-slate-900">
+                            {pkg.max_routers_ap === -1 ? 'Bila Kikomo' : `Hadi ${pkg.max_routers_ap}`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. Users / Wateja */}
+                      <div className="p-2.5 rounded-2xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">Wateja / Vocha</div>
+                          <div className="font-bold text-slate-900">
+                            {pkg.max_users === -1 ? 'Bila Kikomo' : `Hadi ${pkg.max_users.toLocaleString()}`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. Sites / Maeneo */}
+                      <div className="p-2.5 rounded-2xl bg-cyan-50/70 border border-cyan-100 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-cyan-600 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">Maeneo (Sites)</div>
+                          <div className="font-bold text-slate-900">
+                            {pkg.max_sites === -1 ? 'Bila Kikomo' : `${pkg.max_sites} ${pkg.max_sites === 1 ? 'Site' : 'Sites'}`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. Staff Accounts */}
+                      <div className="p-2.5 rounded-2xl bg-purple-50/70 border border-purple-100 flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-purple-600 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">Staff Accounts</div>
+                          <div className="font-bold text-slate-900">
+                            {pkg.max_staff_accounts === -1 ? 'Bila Kikomo' : `Hadi ${pkg.max_staff_accounts}`}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Features List */}
+                  {pkg.features && pkg.features.length > 0 && (
+                    <div className="mt-5 space-y-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                        Faida Zilizojumuishwa:
+                      </span>
+                      <ul className="space-y-1.5 text-xs text-slate-600">
+                        {pkg.features.map((feat, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <span className="leading-tight">{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Actions Footer */}
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditPkgModal(pkg)}
+                    className="flex-1 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <Edit className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Hariri Kifurushi</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePackage(pkg)}
+                    className="p-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
+                    title="Futa Kifurushi"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  )}
 
       {/* MODAL 1: Extend / Record Manual Payment */}
       {extendModalTarget && (
@@ -1402,6 +2222,344 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
                 >
                   {isSavingCustomFee && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   {lang === 'sw' ? 'Hifadhi Ada' : 'Save Fee'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CREATE / EDIT SUBSCRIPTION PACKAGE */}
+      {isPkgModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    {editingPkg
+                      ? (lang === 'sw' ? 'Hariri Kifurushi cha Subscription' : 'Edit Subscription Tier')
+                      : (lang === 'sw' ? 'Tengeneza Kifurushi Kipya cha Subscription' : 'Create Subscription Tier')}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {lang === 'sw'
+                      ? 'Panga bei, mipaka ya routers, watumiaji, maeneo, na akaunti za wahudumu'
+                      : 'Configure pricing, router limits, users, sites, and operator accounts'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPkgModalOpen(false)}
+                className="w-8 h-8 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePackage} className="space-y-4 text-xs">
+              {/* Package Name & Badge */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {lang === 'sw' ? 'Jina la Kifurushi:' : 'Tier Name:'} *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Mfano: Starter WiFi, Business Pro"
+                    value={pkgName}
+                    onChange={(e) => setPkgName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {lang === 'sw' ? 'Lebo ya Kipekee (Badge):' : 'Ribbon Badge:'}
+                  </label>
+                  <select
+                    value={pkgBadge}
+                    onChange={(e) => setPkgBadge(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  >
+                    <option value="NONE">Bila Lebo (None)</option>
+                    <option value="STARTER">Starter / Kianzio</option>
+                    <option value="POPULAR">Inayopendwa Zaidi (Popular)</option>
+                    <option value="BEST_VALUE">Chaguo Bora (Best Value)</option>
+                    <option value="ENTERPRISE">Kampuni Kubwa (Enterprise)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Price & Billing Cycle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {lang === 'sw' ? 'Bei ya Kila Mwezi (TZS):' : 'Monthly Price (TZS):'} *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 font-bold text-slate-400">TZS</span>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="500"
+                      value={pkgPrice}
+                      onChange={(e) => setPkgPrice(Number(e.target.value) || 0)}
+                      className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-mono font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {lang === 'sw' ? 'Muda wa Kifurushi (Siku):' : 'Billing Cycle (Days):'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={pkgBillingCycle}
+                    onChange={(e) => setPkgBillingCycle(Number(e.target.value) || 30)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-mono font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              {/* 4 Quotas Section */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-indigo-600" />
+                    <span>Mipaka ya Kifurushi (Tier Quotas)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-semibold bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                    Weka -1 kwa Bila Kikomo (Unlimited)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {/* Routers & APs */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Routers & AP:
+                    </label>
+                    <input
+                      type="number"
+                      value={pkgMaxRoutersAp}
+                      onChange={(e) => setPkgMaxRoutersAp(Number(e.target.value))}
+                      className="w-full px-2.5 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-center"
+                    />
+                    <span className="text-[10px] text-slate-400 block text-center mt-0.5">
+                      {pkgMaxRoutersAp === -1 ? 'Bila Kikomo' : `${pkgMaxRoutersAp} APs`}
+                    </span>
+                  </div>
+
+                  {/* Users / Vocha */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Wateja (Users):
+                    </label>
+                    <input
+                      type="number"
+                      value={pkgMaxUsers}
+                      onChange={(e) => setPkgMaxUsers(Number(e.target.value))}
+                      className="w-full px-2.5 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-center"
+                    />
+                    <span className="text-[10px] text-slate-400 block text-center mt-0.5">
+                      {pkgMaxUsers === -1 ? 'Bila Kikomo' : `${pkgMaxUsers} Users`}
+                    </span>
+                  </div>
+
+                  {/* Sites / Maeneo */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Maeneo (Sites):
+                    </label>
+                    <input
+                      type="number"
+                      value={pkgMaxSites}
+                      onChange={(e) => setPkgMaxSites(Number(e.target.value))}
+                      className="w-full px-2.5 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-center"
+                    />
+                    <span className="text-[10px] text-slate-400 block text-center mt-0.5">
+                      {pkgMaxSites === -1 ? 'Bila Kikomo' : `${pkgMaxSites} Sites`}
+                    </span>
+                  </div>
+
+                  {/* Staff Accounts */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Staff Accounts:
+                    </label>
+                    <input
+                      type="number"
+                      value={pkgMaxStaff}
+                      onChange={(e) => setPkgMaxStaff(Number(e.target.value))}
+                      className="w-full px-2.5 py-2 bg-white rounded-xl border border-slate-300 font-mono font-bold text-center"
+                    />
+                    <span className="text-[10px] text-slate-400 block text-center mt-0.5">
+                      {pkgMaxStaff === -1 ? 'Bila Kikomo' : `${pkgMaxStaff} Staff`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description Swahili */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  {lang === 'sw' ? 'Maelezo Mafupi (Swahili):' : 'Short Description:'}
+                </label>
+                <textarea
+                  rows={2}
+                  value={pkgDescSw}
+                  onChange={(e) => setPkgDescSw(e.target.value)}
+                  placeholder="Mfano: Inafaa kwa wamiliki wadogo au maduka ya mtaani yenye router 1 au 2."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              {/* Features List */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  {lang === 'sw' ? 'Faida na Vipengele (Moja kwa kila mstari):' : 'Features (One per line):'}
+                </label>
+                <textarea
+                  rows={4}
+                  value={pkgFeaturesText}
+                  onChange={(e) => setPkgFeaturesText(e.target.value)}
+                  placeholder="Routers & APs: Hadi 2&#10;Wateja / Vouchers: Hadi 500&#10;Maeneo: Eneo 1 (1 Site)&#10;Akaunti za Wahudumu: 2&#10;Malipo ya Simu (M-Pesa, Tigo, Airtel, Halopesa)&#10;Captive Portal ya Kisasa"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              {/* Is Active Toggle */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-800 block">Kifurushi Kiko Hewani (Active)</span>
+                  <span className="text-[11px] text-slate-500">
+                    Kikiwa hewani, kitatokea kwenye tovuti ya mbele (Home Page) na wakati wa usajili mpya.
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={pkgIsActive}
+                  onChange={(e) => setPkgIsActive(e.target.checked)}
+                  className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPkgModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold"
+                >
+                  {lang === 'sw' ? 'Ghairi' : 'Cancel'}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSavingPkg || !pkgName.trim() || pkgPrice <= 0}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-500/20 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingPkg && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{editingPkg ? 'Hifadhi Mabadiliko' : 'Tengeneza Kifurushi'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ASSIGN PACKAGE TO OWNER */}
+      {assignModalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {lang === 'sw' ? 'Panga Kifurushi cha Mmiliki' : 'Assign Subscription Package'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {assignModalTarget.business_name} ({assignModalTarget.name})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssignModalTarget(null)}
+                className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignPackage} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Chagua Kifurushi:
+                </label>
+                <select
+                  value={selectedAssignPkgId}
+                  onChange={(e) => setSelectedAssignPkgId(Number(e.target.value) || '')}
+                  required
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                >
+                  <option value="">-- Chagua Kifurushi --</option>
+                  {packagesList.map((pkg) => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} — TZS {pkg.price.toLocaleString()} / mwezi
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selected Package Details Preview */}
+              {(() => {
+                const selectedPkg = packagesList.find((p) => p.id === Number(selectedAssignPkgId));
+                if (!selectedPkg) return null;
+                return (
+                  <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-indigo-900 text-sm">{selectedPkg.name}</span>
+                      <span className="font-mono font-bold text-indigo-700">
+                        TZS {selectedPkg.price.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1 border-t border-indigo-100">
+                      <div>📡 APs: <strong>{selectedPkg.max_routers_ap === -1 ? 'Bila Kikomo' : selectedPkg.max_routers_ap}</strong></div>
+                      <div>👥 Wateja: <strong>{selectedPkg.max_users === -1 ? 'Bila Kikomo' : selectedPkg.max_users.toLocaleString()}</strong></div>
+                      <div>📍 Sites: <strong>{selectedPkg.max_sites === -1 ? 'Bila Kikomo' : selectedPkg.max_sites}</strong></div>
+                      <div>🛡️ Staff: <strong>{selectedPkg.max_staff_accounts === -1 ? 'Bila Kikomo' : selectedPkg.max_staff_accounts}</strong></div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalTarget(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold"
+                >
+                  Ghairi
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAssigningPkg || !selectedAssignPkgId}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isAssigningPkg && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Weka Kifurushi Hiki</span>
                 </button>
               </div>
             </form>

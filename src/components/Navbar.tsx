@@ -164,18 +164,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* View Mode Toggle */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">
-            <button
-              type="button"
-              onClick={() => handleNavigate('welcome')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer min-h-[36px] ${
-                viewMode === 'welcome'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <Home className="w-3.5 h-3.5" />
-              <span>{lang === 'sw' ? 'Mwanzo' : 'Home'}</span>
-            </button>
+            {!currentUser && (
+              <button
+                type="button"
+                onClick={() => handleNavigate('welcome')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer min-h-[36px] ${
+                  viewMode === 'welcome'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'hover:text-slate-900'
+                }`}
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>{lang === 'sw' ? 'Mwanzo' : 'Home'}</span>
+              </button>
+            )}
 
             {currentUser && (
               <button
@@ -231,27 +233,42 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Quick Active Mode Switcher Pill */}
-          <button
-            type="button"
-            onClick={() => handleNavigate(viewMode === 'admin' ? 'welcome' : 'admin')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs min-h-[36px] ${
-              viewMode === 'admin'
-                ? 'bg-[#f8a30a] text-slate-950'
-                : 'bg-[#1b62b6] text-white'
-            }`}
-          >
-            {viewMode === 'admin' ? (
-              <>
-                <Monitor className="w-3.5 h-3.5" />
-                <span>{currentUser ? (isVendor ? 'HQ' : 'Admin') : 'Ingia'}</span>
-              </>
-            ) : (
-              <>
-                <Monitor className="w-3.5 h-3.5" />
-                <span>Admin</span>
-              </>
-            )}
-          </button>
+          {!currentUser ? (
+            <button
+              type="button"
+              onClick={() => handleNavigate(viewMode === 'admin' ? 'welcome' : 'admin')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs min-h-[36px] ${
+                viewMode === 'admin'
+                  ? 'bg-[#f8a30a] text-slate-950'
+                  : 'bg-[#1b62b6] text-white'
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5" />
+              <span>{viewMode === 'admin' ? (lang === 'sw' ? 'Mwanzo' : 'Home') : (lang === 'sw' ? 'Ingia' : 'Login')}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleNavigate(viewMode === 'admin' ? 'portal' : 'admin')}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs min-h-[36px] ${
+                viewMode === 'admin'
+                  ? 'bg-[#1b62b6] text-white'
+                  : 'bg-[#f8a30a] text-slate-950 font-bold'
+              }`}
+            >
+              {viewMode === 'admin' ? (
+                <>
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Portal</span>
+                </>
+              ) : (
+                <>
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>{isVendor ? 'HQ' : 'Admin'}</span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Mobile Menu Dropdown Toggle */}
           <button
@@ -306,19 +323,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Navigation Buttons List */}
-          <div className={`grid gap-2 ${currentUser ? "grid-cols-3" : "grid-cols-2"}`}>
-            <button
-              type="button"
-              onClick={() => handleNavigate('welcome')}
-              className={`p-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1.5 transition ${
-                viewMode === 'welcome'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <Home className="w-4 h-4" />
-              <span>{lang === 'sw' ? 'Mwanzo' : 'Home'}</span>
-            </button>
+          <div className="grid grid-cols-2 gap-2">
+            {!currentUser && (
+              <button
+                type="button"
+                onClick={() => handleNavigate('welcome')}
+                className={`p-2.5 rounded-xl text-xs font-bold flex flex-col items-center gap-1.5 transition ${
+                  viewMode === 'welcome'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Home className="w-4 h-4" />
+                <span>{lang === 'sw' ? 'Mwanzo' : 'Home'}</span>
+              </button>
+            )}
 
             {currentUser && (
               <button

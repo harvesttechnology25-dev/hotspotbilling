@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Transaction, NetworkProvider } from '../../types/index.ts';
-import { CARRIERS, formatTzs } from '../../utils/carrierInfo.ts';
+import { CARRIERS, formatTzs, getTransactionReasonDetails } from '../../utils/carrierInfo.ts';
 import {
   Search,
   Filter,
@@ -15,6 +15,10 @@ import {
   Calendar,
   CalendarRange,
   X,
+  Wallet,
+  Ban,
+  KeyRound,
+  AlertTriangle,
 } from 'lucide-react';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
 import { RouterItem } from '../../types/index.ts';
@@ -426,7 +430,7 @@ export const TransactionLedger: React.FC<{
                 <th className="px-4 py-3">Reference (Our ID)</th>
                 <th className="px-4 py-3">Carrier Trans ID</th>
                 <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Status / Sababu</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3 text-right">Payload</th>
               </tr>
@@ -441,12 +445,13 @@ export const TransactionLedger: React.FC<{
               ) : (
                 paginatedTransactions.map((t: Transaction) => {
                 const carrier = CARRIERS[t.network_provider as NetworkProvider];
+                const reasonInfo = getTransactionReasonDetails(t.failure_reason, t.status);
                 return (
                   <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
                         <span
-                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white"
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
                           style={{ backgroundColor: carrier?.brandColor || '#333' }}
                         >
                           {carrier?.name || t.network_provider}
@@ -469,20 +474,70 @@ export const TransactionLedger: React.FC<{
                       {renderPlanBadge(t)}
                     </td>
                     <td className="px-4 py-3.5">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          t.status === 'SUCCESS'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : t.status === 'FAILED'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {t.status === 'SUCCESS' && <CheckCircle2 className="w-3 h-3" />}
-                        {t.status === 'FAILED' && <XCircle className="w-3 h-3" />}
-                        {t.status === 'PENDING' && <Clock className="w-3 h-3" />}
-                        {t.status}
-                      </span>
+                      <div className="space-y-1">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            t.status === 'SUCCESS'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : t.status === 'FAILED'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {t.status === 'SUCCESS' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                          {t.status === 'FAILED' && <XCircle className="w-3 h-3 text-rose-600" />}
+                          {t.status === 'PENDING' && <Clock className="w-3 h-3 text-amber-600" />}
+                          {t.status}
+                        </span>
+
+                        {/* Granular Reason Badge */}
+                        {t.status === 'FAILED' && (
+                          <div>
+                            {reasonInfo.type === 'insufficient' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs">
+                                <Wallet className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span>Salio Halitoshi</span>
+                              </span>
+                            ) : reasonInfo.type === 'cancelled' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-50 text-orange-900 border border-orange-200 shadow-2xs">
+                                <Ban className="w-3 h-3 text-orange-600 shrink-0" />
+                                <span>Mteja Alighairi STK</span>
+                              </span>
+                            ) : reasonInfo.type === 'timeout' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs">
+                                <Clock className="w-3 h-3 text-slate-600 shrink-0" />
+                                <span>Muda Umekwisha</span>
+                              </span>
+                            ) : reasonInfo.type === 'wrong_pin' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-900 border border-rose-200 shadow-2xs">
+                                <KeyRound className="w-3 h-3 text-rose-600 shrink-0" />
+                                <span>PIN Si Sahihi</span>
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-rose-50 text-rose-800 border border-rose-200 truncate max-w-[180px]"
+                                title={reasonInfo.title}
+                              >
+                                ❌ {reasonInfo.title}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {t.status === 'PENDING' && (
+                          <div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <span>⏳ Inasubiri PIN</span>
+                            </span>
+                          </div>
+                        )}
+
+                        {t.status === 'SUCCESS' && (
+                          <div className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                            ✓ Imelipwa
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 text-slate-500 text-[11px] whitespace-nowrap">
                       {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -513,6 +568,7 @@ export const TransactionLedger: React.FC<{
           ) : (
             paginatedTransactions.map((t: Transaction) => {
               const carrier = CARRIERS[t.network_provider as NetworkProvider];
+              const reasonInfo = getTransactionReasonDetails(t.failure_reason, t.status);
               return (
                 <div key={t.id} className="p-3.5 space-y-2 hover:bg-slate-50/60 transition">
                   <div className="flex items-start justify-between gap-2">
@@ -537,12 +593,53 @@ export const TransactionLedger: React.FC<{
                           : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}
                     >
-                      {t.status === 'SUCCESS' && <CheckCircle2 className="w-3 h-3" />}
-                      {t.status === 'FAILED' && <XCircle className="w-3 h-3" />}
-                      {t.status === 'PENDING' && <Clock className="w-3 h-3" />}
+                      {t.status === 'SUCCESS' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                      {t.status === 'FAILED' && <XCircle className="w-3 h-3 text-rose-600" />}
+                      {t.status === 'PENDING' && <Clock className="w-3 h-3 text-amber-600" />}
                       {t.status}
                     </span>
                   </div>
+
+                  {/* Mobile Status Reason Box */}
+                  {t.status === 'FAILED' && (
+                    <div className={`p-2.5 rounded-xl text-xs border flex items-start gap-2 ${
+                      reasonInfo.type === 'insufficient'
+                        ? 'bg-amber-50 border-amber-200 text-amber-950'
+                        : reasonInfo.type === 'cancelled'
+                        ? 'bg-orange-50 border-orange-200 text-orange-950'
+                        : reasonInfo.type === 'timeout'
+                        ? 'bg-slate-100 border-slate-200 text-slate-900'
+                        : 'bg-rose-50 border-rose-200 text-rose-950'
+                    }`}>
+                      {reasonInfo.type === 'insufficient' && <Wallet className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
+                      {reasonInfo.type === 'cancelled' && <Ban className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />}
+                      {reasonInfo.type === 'timeout' && <Clock className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />}
+                      {reasonInfo.type === 'wrong_pin' && <KeyRound className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+                      {reasonInfo.type === 'other' && <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+                      <div>
+                        <strong className="block font-black text-xs">
+                          Sababu: {reasonInfo.title}
+                        </strong>
+                        <p className="text-[11px] opacity-80 leading-snug">
+                          {reasonInfo.subtitle}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {t.status === 'PENDING' && (
+                    <div className="p-2.5 rounded-xl text-xs bg-amber-50 border border-amber-200 text-amber-950 flex items-start gap-2">
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-spin" />
+                      <div>
+                        <strong className="block font-black text-xs">
+                          Hali: Inasubiri PIN ya Mteja (STK Push)
+                        </strong>
+                        <p className="text-[11px] text-amber-800 leading-snug">
+                          Ombi limetumwa kwenye simu ya mteja kusubiri uthibitisho.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-xs pt-1">
                     <div>
@@ -609,7 +706,88 @@ export const TransactionLedger: React.FC<{
               </button>
             </div>
 
-            <div className="p-5 space-y-3 text-xs bg-slate-950 font-mono text-slate-200 overflow-auto max-h-[60vh]">
+            {/* Clear Status & Failure Reason Breakdown Card */}
+            {(() => {
+              const modalReason = getTransactionReasonDetails(selectedTx.failure_reason, selectedTx.status);
+              const carrier = CARRIERS[selectedTx.network_provider as NetworkProvider];
+              return (
+                <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase ${
+                        selectedTx.status === 'SUCCESS'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : selectedTx.status === 'FAILED'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}
+                    >
+                      {selectedTx.status === 'SUCCESS' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {selectedTx.status === 'FAILED' && <XCircle className="w-3.5 h-3.5" />}
+                      {selectedTx.status === 'PENDING' && <Clock className="w-3.5 h-3.5" />}
+                      Hali: {selectedTx.status}
+                    </span>
+
+                    <span className="font-black text-sm text-slate-900 font-mono">
+                      {formatTzs(selectedTx.amount)}
+                    </span>
+                  </div>
+
+                  <div className={`p-3 rounded-2xl border text-xs ${
+                    modalReason.type === 'insufficient'
+                      ? 'bg-amber-50/80 border-amber-200 text-amber-950'
+                      : modalReason.type === 'cancelled'
+                      ? 'bg-orange-50/80 border-orange-200 text-orange-950'
+                      : modalReason.type === 'timeout'
+                      ? 'bg-slate-100 border-slate-200 text-slate-900'
+                      : modalReason.type === 'success'
+                      ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                      : modalReason.type === 'pending'
+                      ? 'bg-amber-50/80 border-amber-200 text-amber-950'
+                      : 'bg-rose-50/80 border-rose-200 text-rose-950'
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      {modalReason.type === 'insufficient' && <Wallet className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
+                      {modalReason.type === 'cancelled' && <Ban className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />}
+                      {modalReason.type === 'timeout' && <Clock className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />}
+                      {modalReason.type === 'wrong_pin' && <KeyRound className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+                      {modalReason.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
+                      {modalReason.type === 'pending' && <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
+                      {modalReason.type === 'other' && <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+                      <div className="space-y-0.5">
+                        <strong className="block font-black text-xs text-slate-900">
+                          {modalReason.title}
+                        </strong>
+                        <p className="text-[11px] text-slate-700">
+                          {modalReason.subtitle}
+                        </p>
+                        {selectedTx.failure_reason && (
+                          <p className="text-[10px] font-mono text-slate-500 pt-1">
+                            Raw Gateway Reason: {selectedTx.failure_reason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Simu / Mtandao:</span>
+                      <strong className="text-slate-800">{selectedTx.phone_number} ({carrier?.name || selectedTx.network_provider})</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Kifurushi (Plan):</span>
+                      <strong className="text-slate-800">{selectedTx.plan?.name || `Plan #${selectedTx.plan_id}`}</strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="p-4 space-y-2 text-xs bg-slate-950 font-mono text-slate-200 overflow-auto max-h-[45vh]">
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-sans font-bold">
+                Raw JSON Audit Payload:
+              </div>
               <pre>{JSON.stringify(selectedTx, null, 2)}</pre>
             </div>
 

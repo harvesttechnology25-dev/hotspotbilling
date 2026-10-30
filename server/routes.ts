@@ -31,6 +31,7 @@ import {
   UserRole,
   UserPrivileges,
   PortalThemeConfig,
+  SubscriptionPackage,
 } from './types.js';
 
 
@@ -196,6 +197,31 @@ const handleIncomingWebhook = async (req: Request, res: Response) => {
       req.body.receipt_no ||
       `MNO-${Date.now()}`;
 
+    const rawFailureMsg =
+      daliData?.failure_reason ||
+      daliData?.reason ||
+      daliData?.error ||
+      daliData?.message ||
+      daliData?.response_message ||
+      daliData?.narration ||
+      daliData?.status_message ||
+      daliData?.error_message ||
+      req.body.failure_reason ||
+      req.body.reason ||
+      req.body.error ||
+      req.body.message ||
+      req.body.desc ||
+      '';
+
+    const rawCode =
+      daliData?.code ||
+      daliData?.error_code ||
+      daliData?.status_code ||
+      req.body.code ||
+      req.body.error_code ||
+      req.body.status_code ||
+      '';
+
     const webhookPayload: WebhookPayload = {
       externalReference: extRef,
       transactionId: txId,
@@ -205,7 +231,8 @@ const handleIncomingWebhook = async (req: Request, res: Response) => {
       phoneNumber: daliData?.account_number || req.body.phoneNumber || req.body.msisdn || req.body.phone || '',
       carrier: daliData?.provider || req.body.carrier || req.body.operator || req.body.network || '',
       timestamp: req.body.timestamp || new Date().toISOString(),
-      message: req.body.message || (isDaliPayEvent ? `Event: ${req.body.event}` : req.body.desc),
+      message: rawFailureMsg || (isDaliPayEvent ? req.body.event : req.body.desc || rawStatus),
+      code: rawCode || (eventName.includes('cancel') ? 'CANCELLED' : eventName.includes('timeout') ? 'TIMEOUT' : undefined),
     };
 
     const result = await PaymentGatewayService.processWebhookCallback(
@@ -1757,6 +1784,14 @@ apiRouter.post('/auth/register-initiate', async (req: Request, res: Response) =>
 
     // IF VENDOR DISABLED OTP VERIFICATION: Register instantly!
     if (!requireOtp) {
+      const trialSettings = db.getTenantFreeTrialSettings();
+      const isTrialActive = Boolean(trialSettings.enabled && trialSettings.trial_days > 0);
+      const trialDays = isTrialActive ? Number(trialSettings.trial_days) : 0;
+      const initialStatus = isTrialActive ? 'TRIAL' : 'EXPIRED';
+      const expiresAt = isTrialActive
+        ? new Date(Date.now() + trialDays * 86400000).toISOString()
+        : new Date().toISOString();
+
       const newOwner: any = {
         id: db.getNextOwnerId(),
         name: String(name).trim(),
@@ -1770,8 +1805,9 @@ apiRouter.post('/auth/register-initiate', async (req: Request, res: Response) =>
         commission_rate: 0,
         monthly_fee: 15000,
         subscription_fee: 15000,
-        subscription_status: 'ACTIVE',
-        subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+        subscription_status: initialStatus,
+        subscription_expires_at: expiresAt,
+        subscription_package_id: trialSettings.package_id || 1,
         palmpesa_user_id: palmpesa_user_id ? String(palmpesa_user_id).trim() : undefined,
         palmpesa_user_ref: palmpesa_user_ref ? String(palmpesa_user_ref).trim() : undefined,
         palmpesa_api_token: palmpesa_api_token ? String(palmpesa_api_token).trim() : undefined,
@@ -1947,6 +1983,14 @@ apiRouter.post('/auth/register-verify', (req: Request, res: Response) => {
 
     // OTP Validated! Create user in database
     const { payload } = pending;
+    const trialSettings = db.getTenantFreeTrialSettings();
+    const isTrialActive = Boolean(trialSettings.enabled && trialSettings.trial_days > 0);
+    const trialDays = isTrialActive ? Number(trialSettings.trial_days) : 0;
+    const initialStatus = isTrialActive ? 'TRIAL' : 'EXPIRED';
+    const expiresAt = isTrialActive
+      ? new Date(Date.now() + trialDays * 86400000).toISOString()
+      : new Date().toISOString();
+
     const newOwner: any = {
       id: db.getNextOwnerId(),
       name: payload.name,
@@ -1960,8 +2004,9 @@ apiRouter.post('/auth/register-verify', (req: Request, res: Response) => {
       commission_rate: 0,
       monthly_fee: 15000,
       subscription_fee: 15000,
-      subscription_status: 'ACTIVE',
-      subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+      subscription_status: initialStatus,
+      subscription_expires_at: expiresAt,
+      subscription_package_id: trialSettings.package_id || 1,
       palmpesa_user_id: payload.palmpesa_user_id,
       palmpesa_user_ref: payload.palmpesa_user_ref,
       palmpesa_api_token: payload.palmpesa_api_token,
@@ -2088,6 +2133,7 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
       palmpesa_user_id,
       palmpesa_user_ref,
       palmpesa_api_token,
+      subscription_package_id,
     } = req.body;
 
     if (!name || !business_name || !phone || !password) {
@@ -2121,6 +2167,16 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
       });
     }
 
+    let packageFee = 15000;
+    let pkgId: number | undefined = undefined;
+    if (subscription_package_id) {
+      const matchedPkg = db.getSubscriptionPackageById(Number(subscription_package_id));
+      if (matchedPkg) {
+        packageFee = matchedPkg.price;
+        pkgId = matchedPkg.id;
+      }
+    }
+
     const newOwner: any = {
       id: db.getNextOwnerId(),
       name: String(name).trim(),
@@ -2132,8 +2188,9 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
       status: 'ACTIVE',
       assigned_router_ids: [],
       commission_rate: 0,
-      monthly_fee: 15000,
-      subscription_fee: 15000,
+      monthly_fee: packageFee,
+      subscription_fee: packageFee,
+      subscription_package_id: pkgId,
       subscription_status: 'ACTIVE',
       subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
       palmpesa_user_id: palmpesa_user_id ? String(palmpesa_user_id).trim() : undefined,
@@ -2353,10 +2410,10 @@ apiRouter.post('/owners', (req: Request, res: Response) => {
       privileges: defaultPrivileges,
       assigned_router_ids: resolvedRouters,
       commission_rate: Number(commission_rate) || 0,
-      monthly_fee: Number(monthly_fee) ?? 10000,
-      subscription_status: 'ACTIVE',
-      subscription_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
-      subscription_fee: 15000,
+      monthly_fee: Number(monthly_fee) ?? 15000,
+      subscription_status: req.body.subscription_status || (role === 'HOTSPOT_OWNER' ? (db.getTenantFreeTrialSettings().enabled ? 'TRIAL' : 'EXPIRED') : 'ACTIVE'),
+      subscription_expires_at: req.body.subscription_expires_at || (role === 'HOTSPOT_OWNER' ? (db.getTenantFreeTrialSettings().enabled ? new Date(Date.now() + db.getTenantFreeTrialSettings().trial_days * 86400000).toISOString() : new Date().toISOString()) : new Date(Date.now() + 365 * 86400000).toISOString()),
+      subscription_fee: Number(monthly_fee) || 15000,
       palmpesa_user_id: palmpesa_user_id ? String(palmpesa_user_id).trim() : undefined,
       palmpesa_user_ref: palmpesa_user_ref ? String(palmpesa_user_ref).trim() : undefined,
       palmpesa_api_token: palmpesa_api_token ? String(palmpesa_api_token).trim() : undefined,
@@ -2688,6 +2745,8 @@ apiRouter.get('/subscriptions/report', (req: Request, res: Response) => {
         total_paid_in_range: totalPaidInRange,
         payment_count_in_range: rangePayments.length,
         created_at: owner.created_at,
+        subscription_package_id: owner.subscription_package_id || null,
+        subscription_package: owner.subscription_package_id ? db.getSubscriptionPackageById(owner.subscription_package_id) : null,
         history: subTxs.slice(0, 5),
       };
     });
@@ -3378,7 +3437,7 @@ function resolveVendorAggregatorForSubscription(): {
 
 apiRouter.post(['/subscription/initiate', '/payments/subscription-push'], async (req: Request, res: Response) => {
   try {
-    const { ownerId, phoneNumber, carrier } = req.body;
+    const { ownerId, phoneNumber, carrier, packageId, amount } = req.body;
     if (!ownerId || !phoneNumber) {
       return res.status(400).json({ error: 'Nambari ya simu na akaunti ya mmiliki vinahitajika.' });
     }
@@ -3388,6 +3447,8 @@ apiRouter.post(['/subscription/initiate', '/payments/subscription-push'], async 
       ownerId: Number(ownerId),
       phoneNumber: String(phoneNumber),
       carrier,
+      packageId: packageId ? Number(packageId) : undefined,
+      amount: amount ? Number(amount) : undefined,
       callbackUrl,
     });
 
@@ -3399,7 +3460,7 @@ apiRouter.post(['/subscription/initiate', '/payments/subscription-push'], async 
 
 apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
   try {
-    const { ownerId, externalReference, simulateSuccess = true } = req.body;
+    const { ownerId, externalReference, simulateSuccess = true, packageId } = req.body;
     if (!ownerId) {
       return res.status(400).json({ error: 'ownerId is required.' });
     }
@@ -3409,13 +3470,31 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Mmiliki wa Hotspot hajapatikana.' });
     }
 
+    const existingTx = externalReference ? db.getTransactionByReference(externalReference) : undefined;
     const vendorAggregator = resolveVendorAggregatorForSubscription();
-    const fee = owner.subscription_fee || owner.monthly_fee || db.getSettings().subscriptionMonthlyFee || 15000;
+    
+    // Determine package selected
+    let daysToAdd = 30;
+    let chosenPkg = packageId ? db.getSubscriptionPackageById(Number(packageId)) : undefined;
+    if (!chosenPkg && existingTx?.plan_id) {
+      chosenPkg = db.getSubscriptionPackageById(existingTx.plan_id);
+    }
 
-    // Add 30 days of active subscription
+    let fee = owner.subscription_fee || owner.monthly_fee || db.getSettings().subscriptionMonthlyFee || 15000;
+    let planTitle = 'Monthly Subscription Fee';
+    if (chosenPkg) {
+      fee = chosenPkg.price;
+      planTitle = `Subscription: ${chosenPkg.name}`;
+      daysToAdd = chosenPkg.billing_cycle_days || 30;
+      owner.subscription_package_id = chosenPkg.id;
+      owner.subscription_fee = chosenPkg.price;
+      owner.monthly_fee = chosenPkg.price;
+    }
+
+    // Add active subscription days
     const currentExpiryTime = owner.subscription_expires_at ? new Date(owner.subscription_expires_at).getTime() : 0;
     const baseTime = currentExpiryTime > Date.now() ? currentExpiryTime : Date.now();
-    const newExpiry = new Date(baseTime + 30 * 86400000).toISOString();
+    const newExpiry = new Date(baseTime + daysToAdd * 86400000).toISOString();
 
     owner.subscription_expires_at = newExpiry;
     owner.subscription_status = 'ACTIVE';
@@ -3423,7 +3502,6 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
     db.saveOwner(owner);
 
     // Update existing transaction or create confirmed transaction credited to Vendor Aggregator
-    const existingTx = externalReference ? db.getTransactionByReference(externalReference) : undefined;
     const txId = `SUB-TX-${Date.now()}`;
 
     if (existingTx) {
@@ -3433,8 +3511,8 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
       existingTx.vendor_amount = fee;
       existingTx.gateway_provider = vendorAggregator.aggregatorName;
       existingTx.is_subscription = true;
-      existingTx.plan_id = 0;
-      existingTx.plan_name = 'Monthly Subscription Fee';
+      existingTx.plan_id = chosenPkg?.id || existingTx.plan_id || 0;
+      existingTx.plan_name = planTitle;
       existingTx.updated_at = new Date().toISOString();
       db.saveTransaction(existingTx);
     } else {
@@ -3446,9 +3524,9 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
         external_reference: externalReference || `SUB-${owner.id}-${Date.now()}`,
         transaction_id: txId,
         status: 'SUCCESS',
-        plan_id: 0,
+        plan_id: chosenPkg?.id || 0,
         is_subscription: true,
-        plan_name: 'Monthly Subscription Fee',
+        plan_name: planTitle,
         owner_id: owner.id,
         vendor_merchant_id: vendorAggregator.merchantId,
         vendor_amount: fee, // 100% credited to Vendor Aggregator
@@ -3469,6 +3547,7 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
         ownerId: owner.id,
         ownerBusinessName: owner.business_name,
         amountPaid: fee,
+        packageName: chosenPkg?.name || 'Standard',
         creditedTo: vendorAggregator.aggregatorName,
         merchantId: vendorAggregator.merchantId,
         receivingAccount: vendorAggregator.receivingAccount,
@@ -3481,7 +3560,7 @@ apiRouter.post('/subscription/confirm', (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      message: `Malipo ya Sh ${fee.toLocaleString()} yamekamilika! Mfumo wako umefunguliwa na muda wako umeongezwa hadi tarehe ${new Date(newExpiry).toLocaleDateString('sw-TZ')}.`,
+      message: `Malipo ya Sh ${fee.toLocaleString()} (${chosenPkg?.name || 'Subscription'}) yamekamilika! Mfumo wako umefunguliwa na muda wako umeongezwa hadi tarehe ${new Date(newExpiry).toLocaleDateString('sw-TZ')}.`,
       user: owner,
       newExpiresAt: newExpiry,
     });
@@ -3578,6 +3657,208 @@ apiRouter.post('/owners/:id/subscription-fee', (req: Request, res: Response) => 
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Hitilafu ya kusasisha ada ya mmiliki.' });
+  }
+});
+
+// =============================================================================
+// Tenant Free Trial Settings Endpoints (Hotspot Owners Free Trial Controls)
+// =============================================================================
+apiRouter.get('/subscription/free-trial', (_req: Request, res: Response) => {
+  res.json(db.getTenantFreeTrialSettings());
+});
+
+apiRouter.put('/subscription/free-trial', (req: Request, res: Response) => {
+  try {
+    const {
+      enabled,
+      trial_days,
+      package_id,
+      max_routers_ap,
+      max_users,
+      max_sites,
+      max_staff_accounts,
+      name,
+      description_sw,
+    } = req.body;
+
+    const updates: any = {};
+    if (enabled !== undefined) updates.enabled = Boolean(enabled);
+    if (trial_days !== undefined) updates.trial_days = Math.max(1, Number(trial_days) || 14);
+    if (package_id !== undefined) updates.package_id = package_id ? Number(package_id) : null;
+    if (max_routers_ap !== undefined) updates.max_routers_ap = Number(max_routers_ap);
+    if (max_users !== undefined) updates.max_users = Number(max_users);
+    if (max_sites !== undefined) updates.max_sites = Number(max_sites);
+    if (max_staff_accounts !== undefined) updates.max_staff_accounts = Number(max_staff_accounts);
+    if (name !== undefined) updates.name = String(name).trim();
+    if (description_sw !== undefined) updates.description_sw = String(description_sw).trim();
+
+    const updated = db.saveTenantFreeTrialSettings(updates);
+    res.json({
+      success: true,
+      message: updated.enabled
+        ? `Kifurushi cha Majaribio (Free Trial) kimewashwa kwa siku ${updated.trial_days}!`
+        : 'Kifurushi cha Majaribio (Free Trial) kimezimwa.',
+      settings: updated,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Hitilafu ya kusasisha mipangilio ya free trial.' });
+  }
+});
+
+// =============================================================================
+// Subscription Packages Management Endpoints (Tiered SaaS Packages)
+// =============================================================================
+apiRouter.get('/subscription/packages', (req: Request, res: Response) => {
+  const includeInactive = req.query.includeInactive === 'true';
+  let packages = db.getSubscriptionPackages();
+  if (!includeInactive) {
+    packages = packages.filter((p) => p.is_active);
+  }
+  res.json(packages);
+});
+
+apiRouter.get('/subscription/packages/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const pkg = db.getSubscriptionPackageById(id);
+  if (!pkg) {
+    return res.status(404).json({ error: 'Kifurushi cha subscription hakikupatikana.' });
+  }
+  res.json(pkg);
+});
+
+apiRouter.post('/subscription/packages', (req: Request, res: Response) => {
+  try {
+    const {
+      name,
+      price,
+      billing_cycle_days = 30,
+      max_routers_ap = 2,
+      max_users = 500,
+      max_sites = 1,
+      max_staff_accounts = 2,
+      features = [],
+      badge = 'NONE',
+      description_sw = '',
+      description_en = '',
+      is_active = true,
+    } = req.body;
+
+    if (!name || price === undefined) {
+      return res.status(400).json({ error: 'Jina la kifurushi na bei vinahitajika.' });
+    }
+
+    const newPkg: SubscriptionPackage = {
+      id: db.getNextSubscriptionPackageId(),
+      name: String(name).trim(),
+      price: Number(price),
+      billing_cycle_days: Number(billing_cycle_days) || 30,
+      max_routers_ap: Number(max_routers_ap),
+      max_users: Number(max_users),
+      max_sites: Number(max_sites),
+      max_staff_accounts: Number(max_staff_accounts),
+      features: Array.isArray(features) ? features : [String(features)],
+      badge: badge || 'NONE',
+      description_sw: String(description_sw || '').trim(),
+      description_en: String(description_en || '').trim(),
+      is_active: is_active !== false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const saved = db.saveSubscriptionPackage(newPkg);
+    res.status(201).json({
+      success: true,
+      message: `Kifurushi cha '${saved.name}' kimeundwa kikamilifu!`,
+      package: saved,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Hitilafu ya kuunda kifurushi cha subscription.' });
+  }
+});
+
+apiRouter.put('/subscription/packages/:id', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const existing = db.getSubscriptionPackageById(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Kifurushi cha subscription hakikupatikana.' });
+    }
+
+    const {
+      name,
+      price,
+      billing_cycle_days,
+      max_routers_ap,
+      max_users,
+      max_sites,
+      max_staff_accounts,
+      features,
+      badge,
+      description_sw,
+      description_en,
+      is_active,
+    } = req.body;
+
+    if (name !== undefined) existing.name = String(name).trim();
+    if (price !== undefined) existing.price = Number(price);
+    if (billing_cycle_days !== undefined) existing.billing_cycle_days = Number(billing_cycle_days);
+    if (max_routers_ap !== undefined) existing.max_routers_ap = Number(max_routers_ap);
+    if (max_users !== undefined) existing.max_users = Number(max_users);
+    if (max_sites !== undefined) existing.max_sites = Number(max_sites);
+    if (max_staff_accounts !== undefined) existing.max_staff_accounts = Number(max_staff_accounts);
+    if (features !== undefined && Array.isArray(features)) existing.features = features;
+    if (badge !== undefined) existing.badge = badge;
+    if (description_sw !== undefined) existing.description_sw = String(description_sw).trim();
+    if (description_en !== undefined) existing.description_en = String(description_en).trim();
+    if (is_active !== undefined) existing.is_active = Boolean(is_active);
+
+    const updated = db.saveSubscriptionPackage(existing);
+    res.json({
+      success: true,
+      message: `Kifurushi cha '${updated.name}' kimesasishwa kikamilifu!`,
+      package: updated,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Hitilafu ya kusasisha kifurushi cha subscription.' });
+  }
+});
+
+apiRouter.delete('/subscription/packages/:id', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const ok = db.deleteSubscriptionPackage(id);
+    if (!ok) {
+      return res.status(404).json({ error: 'Kifurushi cha subscription hakikupatikana.' });
+    }
+    res.json({ success: true, message: 'Kifurushi cha subscription kimefutwa kikamilifu!' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Hitilafu ya kufuta kifurushi.' });
+  }
+});
+
+apiRouter.post('/owners/:id/assign-package', (req: Request, res: Response) => {
+  try {
+    const ownerId = Number(req.params.id);
+    const { packageId } = req.body;
+    const owner = db.getOwnerById(ownerId);
+    if (!owner) return res.status(404).json({ error: 'Mmiliki hakupatikana.' });
+    const pkg = db.getSubscriptionPackageById(Number(packageId));
+    if (!pkg) return res.status(404).json({ error: 'Kifurushi hakikupatikana.' });
+
+    owner.subscription_package_id = pkg.id;
+    owner.subscription_fee = pkg.price;
+    owner.monthly_fee = pkg.price;
+    owner.updated_at = new Date().toISOString();
+    db.saveOwner(owner);
+
+    res.json({
+      success: true,
+      message: `Mmiliki ${owner.business_name} amewekewa kifurushi cha '${pkg.name}' (TZS ${pkg.price.toLocaleString()}/mwezi).`,
+      owner,
+      package: pkg,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

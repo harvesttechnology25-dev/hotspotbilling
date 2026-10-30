@@ -99,15 +99,142 @@ export function isInsufficientBalance(msg?: string, code?: string | number): boo
   return (
     combined.includes('insufficient') ||
     combined.includes('salio') ||
+    combined.includes('halitoshi') ||
     combined.includes('not enough') ||
     combined.includes('low balance') ||
     combined.includes('low_balance') ||
     combined.includes('not_enough') ||
     combined.includes('haina salio') ||
     combined.includes('hakuna salio') ||
+    combined.includes('collection.failed') ||
+    combined.includes('collection_failed') ||
     combined.includes('1001') ||
     combined.includes('1006') ||
     (combined.includes('balance') && (combined.includes('low') || combined.includes('exceed') || combined.includes('not')))
   );
+}
+
+export function isUserCancelled(msg?: string, code?: string | number): boolean {
+  if (!msg && !code) return false;
+  const combined = `${msg || ''} ${code || ''}`.toLowerCase();
+  return (
+    combined.includes('cancel') ||
+    combined.includes('kataa') ||
+    combined.includes('ghairi') ||
+    combined.includes('reject') ||
+    combined.includes('denied') ||
+    combined.includes('declined') ||
+    combined.includes('user_cancel') ||
+    combined.includes('user cancelled') ||
+    combined.includes('subscriber_cancel') ||
+    combined.includes('1002') ||
+    combined.includes('1003')
+  );
+}
+
+export function isTimedOut(msg?: string, code?: string | number): boolean {
+  if (!msg && !code) return false;
+  const combined = `${msg || ''} ${code || ''}`.toLowerCase();
+  return (
+    combined.includes('timeout') ||
+    combined.includes('muda') ||
+    combined.includes('expire') ||
+    combined.includes('time out') ||
+    combined.includes('time_out') ||
+    combined.includes('1004') ||
+    combined.includes('1005')
+  );
+}
+
+export function isWrongPin(msg?: string, code?: string | number): boolean {
+  if (!msg && !code) return false;
+  const combined = `${msg || ''} ${code || ''}`.toLowerCase();
+  return (
+    combined.includes('wrong pin') ||
+    combined.includes('invalid pin') ||
+    combined.includes('pin error') ||
+    combined.includes('incorrect pin')
+  );
+}
+
+export interface TransactionReasonInfo {
+  title: string;
+  subtitle: string;
+  shortBadge: string;
+  type: 'success' | 'pending' | 'insufficient' | 'cancelled' | 'timeout' | 'wrong_pin' | 'other';
+}
+
+export function getTransactionReasonDetails(
+  reason?: string,
+  status?: string
+): TransactionReasonInfo {
+  const normStatus = (status || '').toUpperCase();
+
+  if (normStatus === 'SUCCESS') {
+    return {
+      title: 'Malipo Yamethibitishwa (Paid & Verified)',
+      subtitle: 'Muamala umekamilika kikamilifu na vocha imetolewa.',
+      shortBadge: 'Imelipwa (Paid)',
+      type: 'success',
+    };
+  }
+
+  if (normStatus === 'PENDING') {
+    return {
+      title: 'Inasubiri PIN ya Mteja (Waiting for STK Push)',
+      subtitle: 'Ombi la STK Push limetumwa kwenye simu ya mteja kusubiri namba ya siri.',
+      shortBadge: 'Inasubiri PIN',
+      type: 'pending',
+    };
+  }
+
+  // FAILED state
+  if (isInsufficientBalance(reason)) {
+    return {
+      title: 'Salio Halitoshi (Insufficient Funds)',
+      subtitle: 'Mteja hana salio la kutosha kwenye akaunti yake ya simu.',
+      shortBadge: 'Salio Halitoshi',
+      type: 'insufficient',
+    };
+  }
+
+  if (isUserCancelled(reason)) {
+    return {
+      title: 'Mteja Alighairi / Alikataa STK Push',
+      subtitle: 'Mteja amecancel au amekataa kuingiza namba ya siri kwenye simu yake.',
+      shortBadge: 'Alighairi STK Push',
+      type: 'cancelled',
+    };
+  }
+
+  if (isTimedOut(reason)) {
+    return {
+      title: 'Muda wa STK Push Umekwisha (Timeout)',
+      subtitle: 'Muda wa kuingiza PIN ya malipo kwenye simu umekwisha kabla ya kujibiwa.',
+      shortBadge: 'Muda Umekwisha',
+      type: 'timeout',
+    };
+  }
+
+  if (isWrongPin(reason)) {
+    return {
+      title: 'Namba ya Siri (PIN) Si Sahihi',
+      subtitle: 'Mteja aliweka PIN isiyo sahihi kwenye ombi la malipo.',
+      shortBadge: 'PIN Si Sahihi',
+      type: 'wrong_pin',
+    };
+  }
+
+  const cleanReason = (reason || '')
+    .replace(/^Event:\s*/i, '')
+    .replace(/collection\.failed/gi, 'Salio halitoshi au muamala ulikataliwa')
+    .trim();
+
+  return {
+    title: cleanReason || 'Malipo Hayakukamilika',
+    subtitle: cleanReason || 'Mtandao haukukamilisha muamala wa mteja.',
+    shortBadge: cleanReason ? (cleanReason.length > 20 ? cleanReason.slice(0, 18) + '...' : cleanReason) : 'Imefeli',
+    type: 'other',
+  };
 }
 

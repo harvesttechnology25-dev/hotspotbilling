@@ -6,6 +6,7 @@ import {
   WebhookPayload,
   PlanRecord,
   RouterRecord,
+  SubscriptionPackage,
 } from './types.js';
 import { detectCarrier } from './carrierDetector.js';
 import { MikrotikService } from './mikrotikService.js';
@@ -70,12 +71,15 @@ export function isInsufficientBalance(rawMessage?: string, rawCode?: string | nu
   return (
     combined.includes('insufficient') ||
     combined.includes('salio') ||
+    combined.includes('halitoshi') ||
     combined.includes('not enough') ||
     combined.includes('low balance') ||
     combined.includes('low_balance') ||
     combined.includes('not_enough') ||
     combined.includes('haina salio') ||
     combined.includes('hakuna salio') ||
+    combined.includes('collection.failed') ||
+    combined.includes('collection_failed') ||
     combined.includes('1001') ||
     combined.includes('1006') ||
     (combined.includes('balance') && (combined.includes('low') || combined.includes('exceed') || combined.includes('not')))
@@ -85,18 +89,79 @@ export function isInsufficientBalance(rawMessage?: string, rawCode?: string | nu
 /**
  * Formats user-facing carrier failure reason consistently across STK, Captive Portal, and Subscription
  */
-export function formatCarrierFailureReason(rawMessage?: string, rawCode?: string | number): string {
-  if (isInsufficientBalance(rawMessage, rawCode)) {
+export function formatCarrierFailureReason(
+  rawMessage?: string,
+  rawCode?: string | number,
+  status?: string
+): string {
+  const combined = `${rawMessage || ''} ${rawCode || ''} ${status || ''}`.toLowerCase();
+
+  // 1. Insufficient balance / Salio halitoshi / collection.failed
+  if (
+    isInsufficientBalance(rawMessage, rawCode) ||
+    combined.includes('insufficient') ||
+    combined.includes('salio') ||
+    combined.includes('halitoshi') ||
+    combined.includes('not enough') ||
+    combined.includes('low balance') ||
+    combined.includes('low_balance') ||
+    combined.includes('not_enough') ||
+    combined.includes('haina salio') ||
+    combined.includes('hakuna salio') ||
+    combined.includes('collection.failed') ||
+    combined.includes('collection_failed') ||
+    combined.includes('1001') ||
+    combined.includes('1006') ||
+    (combined.includes('balance') && (combined.includes('low') || combined.includes('exceed') || combined.includes('not')))
+  ) {
     return 'Account haina salio la kutosha.';
   }
-  const str = `${rawMessage || ''} ${rawCode || ''}`.toLowerCase();
-  if (str.includes('timeout') || str.includes('muda')) {
+
+  // 2. User cancelled STK Push / Alighairi
+  if (
+    combined.includes('cancel') ||
+    combined.includes('kataa') ||
+    combined.includes('ghairi') ||
+    combined.includes('reject') ||
+    combined.includes('denied') ||
+    combined.includes('declined') ||
+    combined.includes('user_cancel') ||
+    combined.includes('user cancelled') ||
+    combined.includes('subscriber_cancel') ||
+    combined.includes('1002') ||
+    combined.includes('1003')
+  ) {
+    return 'Mteja alighairi / amecancel STK Push kwenye simu.';
+  }
+
+  // 3. Timeout / Expired
+  if (
+    combined.includes('timeout') ||
+    combined.includes('muda') ||
+    combined.includes('expire') ||
+    combined.includes('time out') ||
+    combined.includes('time_out') ||
+    combined.includes('1004') ||
+    combined.includes('1005')
+  ) {
     return 'Muda wa kusubiri malipo ya USSD umekwisha (Timeout).';
   }
-  if (str.includes('cancel') || str.includes('kataa') || str.includes('reject')) {
-    return 'Mteja alikataa ombi la malipo kwenye simu.';
+
+  // 4. Invalid PIN
+  if (
+    combined.includes('wrong pin') ||
+    combined.includes('invalid pin') ||
+    combined.includes('pin error') ||
+    combined.includes('incorrect pin')
+  ) {
+    return 'PIN ya simu iliyowekwa si sahihi.';
   }
-  return rawMessage || 'Mteja hakukamilisha malipo.';
+
+  if (rawMessage && !rawMessage.startsWith('Event:') && !rawMessage.includes('collection.failed')) {
+    return rawMessage;
+  }
+
+  return 'Mteja hakukamilisha malipo.';
 }
 
 export class PaymentGatewayService {
@@ -455,6 +520,8 @@ export class PaymentGatewayService {
     phoneNumber: string;
     carrier?: NetworkProvider;
     callbackUrl?: string;
+    packageId?: number;
+    amount?: number;
   }): Promise<{
     success: boolean;
     externalReference: string;
@@ -472,7 +539,19 @@ export class PaymentGatewayService {
     const carrierResult = detectCarrier(params.phoneNumber);
     const provider = params.carrier || carrierResult.provider || 'VODACOM';
     const settings = db.getSettings();
-    const amount = owner.subscription_fee || owner.monthly_fee || settings.subscriptionMonthlyFee || 15000;
+    
+    let resolvedPackage: SubscriptionPackage | undefined;
+    if (params.packageId) {
+      resolvedPackage = db.getSubscriptionPackageById(params.packageId);
+    }
+    const amount =
+      params.amount && params.amount > 0
+        ? params.amount
+        : resolvedPackage?.price ||
+          owner.subscription_fee ||
+          owner.monthly_fee ||
+          settings.subscriptionMonthlyFee ||
+          15000;
     const externalRef = `SUB-${owner.id}-${Date.now()}`;
 
     const gateway =
@@ -595,9 +674,9 @@ export class PaymentGatewayService {
       external_reference: externalRef,
       transaction_id: externalTransactionId,
       status: 'PENDING',
-      plan_id: 0,
+      plan_id: resolvedPackage?.id || 0,
       is_subscription: true,
-      plan_name: 'Monthly Subscription Fee',
+      plan_name: resolvedPackage ? `Subscription: ${resolvedPackage.name}` : 'Monthly Subscription Fee',
       owner_id: owner.id,
       vendor_amount: amount,
       platform_fee: 0,
@@ -822,7 +901,7 @@ export class PaymentGatewayService {
               transaction.status = 'FAILED';
               const rawMsg = remoteData.message || remoteData.desc || remoteData.failure_reason || '';
               const rawCode = remoteData.code || remoteData.error_code || remoteData.status_code || '';
-              transaction.failure_reason = formatCarrierFailureReason(rawMsg, rawCode);
+              transaction.failure_reason = formatCarrierFailureReason(rawMsg, rawCode, remoteStatus);
               transaction.updated_at = new Date().toISOString();
               db.saveTransaction(transaction);
               return {
@@ -876,7 +955,7 @@ export class PaymentGatewayService {
               } else if (['FAILED', 'CANCELLED', 'REJECTED', 'EXPIRED'].includes(rawPpStatus)) {
                 transaction.status = 'FAILED';
                 const rawMsg = ppData.message || ppData.desc || '';
-                transaction.failure_reason = formatCarrierFailureReason(rawMsg, ppData.code);
+                transaction.failure_reason = formatCarrierFailureReason(rawMsg, ppData.code, rawPpStatus);
                 transaction.updated_at = new Date().toISOString();
                 db.saveTransaction(transaction);
                 return {
@@ -948,8 +1027,8 @@ export class PaymentGatewayService {
     if (status !== 'SUCCESS') {
       transaction.status = 'FAILED';
       const rawMsg = payload.message || '';
-      const rawCode = (payload as any).code || (payload as any).status_code || '';
-      transaction.failure_reason = formatCarrierFailureReason(rawMsg, rawCode);
+      const rawCode = payload.code || (payload as any).status_code || '';
+      transaction.failure_reason = formatCarrierFailureReason(rawMsg, rawCode, status);
       transaction.updated_at = new Date().toISOString();
       db.saveTransaction(transaction);
       return {
@@ -981,11 +1060,21 @@ export class PaymentGatewayService {
       if (transaction.owner_id) {
         const owner = db.getOwnerById(transaction.owner_id);
         if (owner) {
+          let daysToAdd = 30;
+          if (transaction.plan_id) {
+            const pkg = db.getSubscriptionPackageById(transaction.plan_id);
+            if (pkg) {
+              owner.subscription_package_id = pkg.id;
+              owner.subscription_fee = pkg.price;
+              owner.monthly_fee = pkg.price;
+              daysToAdd = pkg.billing_cycle_days || 30;
+            }
+          }
           const currentExpiryTime = owner.subscription_expires_at
             ? new Date(owner.subscription_expires_at).getTime()
             : 0;
           const baseTime = currentExpiryTime > Date.now() ? currentExpiryTime : Date.now();
-          owner.subscription_expires_at = new Date(baseTime + 30 * 86400000).toISOString();
+          owner.subscription_expires_at = new Date(baseTime + daysToAdd * 86400000).toISOString();
           owner.subscription_status = 'ACTIVE';
           owner.updated_at = new Date().toISOString();
           db.saveOwner(owner);

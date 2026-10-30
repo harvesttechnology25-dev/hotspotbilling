@@ -22,11 +22,94 @@ import {
   ManualSubscriptionRequest,
   CompanyPublicInfo,
   DEFAULT_COMPANY_INFO,
+  SubscriptionPackage,
+  TenantFreeTrialSettings,
+  DEFAULT_TENANT_FREE_TRIAL_SETTINGS,
 } from './types.js';
 import { mysqlService } from './mysqlService.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
+
+export const DEFAULT_SUBSCRIPTION_PACKAGES: SubscriptionPackage[] = [
+  {
+    id: 1,
+    name: 'Starter WiFi',
+    price: 15000,
+    billing_cycle_days: 30,
+    max_routers_ap: 2,
+    max_users: 500,
+    max_sites: 1,
+    max_staff_accounts: 2,
+    badge: 'STARTER',
+    description_sw: 'Inafaa kwa Hotspot moja, cafe, kibanda cha simu, au eneo dogo lenye router 1-2.',
+    description_en: 'Ideal for single hotspot setups, cafes, or small kiosks with 1-2 routers.',
+    features: [
+      'Routers & Access Points: Hadi 2',
+      'Wateja / Vouchers: Hadi 500',
+      'Maeneo / Sites: Eneo 1 (1 Site)',
+      'Akaunti za Wahudumu: Wahudumu 2 (Staff)',
+      'Malipo ya Simu (M-Pesa, Tigo, Airtel, Halo)',
+      'Captive Portal ya Kisasa yenye Nembo Yako',
+      'Ripoti za Mauzo ya Kila Siku & Mwezi',
+    ],
+    is_active: true,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 2,
+    name: 'Business Pro',
+    price: 35000,
+    billing_cycle_days: 30,
+    max_routers_ap: 5,
+    max_users: 2000,
+    max_sites: 3,
+    max_staff_accounts: 5,
+    badge: 'POPULAR',
+    description_sw: 'Kifurushi maarufu zaidi! Inafaa kwa migahawa mikubwa, hoteli, stendi za mabasi na maeneo ya biashara.',
+    description_en: 'Most popular! Perfect for restaurants, medium hotels, bus terminals, and busy venues.',
+    features: [
+      'Routers & Access Points: Hadi 5',
+      'Wateja / Vouchers: Hadi 2,000',
+      'Maeneo / Sites: Maeneo 3 (3 Sites)',
+      'Akaunti za Wahudumu: Wahudumu 5 (Staff)',
+      'Usaidizi wa MikroTik & TP-Link Omada',
+      'Usimamizi wa Kasi (Bandwidth Speed Limit)',
+      'STK Push ya Papo Hapo & SMS Alerts',
+      'Msaada wa Kiufundi wa Haraka (Priority Support)',
+    ],
+    is_active: true,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 3,
+    name: 'Enterprise Fleet',
+    price: 75000,
+    billing_cycle_days: 30,
+    max_routers_ap: -1, // -1 = Bila Kikomo (Unlimited)
+    max_users: -1,
+    max_sites: -1,
+    max_staff_accounts: -1,
+    badge: 'BEST_VALUE',
+    description_sw: 'Uwezo mkubwa bila kikomo kwa watoa huduma wa ISP, vyuo, kampuni kubwa, na minara ya WiFi.',
+    description_en: 'Unlimited power for WISP providers, universities, large enterprises, and WiFi tower fleets.',
+    features: [
+      'Routers & Access Points: Bila Kikomo (Unlimited)',
+      'Wateja / Vouchers: Bila Kikomo (Unlimited)',
+      'Maeneo / Sites: Bila Kikomo (Unlimited)',
+      'Akaunti za Wahudumu: Bila Kikomo (Unlimited)',
+      'Full Cloud RADIUS AAA Server Integration',
+      'Remote Cloud VPN ya Kudhibiti Routers Popote',
+      'Mfumo Mahususi wa Anti-Tethering (Zuia Wizi)',
+      'Meneja Mahsusi wa Akaunti 24/7 Dedicated Support',
+    ],
+    is_active: true,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+];
 
 const DEFAULT_SETTINGS: GatewaySettings = {
   activeGateway: 'PALMPESA',
@@ -116,8 +199,10 @@ class PersistentDatabase {
   private freeTrialClaims: FreeTrialClaimRecord[] = [];
   private freeTrialConfig: FreeTrialPackageConfig = { ...DEFAULT_FREE_TRIAL_CONFIG };
   private manualSubRequests: ManualSubscriptionRequest[] = [];
+  private subscriptionPackages: SubscriptionPackage[] = [];
   private companyInfo: CompanyPublicInfo = { ...DEFAULT_COMPANY_INFO };
   private settings: GatewaySettings = { ...DEFAULT_SETTINGS };
+  private tenantFreeTrialSettings: TenantFreeTrialSettings = { ...DEFAULT_TENANT_FREE_TRIAL_SETTINGS };
 
   constructor() {
     this.initStorage();
@@ -144,9 +229,17 @@ class PersistentDatabase {
         this.auditLogs = parsed.auditLogs || [];
         this.freeTrialClaims = parsed.freeTrialClaims || [];
         this.manualSubRequests = parsed.manualSubRequests || [];
+        this.subscriptionPackages =
+          Array.isArray(parsed.subscriptionPackages) && parsed.subscriptionPackages.length > 0
+            ? parsed.subscriptionPackages
+            : this.seedDefaultSubscriptionPackages();
         this.freeTrialConfig = {
           ...DEFAULT_FREE_TRIAL_CONFIG,
           ...(parsed.freeTrialConfig || {}),
+        };
+        this.tenantFreeTrialSettings = {
+          ...DEFAULT_TENANT_FREE_TRIAL_SETTINGS,
+          ...(parsed.tenantFreeTrialSettings || {}),
         };
         this.companyInfo = {
           ...DEFAULT_COMPANY_INFO,
@@ -462,6 +555,7 @@ class PersistentDatabase {
             this.freeTrialClaims = parsed.freeTrialClaims || [];
             this.manualSubRequests = parsed.manualSubRequests || [];
             this.freeTrialConfig = { ...DEFAULT_FREE_TRIAL_CONFIG, ...(parsed.freeTrialConfig || {}) };
+            this.tenantFreeTrialSettings = { ...DEFAULT_TENANT_FREE_TRIAL_SETTINGS, ...(parsed.tenantFreeTrialSettings || {}) };
             this.companyInfo = { ...DEFAULT_COMPANY_INFO, ...(parsed.companyInfo || {}) };
             this.settings = { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) };
             return true;
@@ -495,6 +589,8 @@ class PersistentDatabase {
         freeTrialClaims: this.freeTrialClaims,
         freeTrialConfig: this.freeTrialConfig,
         manualSubRequests: this.manualSubRequests,
+        subscriptionPackages: this.subscriptionPackages,
+        tenantFreeTrialSettings: this.tenantFreeTrialSettings,
         companyInfo: this.companyInfo,
         settings: this.settings,
       };
@@ -526,6 +622,10 @@ class PersistentDatabase {
     ];
   }
 
+  seedDefaultSubscriptionPackages(): SubscriptionPackage[] {
+    return JSON.parse(JSON.stringify(DEFAULT_SUBSCRIPTION_PACKAGES));
+  }
+
   private seedDefaults() {
     this.seedOwners();
     this.routers = [];
@@ -533,6 +633,62 @@ class PersistentDatabase {
     this.transactions = [];
     this.vouchers = [];
     this.voucherBatches = [];
+    this.subscriptionPackages = this.seedDefaultSubscriptionPackages();
+  }
+
+  // --- Subscription Packages (Tiered SaaS Plans) ---
+  getSubscriptionPackages(): SubscriptionPackage[] {
+    if (!this.subscriptionPackages || this.subscriptionPackages.length === 0) {
+      this.subscriptionPackages = this.seedDefaultSubscriptionPackages();
+      this.saveToDisk();
+    }
+    return [...this.subscriptionPackages].sort((a, b) => a.price - b.price);
+  }
+
+  getSubscriptionPackageById(id: number): SubscriptionPackage | undefined {
+    return this.getSubscriptionPackages().find((p) => p.id === id);
+  }
+
+  getNextSubscriptionPackageId(): number {
+    return this.subscriptionPackages.reduce((max, p) => (p.id > max ? p.id : max), 0) + 1;
+  }
+
+  saveSubscriptionPackage(pkg: SubscriptionPackage): SubscriptionPackage {
+    const idx = this.subscriptionPackages.findIndex((p) => p.id === pkg.id);
+    pkg.updated_at = new Date().toISOString();
+    if (idx >= 0) {
+      this.subscriptionPackages[idx] = pkg;
+    } else {
+      if (!pkg.created_at) pkg.created_at = new Date().toISOString();
+      this.subscriptionPackages.push(pkg);
+    }
+    this.saveToDisk();
+    return pkg;
+  }
+
+  deleteSubscriptionPackage(id: number): boolean {
+    const initialLen = this.subscriptionPackages.length;
+    this.subscriptionPackages = this.subscriptionPackages.filter((p) => p.id !== id);
+    if (this.subscriptionPackages.length !== initialLen) {
+      this.saveToDisk();
+      return true;
+    }
+    return false;
+  }
+
+  // --- Tenant Free Trial Settings (For Hotspot Owners SaaS Signup) ---
+  getTenantFreeTrialSettings(): TenantFreeTrialSettings {
+    return { ...this.tenantFreeTrialSettings };
+  }
+
+  saveTenantFreeTrialSettings(updates: Partial<TenantFreeTrialSettings>): TenantFreeTrialSettings {
+    this.tenantFreeTrialSettings = {
+      ...this.tenantFreeTrialSettings,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    this.saveToDisk();
+    return this.getTenantFreeTrialSettings();
   }
 
   // --- Settings ---
@@ -915,17 +1071,45 @@ const mergedEmail: EmailGatewayConfig = {
     let vouchers = [...this.vouchers];
     const plansMap = new Map(this.plans.map((p) => [p.id, p]));
 
+    const targetOwner = ownerId ? this.getOwnerById(Number(ownerId)) : undefined;
+    const isVendor = !targetOwner || targetOwner.role === 'VENDOR_ADMIN';
+
+    // Helper to identify subscription transactions
+    const isSubscriptionTx = (t: TransactionRecord) =>
+      Boolean(t.is_subscription) ||
+      t.plan_id === 0 ||
+      t.external_reference?.toUpperCase().startsWith('SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('MAN-SUB-') ||
+      t.external_reference?.toUpperCase().startsWith('BULK-SUB-') ||
+      (t.transaction_id && t.transaction_id.toUpperCase().startsWith('SUB-')) ||
+      (t.transaction_id && t.transaction_id.toUpperCase().startsWith('MAN-SUB-')) ||
+      (t.external_reference && /sub/i.test(t.external_reference));
+
     if (ownerId) {
       const targetOwnerId = Number(ownerId);
-      const owner = this.getOwnerById(targetOwnerId);
+      const owner = targetOwner || this.getOwnerById(targetOwnerId);
       const allowedRouters = new Set([
         ...(owner?.assigned_router_ids || []),
         ...this.routers.filter((r) => r.owner_id != null && Number(r.owner_id) === targetOwnerId).map((r) => r.id),
       ]);
-      transactions = transactions.filter((t) => {
-        if (t.owner_id != null) return Number(t.owner_id) === targetOwnerId;
-        return t.router_id != null && allowedRouters.has(t.router_id);
-      });
+
+      if (!isVendor) {
+        // HOTSPOT OWNER: STRICT REVENUE ISOLATION
+        // Monthly subscriptions paid by this owner to Vendor HQ are an expense, NOT their voucher sales revenue.
+        // Therefore, exclude all subscription payments from their sales revenue ledger!
+        transactions = transactions.filter((t) => {
+          if (isSubscriptionTx(t)) return false;
+          if (t.owner_id != null) return Number(t.owner_id) === targetOwnerId;
+          return t.router_id != null && allowedRouters.has(t.router_id);
+        });
+      } else {
+        // Vendor HQ
+        transactions = transactions.filter((t) => {
+          if (t.owner_id != null) return Number(t.owner_id) === targetOwnerId;
+          return t.router_id != null && allowedRouters.has(t.router_id);
+        });
+      }
+
       vouchers = vouchers.filter((v) => {
         if (v.owner_id != null) return Number(v.owner_id) === targetOwnerId;
         if (v.batch_tag) {
@@ -1011,7 +1195,13 @@ const mergedEmail: EmailGatewayConfig = {
     // 1. Mobile Money Revenue (STK Push)
     const totalTransactions = rangeTransactions.length;
     const successfulTx = rangeTransactions.filter((t) => t.status === 'SUCCESS');
-    const mobileRevenue = successfulTx.reduce((sum, t) => sum + t.amount, 0);
+
+    // Separate voucher sales vs subscription payments
+    const successfulSubTx = isVendor ? successfulTx.filter(isSubscriptionTx) : [];
+    const successfulVoucherTx = successfulTx.filter((t) => !isSubscriptionTx(t));
+
+    const subscriptionRevenue = successfulSubTx.reduce((sum, t) => sum + t.amount, 0);
+    const mobileRevenue = successfulVoucherTx.reduce((sum, t) => sum + t.amount, 0);
 
     const carrierBreakdown: Record<
       NetworkProvider,
@@ -1023,7 +1213,7 @@ const mergedEmail: EmailGatewayConfig = {
       HALOTEL: { count: 0, revenue: 0, percentage: 0 },
     };
 
-    successfulTx.forEach((t) => {
+    successfulVoucherTx.forEach((t) => {
       if (carrierBreakdown[t.network_provider]) {
         carrierBreakdown[t.network_provider].count += 1;
         carrierBreakdown[t.network_provider].revenue += t.amount;
@@ -1070,12 +1260,17 @@ const mergedEmail: EmailGatewayConfig = {
     }, 0);
 
     // 3. Combined Total Gross Revenue
-    const totalRevenue = mobileRevenue + manualVoucherRevenue;
+    // For Hotspot Owners: ONLY voucher sales (mobile voucher STK + manual cash vouchers).
+    // For Vendor Admin: voucher sales + monthly subscription fees collected from owners.
+    const voucherSalesRevenue = mobileRevenue + manualVoucherRevenue;
+    const totalRevenue = isVendor ? voucherSalesRevenue + subscriptionRevenue : voucherSalesRevenue;
 
     return {
       totalRevenue,
       mobileRevenue,
       manualVoucherRevenue,
+      voucherSalesRevenue,
+      subscriptionRevenue,
       manualVouchersSold: soldManualVouchers.length,
       manualVouchersStockValue,
       totalTransactions,
@@ -1895,6 +2090,7 @@ const mergedEmail: EmailGatewayConfig = {
     freeTrialConfig?: FreeTrialPackageConfig;
     manualSubRequests?: ManualSubscriptionRequest[];
     companyInfo?: CompanyPublicInfo;
+    tenantFreeTrialSettings?: TenantFreeTrialSettings;
     settings?: GatewaySettings;
   }): {
     ownersCount: number;
@@ -1944,6 +2140,9 @@ const mergedEmail: EmailGatewayConfig = {
     }
     if (snapshot.companyInfo && typeof snapshot.companyInfo === 'object') {
       this.companyInfo = { ...this.companyInfo, ...snapshot.companyInfo };
+    }
+    if (snapshot.tenantFreeTrialSettings && typeof snapshot.tenantFreeTrialSettings === 'object') {
+      this.tenantFreeTrialSettings = { ...this.tenantFreeTrialSettings, ...snapshot.tenantFreeTrialSettings };
     }
     if (snapshot.settings && typeof snapshot.settings === 'object') {
       this.settings = { ...this.settings, ...snapshot.settings };

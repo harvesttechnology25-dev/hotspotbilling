@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar.tsx';
 import { CaptivePortal } from './components/CaptivePortal/CaptivePortal.tsx';
 import { AdminDashboard } from './components/Admin/AdminDashboard.tsx';
@@ -13,6 +13,7 @@ import { SubscriptionGate } from './components/Subscription/SubscriptionGate.tsx
 import { AboutUsModal } from './components/Modals/AboutUsModal.tsx';
 import { ContactUsModal } from './components/Modals/ContactUsModal.tsx';
 import { HotspotOwner } from './types/index.ts';
+import { Clock } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<HotspotOwner | null>(() => {
@@ -100,10 +101,13 @@ export default function App() {
     }
   };
 
-  // Guard portal view: only authenticated users can access the portal preview
+  // Guard views: only authenticated users can access the portal preview;
+  // and when logged in, keep user in admin/portal view (no welcome page)
   useEffect(() => {
     if (!currentUser && viewMode === 'portal') {
       handleSetViewMode('welcome');
+    } else if (currentUser && viewMode === 'welcome') {
+      handleSetViewMode('admin');
     }
   }, [currentUser, viewMode]);
 
@@ -135,22 +139,72 @@ export default function App() {
     };
   }, []);
 
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false);
+  const lastActivityRef = useRef<number>(Date.now());
+  const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes (dakika 5)
+
+  // 5-minute inactivity session tracking: auto logout if inactive
+  useEffect(() => {
+    if (!currentUser) return;
+
+    lastActivityRef.current = Date.now();
+
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, updateActivity, { passive: true });
+    });
+
+    // Check every 5 seconds for inactivity expiration
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= INACTIVITY_TIMEOUT_MS) {
+        setCurrentUser(null);
+        try {
+          localStorage.removeItem('tzwifi_user');
+          localStorage.removeItem('tzwifi_token');
+        } catch {}
+        setSessionExpiredNotice(true);
+        handleSetViewMode('admin');
+      }
+    }, 5000);
+
+    return () => {
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, updateActivity);
+      });
+      clearInterval(interval);
+    };
+  }, [currentUser]);
+
   const handleLoginSuccess = (user: HotspotOwner) => {
+    lastActivityRef.current = Date.now();
+    setSessionExpiredNotice(false);
     setCurrentUser(user);
-    localStorage.setItem('tzwifi_user', JSON.stringify(user));
+    try {
+      localStorage.setItem('tzwifi_user', JSON.stringify(user));
+    } catch {}
     handleSetViewMode('admin');
   };
 
   const handleLogout = () => {
+    setSessionExpiredNotice(false);
     setCurrentUser(null);
-    localStorage.removeItem('tzwifi_user');
-    localStorage.removeItem('tzwifi_token');
+    try {
+      localStorage.removeItem('tzwifi_user');
+      localStorage.removeItem('tzwifi_token');
+    } catch {}
     handleSetViewMode('welcome');
   };
 
   const handleSwitchUser = (user: HotspotOwner) => {
+    lastActivityRef.current = Date.now();
     setCurrentUser(user);
-    localStorage.setItem('tzwifi_user', JSON.stringify(user));
+    try {
+      localStorage.setItem('tzwifi_user', JSON.stringify(user));
+    } catch {}
   };
 
   const isOwnerExpired = Boolean(
@@ -298,6 +352,54 @@ export default function App() {
         }}
         lang={lang}
       />
+
+      {/* Session Expired Inactivity Notice Modal (5 minutes) */}
+      {sessionExpiredNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 text-center space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-inner">
+              <Clock className="w-7 h-7 stroke-[2.2]" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[11px] font-bold uppercase tracking-wider border border-amber-200">
+                {lang === 'sw' ? 'Dakika 5 Bila Kazi' : '5 Minutes Inactivity'}
+              </span>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                {lang === 'sw' ? 'Muda wa Kikao Umekwisha' : 'Session Expired'}
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {lang === 'sw'
+                  ? 'Mfumo umekutoa kwenye akaunti kiotomatiki baada ya kutotumika kwa dakika 5 ili kulinda usalama wa data na akaunti yako.'
+                  : 'You were automatically signed out after 5 minutes of inactivity to protect your account and data security.'}
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setSessionExpiredNotice(false);
+                  handleSetViewMode('admin');
+                }}
+                className="w-full py-3 px-4 bg-gradient-to-r from-[#1b62b6] to-[#005ea9] hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-xl text-sm transition shadow-md shadow-blue-500/20 cursor-pointer"
+              >
+                {lang === 'sw' ? 'Ingia Tena Kwenye Akaunti' : 'Log In Again'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSessionExpiredNotice(false);
+                  handleSetViewMode('welcome');
+                }}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                {lang === 'sw' ? 'Nenda Ukurasa wa Mwanzo' : 'Go to Welcome Page'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Wifi,
   ShieldCheck,
@@ -25,7 +25,17 @@ import {
   Clock,
   Gauge,
   CreditCard,
+  MapPin,
+  UserCheck,
+  Sparkles,
+  Package,
+  Gift,
 } from 'lucide-react';
+import {
+  SubscriptionPackage,
+  TenantFreeTrialSettings,
+  DEFAULT_TENANT_FREE_TRIAL_SETTINGS,
+} from '../../types/index.ts';
 
 interface WelcomePageProps {
   onNavigateLogin: () => void;
@@ -35,6 +45,86 @@ interface WelcomePageProps {
   lang?: 'sw' | 'en';
 }
 
+const DEFAULT_WELCOME_PACKAGES: SubscriptionPackage[] = [
+  {
+    id: 1,
+    name: 'Starter WiFi',
+    price: 15000,
+    billing_cycle_days: 30,
+    max_routers_ap: 2,
+    max_users: 500,
+    max_sites: 1,
+    max_staff_accounts: 2,
+    badge: 'STARTER',
+    description_sw: 'Inafaa kwa Hotspot moja, cafe, kibanda cha simu, au eneo dogo lenye router 1-2.',
+    description_en: 'Ideal for single hotspot setups, cafes, or small kiosks with 1-2 routers.',
+    features: [
+      'Routers & Access Points: Hadi 2',
+      'Wateja / Vouchers: Hadi 500',
+      'Maeneo / Sites: Eneo 1 (1 Site)',
+      'Akaunti za Wahudumu: Wahudumu 2 (Staff)',
+      'Malipo ya Simu (M-Pesa, Tigo, Airtel, Halo)',
+      'Captive Portal ya Kisasa yenye Nembo Yako',
+      'Ripoti za Mauzo ya Kila Siku & Mwezi',
+    ],
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: 2,
+    name: 'Business Pro',
+    price: 35000,
+    billing_cycle_days: 30,
+    max_routers_ap: 5,
+    max_users: 2000,
+    max_sites: 3,
+    max_staff_accounts: 5,
+    badge: 'POPULAR',
+    description_sw: 'Kifurushi maarufu zaidi! Inafaa kwa migahawa mikubwa, hoteli, stendi za mabasi na maeneo ya biashara.',
+    description_en: 'Most popular! Perfect for restaurants, medium hotels, bus terminals, and busy venues.',
+    features: [
+      'Routers & Access Points: Hadi 5',
+      'Wateja / Vouchers: Hadi 2,000',
+      'Maeneo / Sites: Maeneo 3 (3 Sites)',
+      'Akaunti za Wahudumu: Wahudumu 5 (Staff)',
+      'Usaidizi wa MikroTik & TP-Link Omada',
+      'Usimamizi wa Kasi (Bandwidth Speed Limit)',
+      'STK Push ya Papo Hapo & SMS Alerts',
+      'Msaada wa Kiufundi wa Haraka (Priority Support)',
+    ],
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: 3,
+    name: 'Enterprise Fleet',
+    price: 75000,
+    billing_cycle_days: 30,
+    max_routers_ap: -1,
+    max_users: -1,
+    max_sites: -1,
+    max_staff_accounts: -1,
+    badge: 'BEST_VALUE',
+    description_sw: 'Uwezo mkubwa bila kikomo kwa watoa huduma wa ISP, vyuo, kampuni kubwa, na minara ya WiFi.',
+    description_en: 'Unlimited power for WISP providers, universities, large enterprises, and WiFi tower fleets.',
+    features: [
+      'Routers & Access Points: Bila Kikomo (Unlimited)',
+      'Wateja / Vouchers: Bila Kikomo (Unlimited)',
+      'Maeneo / Sites: Bila Kikomo (Unlimited)',
+      'Akaunti za Wahudumu: Bila Kikomo (Unlimited)',
+      'Full Cloud RADIUS AAA Server Integration',
+      'Remote Cloud VPN ya Kudhibiti Routers Popote',
+      'Mfumo Mahususi wa Anti-Tethering (Zuia Wizi)',
+      'Meneja Mahsusi wa Akaunti 24/7 Dedicated Support',
+    ],
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+  },
+];
+
 export const WelcomePage: React.FC<WelcomePageProps> = ({
   onNavigateLogin,
   onNavigateRegister,
@@ -42,6 +132,32 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
   onOpenContact,
   lang = 'en',
 }) => {
+  // Subscription Packages State
+  const [subscriptionPackages, setSubscriptionPackages] = useState<SubscriptionPackage[]>(DEFAULT_WELCOME_PACKAGES);
+  const [freeTrialSettings, setFreeTrialSettings] = useState<TenantFreeTrialSettings | null>(null);
+
+  useEffect(() => {
+    fetch('/api/v1/subscription/packages')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setSubscriptionPackages(data);
+        }
+      })
+      .catch((_) => {
+        // Fallback already pre-loaded
+      });
+
+    fetch('/api/v1/subscription/free-trial')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.enabled === 'boolean') {
+          setFreeTrialSettings(data);
+        }
+      })
+      .catch((_) => {});
+  }, []);
+
   // Interactive Hotspot Revenue Calculator state
   const [dailyUsers, setDailyUsers] = useState<number>(60);
   const [ticketPrice, setTicketPrice] = useState<number>(1000);
@@ -142,7 +258,15 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
                   onClick={onNavigateRegister}
                   className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-[#f8a30a] hover:bg-[#e09105] active:scale-98 text-slate-950 font-black text-base shadow-xl shadow-[#f8a30a]/30 transition flex items-center justify-center gap-2.5 cursor-pointer"
                 >
-                  <span>{lang === 'sw' ? 'Fungua Akaunti ya Hotspot' : 'Get Started Free'}</span>
+                  <span>
+                    {freeTrialSettings && freeTrialSettings.enabled && freeTrialSettings.trial_days > 0
+                      ? lang === 'sw'
+                        ? `Anza na Siku ${freeTrialSettings.trial_days} za Bure`
+                        : `Start Free ${freeTrialSettings.trial_days}-Day Trial`
+                      : lang === 'sw'
+                      ? 'Fungua Akaunti ya Hotspot'
+                      : 'Get Started Free'}
+                  </span>
                   <ArrowRight className="w-5 h-5" />
                 </button>
 
@@ -670,7 +794,254 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
 
         {/* 
           =======================================================================
-          5. TRUST & SECURITY BANNER (Wide Layout)
+          5. VIFURUSHI VYA SUBSCRIPTION YA KILA MWEZI (TIERED SAAS PACKAGES & QUOTAS)
+          =======================================================================
+        */}
+        <section className="w-full max-w-[1650px] mx-auto px-4 sm:px-8 lg:px-12 xl:px-16">
+          <div className="space-y-10">
+            {/* Section Header */}
+            <div className="text-center max-w-3xl mx-auto space-y-4">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#f8a30a]/10 border border-[#f8a30a]/30 text-[#f8a30a] text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                <Package className="w-4 h-4" />
+                <span>
+                  {lang === 'sw'
+                    ? 'Vifurushi vya Subscription ya Mfumo'
+                    : 'Transparent SaaS Subscription Plans'}
+                </span>
+              </div>
+
+              <h2 className="text-3xl sm:text-5xl font-black text-white font-['Sora',sans-serif] tracking-tight">
+                {lang === 'sw'
+                  ? 'Chagua Kifurushi Kinachofaa Ukubwa wa Mtandao Wako'
+                  : 'Flexible Plans Tailored For Your Hotspot Growth'}
+              </h2>
+
+              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                {lang === 'sw'
+                  ? 'Gharama nafuu za kila mwezi zenye uwazi kamili wa idadi ya routers & AP, wateja (users), maeneo (sites), na akaunti za wahudumu (staff) bila ada zilizofichika.'
+                  : 'Transparent quotas for routers & APs, active users/vouchers, site locations, and staff accounts with zero hidden fees.'}
+              </p>
+            </div>
+
+            {/* Dynamic Free Trial Offer Banner */}
+            {freeTrialSettings && freeTrialSettings.enabled && freeTrialSettings.trial_days > 0 && (
+              <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-amber-500/25 via-orange-500/15 to-amber-500/25 border-2 border-amber-400/50 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-72 h-72 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="flex items-start sm:items-center gap-4 relative z-10">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-lg text-amber-300">
+                    <Gift className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-sm">
+                        {lang === 'sw' ? '🎁 OFA YA MAJARIBIO YA BURE' : '🎁 FREE TRIAL OFFER'}
+                      </span>
+                      <span className="text-xs text-amber-300 font-black">
+                        {lang === 'sw' ? `Siku ${freeTrialSettings.trial_days} za Bure!` : `${freeTrialSettings.trial_days} Days Free!`}
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-2xl font-black text-white font-['Sora',sans-serif]">
+                      {lang === 'sw'
+                        ? `Jaribu Mfumo Bure kwa Siku ${freeTrialSettings.trial_days} Bila Malipo ya Awali!`
+                        : `Experience Full Features for ${freeTrialSettings.trial_days} Days at Zero Cost!`}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                      {lang === 'sw'
+                        ? `Jisajili leo upate siku ${freeTrialSettings.trial_days} za majaribio ya bure moja kwa moja. Unganisha router yako ya MikroTik au APs, gawa vocha na uanze kukusanya mapato ya mtandao wako papo hapo kabla ya kulipia kifurushi chochote.`
+                        : `Sign up today to get ${freeTrialSettings.trial_days} days of free trial. Connect your MikroTik or APs, issue vouchers, and collect mobile payments before paying any subscription fee.`}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onNavigateRegister}
+                  className="px-6 py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-[#f8a30a] hover:from-amber-300 hover:to-[#e09105] text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/30 transition flex items-center justify-center gap-2 cursor-pointer shrink-0 relative z-10"
+                >
+                  <span>
+                    {lang === 'sw'
+                      ? `Anza Majaribio ya Siku ${freeTrialSettings.trial_days} Bure`
+                      : `Start ${freeTrialSettings.trial_days}-Day Trial`}
+                  </span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Packages Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+              {subscriptionPackages.map((pkg) => {
+                const isPopular = pkg.badge === 'POPULAR';
+                const isBestValue = pkg.badge === 'BEST_VALUE';
+
+                return (
+                  <div
+                    key={pkg.id}
+                    className={`rounded-3xl p-6 sm:p-8 flex flex-col justify-between transition duration-300 relative overflow-hidden backdrop-blur-xl shadow-2xl ${
+                      isPopular
+                        ? 'bg-gradient-to-b from-[#092644] to-[#041527] border-2 border-[#f8a30a] shadow-[#f8a30a]/20 scale-102 lg:-translate-y-2'
+                        : isBestValue
+                        ? 'bg-gradient-to-b from-[#0b2b3a] to-[#041520] border-2 border-cyan-400/80 shadow-cyan-500/20'
+                        : 'bg-slate-900/80 border border-white/10 hover:border-white/25 hover:bg-slate-900/95'
+                    }`}
+                  >
+                    {/* Badge Pill */}
+                    {pkg.badge && pkg.badge !== 'NONE' && (
+                      <div className="absolute top-4 right-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider shadow-sm flex items-center gap-1 ${
+                            isPopular
+                              ? 'bg-[#f8a30a] text-slate-950'
+                              : isBestValue
+                              ? 'bg-cyan-400 text-slate-950'
+                              : 'bg-slate-800 text-slate-200 border border-white/20'
+                          }`}
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>
+                            {pkg.badge === 'POPULAR'
+                              ? lang === 'sw'
+                                ? 'Maarufu Zaidi'
+                                : 'Most Popular'
+                              : pkg.badge === 'BEST_VALUE'
+                              ? lang === 'sw'
+                                ? 'Uwezo Mkubwa'
+                                : 'Best Value'
+                              : pkg.badge === 'STARTER'
+                              ? lang === 'sw'
+                                ? 'Starter'
+                                : 'Starter'
+                              : pkg.badge}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="space-y-6">
+                      {/* Package Name & Price */}
+                      <div className="space-y-2 pt-1">
+                        <h3 className="text-xl sm:text-2xl font-black text-white font-['Sora',sans-serif]">
+                          {pkg.name}
+                        </h3>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-3xl sm:text-4xl font-black font-mono text-[#f8a30a]">
+                            TZS {pkg.price.toLocaleString()}
+                          </span>
+                          <span className="text-xs sm:text-sm font-medium text-slate-400">
+                            / {lang === 'sw' ? 'mwezi' : 'month'}
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed min-h-[40px]">
+                          {lang === 'sw' ? pkg.description_sw : pkg.description_en || pkg.description_sw}
+                        </p>
+                      </div>
+
+                      {/* 4 CORE QUOTA CARDS (Routers & AP, Users, Sites, Staff) */}
+                      <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-black/40 border border-white/10">
+                        {/* 1. Routers & APs Quota */}
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                          <div className="flex items-center gap-1.5 text-cyan-400 text-[11px] font-bold">
+                            <Radio className="w-3.5 h-3.5" />
+                            <span>Routers & APs</span>
+                          </div>
+                          <div className="text-xs sm:text-sm font-black text-white font-mono">
+                            {pkg.max_routers_ap === -1
+                              ? lang === 'sw'
+                                ? 'Bila Kikomo'
+                                : 'Unlimited'
+                              : `${pkg.max_routers_ap} ${lang === 'sw' ? 'Vifaa' : 'Devices'}`}
+                          </div>
+                        </div>
+
+                        {/* 2. Users / Vouchers Quota */}
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                          <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>{lang === 'sw' ? 'Wateja (Users)' : 'Users'}</span>
+                          </div>
+                          <div className="text-xs sm:text-sm font-black text-white font-mono">
+                            {pkg.max_users === -1
+                              ? lang === 'sw'
+                                ? 'Bila Kikomo'
+                                : 'Unlimited'
+                              : `${pkg.max_users.toLocaleString()} ${lang === 'sw' ? 'Wateja' : 'Users'}`}
+                          </div>
+                        </div>
+
+                        {/* 3. Sites Quota */}
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                          <div className="flex items-center gap-1.5 text-amber-400 text-[11px] font-bold">
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>{lang === 'sw' ? 'Maeneo (Sites)' : 'Sites'}</span>
+                          </div>
+                          <div className="text-xs sm:text-sm font-black text-white font-mono">
+                            {pkg.max_sites === -1
+                              ? lang === 'sw'
+                                ? 'Bila Kikomo'
+                                : 'Unlimited'
+                              : `${pkg.max_sites} ${pkg.max_sites === 1 ? 'Eneo' : 'Maeneo'}`}
+                          </div>
+                        </div>
+
+                        {/* 4. Staff Accounts Quota */}
+                        <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                          <div className="flex items-center gap-1.5 text-purple-400 text-[11px] font-bold">
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>{lang === 'sw' ? 'Wahudumu (Staff)' : 'Staff'}</span>
+                          </div>
+                          <div className="text-xs sm:text-sm font-black text-white font-mono">
+                            {pkg.max_staff_accounts === -1
+                              ? lang === 'sw'
+                                ? 'Bila Kikomo'
+                                : 'Unlimited'
+                              : `${pkg.max_staff_accounts} ${lang === 'sw' ? 'Wahudumu' : 'Staff'}`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Features List */}
+                      <div className="space-y-2.5 pt-2 border-t border-white/10">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                          {lang === 'sw' ? 'Vipengele Vilivyojumuishwa:' : 'Plan Highlights:'}
+                        </span>
+                        <ul className="space-y-2">
+                          {(pkg.features || []).map((feat, fIdx) => (
+                            <li key={fIdx} className="flex items-start gap-2.5 text-xs text-slate-200">
+                              <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                              <span className="leading-snug">{feat}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="pt-6 mt-6 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={onNavigateRegister}
+                        className={`w-full py-3.5 px-6 rounded-2xl font-black text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg ${
+                          isPopular
+                            ? 'bg-[#f8a30a] hover:bg-[#e09105] text-slate-950 shadow-[#f8a30a]/30'
+                            : isBestValue
+                            ? 'bg-cyan-400 hover:bg-cyan-300 text-slate-950 shadow-cyan-400/30'
+                            : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                        }`}
+                      >
+                        <span>{lang === 'sw' ? `Chagua ${pkg.name}` : `Select ${pkg.name}`}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* 
+          =======================================================================
+          6. TRUST & SECURITY BANNER (Wide Layout)
           =======================================================================
         */}
         <section className="w-full max-w-[1650px] mx-auto px-4 sm:px-8 lg:px-12 xl:px-16">

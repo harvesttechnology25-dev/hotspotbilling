@@ -518,6 +518,28 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         </div>
       </div>
 
+      {/* VENDOR HQ SUBSCRIPTION REVENUE BANNER */}
+      {!ownerId && (metrics.subscriptionRevenue || 0) > 0 && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white border border-indigo-700/60 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/40 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider">
+                Mapato ya Ada za Subscription za Wamiliki (Vendor HQ SaaS Revenue)
+              </div>
+              <div className="text-xl font-black font-mono mt-0.5 text-white">
+                {formatTzs(metrics.subscriptionRevenue || 0)}
+              </div>
+            </div>
+          </div>
+          <div className="text-xs text-indigo-200 bg-indigo-800/50 border border-indigo-700/50 px-3 py-1.5 rounded-xl">
+            🔒 Mapato ya jukwaa (Vendor Sales Revenue) pekee — hayajumuishwi kwenye mauzo ya mmiliki binafsi.
+          </div>
+        </div>
+      )}
+
       {/* REVENUE DISTRIBUTION: MOBILE MONEY VS MANUAL CASH */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between">

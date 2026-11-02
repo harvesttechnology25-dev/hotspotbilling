@@ -2817,18 +2817,31 @@ apiRouter.delete('/owners/:id', (req: Request, res: Response) => {
 // MikroTik RouterOS Management Endpoints (CRUD & Live Test)
 // =============================================================================
 apiRouter.get('/routers', (req: Request, res: Response) => {
-  const ownerId = req.query.ownerId ? Number(req.query.ownerId) : null;
+  const caller = getRequestUser(req);
+  const ownerIdQuery = req.query.ownerId ? Number(req.query.ownerId) : null;
   const routers = db.getRouters().filter(
     (r) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge') && !r.location?.toLowerCase().includes('mwenge')
   );
-  if (ownerId) {
-    const owner = db.getOwnerById(ownerId);
-    if (owner) {
-      const assigned = owner.assigned_router_ids || [];
-      return res.json(routers.filter((r) => r.owner_id === ownerId || assigned.includes(r.id)));
-    }
-    return res.json(routers.filter((r) => r.owner_id === ownerId));
+
+  // If caller or query owner is VENDOR_ADMIN, return all system routers
+  if (caller && (caller.role === 'VENDOR_ADMIN' || (caller.role as string) === 'admin') && !ownerIdQuery) {
+    return res.json(routers);
   }
+
+  if (ownerIdQuery) {
+    const owner = db.getOwnerById(ownerIdQuery);
+    if (owner) {
+      if (owner.role === 'VENDOR_ADMIN') {
+        return res.json(routers);
+      }
+      const assigned = owner.assigned_router_ids || [];
+      return res.json(
+        routers.filter((r) => r.owner_id === ownerIdQuery || assigned.includes(r.id) || !r.owner_id)
+      );
+    }
+    return res.json(routers.filter((r) => r.owner_id === ownerIdQuery || !r.owner_id));
+  }
+
   res.json(routers);
 });
 
@@ -4390,6 +4403,7 @@ apiRouter.get('/omada/inform-info', (req: Request, res: Response) => {
 // 2. Adopt TP-Link Omada AP (Accepts MAC, Inform URL, SSID, AP device credentials)
 apiRouter.post('/omada/adopt', async (req: Request, res: Response) => {
   try {
+    const caller = getRequestUser(req);
     const {
       routerId,
       name,
@@ -4414,6 +4428,11 @@ apiRouter.post('/omada/adopt', async (req: Request, res: Response) => {
 
     const effectiveApPassword = apPassword || OmadaAdoptionService.generateSecurePassword();
 
+    // Ensure ownerId is never missing - fallback to caller or default system owner (ID 1)
+    const effectiveOwnerId = ownerId
+      ? Number(ownerId)
+      : (caller ? Number(caller.parent_owner_id || caller.id) : (db.getOwners()[0]?.id || 1));
+
     const result = await OmadaAdoptionService.adoptAp({
       routerId: routerId ? Number(routerId) : undefined,
       name,
@@ -4426,7 +4445,7 @@ apiRouter.post('/omada/adopt', async (req: Request, res: Response) => {
       apUsername,
       apPassword: effectiveApPassword,
       location,
-      ownerId: ownerId ? Number(ownerId) : undefined,
+      ownerId: effectiveOwnerId,
     });
 
     if (!result.success) {

@@ -111,7 +111,13 @@ echo ""
 echo -e "${YELLOW}📥 Hatua 2/7: Inavuta msimbo mpya kutoka GitHub (bila kugusa data)...${NC}"
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  # Hakikisha git haigusi database.json
+  # 1. Ondoa mgongano (merge conflict) wowote uliokwama
+  git merge --abort 2>/dev/null || true
+  git reset --merge 2>/dev/null || true
+  git checkout --ours data/database.json 2>/dev/null || true
+  git add data/database.json 2>/dev/null || true
+
+  # 2. Hakikisha git haigusi na haifuti kamwe database.json
   git update-index --assume-unchanged data/database.json 2>/dev/null || true
   git update-index --skip-worktree data/database.json 2>/dev/null || true
 
@@ -124,17 +130,13 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   [ "$BRANCH" = "HEAD" ] && BRANCH="main"
   echo -e "   🌿 Tawi linalotumika: ${CYAN}$BRANCH${NC}"
 
-  # Vuta mabadiliko
+  # Vuta mabadiliko bila kugusa data
   git fetch origin "$BRANCH" 2>/dev/null || git fetch origin main 2>/dev/null || git fetch origin master 2>/dev/null || true
   
-  if ! git pull origin "$BRANCH" 2>/dev/null; then
-    if ! git pull origin main 2>/dev/null; then
-      if ! git pull origin master 2>/dev/null; then
-        echo -e "${YELLOW}⚠️ Git pull ilikuta conflict ndogo, inachukua kodi mpya za mfumo moja kwa moja...${NC}"
-        git checkout "origin/$BRANCH" -- src/ server/ index.html package.json tsconfig.json vite.config.ts deploy/ scripts/ 2>/dev/null || true
-      fi
-    fi
-  fi
+  # Vuta kodi moja kwa moja kwa usalama
+  git checkout "origin/$BRANCH" -- src/ server/ index.html package.json tsconfig.json vite.config.ts deploy/ scripts/ update.sh 2>/dev/null || \
+  git checkout "origin/main" -- src/ server/ index.html package.json tsconfig.json vite.config.ts deploy/ scripts/ update.sh 2>/dev/null || \
+  git pull origin "$BRANCH" 2>/dev/null || true
   echo -e "${GREEN}✓ Msimbo mpya wa GitHub umepokelewa kikamilifu!${NC}"
 else
   echo -e "${YELLOW}ℹ️ Saraka hii haipo chini ya git ya kawaida, inasonga mbele kulinda data na build.${NC}"

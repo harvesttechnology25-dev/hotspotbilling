@@ -308,9 +308,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       );
     }
     if (currentOwner) {
+      if (currentOwner.role === 'VENDOR_ADMIN') {
+        return routers;
+      }
       const oid = Number(currentOwner.id);
       const assigned = currentOwner.assigned_router_ids || [];
-      return routers.filter((r) => r.owner_id === oid || assigned.includes(r.id));
+      return routers.filter((r) => r.owner_id === oid || assigned.includes(r.id) || !r.owner_id);
     }
     return routers;
   }, [routers, isStaff, currentOwner, parentOwner]);

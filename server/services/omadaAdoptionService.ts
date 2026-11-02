@@ -288,7 +288,10 @@ export class OmadaAdoptionService {
     if (matchedRouter) {
       matchedRouter.status = 'ONLINE';
       matchedRouter.last_seen_at = nowIso;
-      if (cleanIp && cleanIp !== '127.0.0.1') {
+      const explicitDeviceIp = payload?.ip || payload?.ipAddress || payload?.ip_address;
+      if (explicitDeviceIp && explicitDeviceIp !== '127.0.0.1' && explicitDeviceIp !== '::1') {
+        matchedRouter.ip_address = explicitDeviceIp;
+      } else if (!matchedRouter.ip_address && cleanIp && cleanIp !== '127.0.0.1') {
         matchedRouter.ip_address = cleanIp;
       }
       if (firmware) {
@@ -567,9 +570,10 @@ export class OmadaAdoptionService {
     const model = params.modelName || router?.model_name || 'TP-Link Omada EAP610 (Wi-Fi 6)';
     const defaultBrand = params.brandName || router?.brand_name || 'TZ-WiFi Hotspot';
     const cleanSsid = params.ssid || router?.ssid || `${defaultBrand.replace(/[^a-zA-Z0-9]/g, '-').toUpperCase().slice(0, 14)}-WIFI`;
-    const deviceIp = params.ipAddress || router?.ip_address || '192.168.0.254';
+    const deviceIp = params.ipAddress?.trim() || router?.ip_address || '192.168.0.254';
     const location = params.location || router?.location || 'Dar es Salaam, Kariakoo';
     const nowIso = new Date().toISOString();
+    const effectiveOwnerId = params.ownerId ? Number(params.ownerId) : (router?.owner_id || 1);
 
     if (!router) {
       // Create new router record for this Omada AP
@@ -597,10 +601,10 @@ export class OmadaAdoptionService {
         omada_firmware: 'v5.0.12 Build 20260410',
         omada_channel_2g: 6,
         omada_channel_5g: 44,
-        omada_clients_count: Math.floor(Math.random() * 6) + 1,
+        omada_clients_count: 0,
         radius_secret: 'radius_secret_2026',
         location,
-        owner_id: params.ownerId ? Number(params.ownerId) : undefined,
+        owner_id: effectiveOwnerId,
         is_custom_model: Boolean(model && (model.startsWith('Custom') || model.includes('✍️') || model.toLowerCase().includes('custom'))),
         cpe_mode: (model && (model.includes('CPE') || model.includes('Pharos') || model.includes('WBS'))) ? 'HOTSPOT_AP' : undefined,
         pharos_maxtream_disabled: (model && (model.includes('CPE') || model.includes('Pharos') || model.includes('WBS'))) ? true : undefined,
@@ -608,11 +612,9 @@ export class OmadaAdoptionService {
         updated_at: nowIso,
       };
 
-      if (params.ownerId) {
-        const owner = db.getOwnerById(Number(params.ownerId));
-        if (owner) {
-          router.owner_name = `${owner.name} (${owner.business_name})`;
-        }
+      const owner = db.getOwnerById(effectiveOwnerId);
+      if (owner) {
+        router.owner_name = `${owner.name} (${owner.business_name || 'Hotspot'})`;
       }
     } else {
       // Update existing router
@@ -622,8 +624,13 @@ export class OmadaAdoptionService {
       if (params.name) router.name = params.name;
       if (params.brandName) router.brand_name = params.brandName;
       if (params.ssid) router.ssid = cleanSsid;
-      if (params.ipAddress) router.ip_address = params.ipAddress;
+      if (params.ipAddress?.trim()) router.ip_address = params.ipAddress.trim();
       if (params.location) router.location = params.location;
+      router.owner_id = effectiveOwnerId;
+      const owner = db.getOwnerById(effectiveOwnerId);
+      if (owner) {
+        router.owner_name = `${owner.name} (${owner.business_name || 'Hotspot'})`;
+      }
       router.ap_username = apUsername;
       router.ap_password = apPassword;
       router.inform_url = params.informUrl || informInfo.informUrl;
@@ -634,7 +641,7 @@ export class OmadaAdoptionService {
       router.omada_firmware = router.omada_firmware || 'v5.0.12 Build 20260410';
       router.omada_channel_2g = 6;
       router.omada_channel_5g = 44;
-      router.omada_clients_count = Math.floor(Math.random() * 6) + 1;
+      router.omada_clients_count = router.omada_clients_count ?? 0;
       router.updated_at = nowIso;
     }
 
@@ -934,7 +941,7 @@ export class OmadaAdoptionService {
     // Wireless connection telemetry
     const signalDbm = Math.round(-52 - variance * 8); // -52 dBm to -60 dBm (Excellent)
     const signalQualityPercent = Math.round(94 + variance * 5); // 94% - 99%
-    const clientsCount = router.omada_clients_count || (Math.floor(variance * 5) + 2);
+    const clientsCount = router.omada_clients_count || 0;
     const txRate = Math.round(maxTxRateMbps * (0.85 + variance * 0.15));
     const rxRate = Math.round(maxTxRateMbps * (0.80 + variance * 0.18));
 

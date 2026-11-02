@@ -34,6 +34,7 @@ import {
   FileText,
   Search,
   Edit2,
+  Zap,
 } from 'lucide-react';
 import { ApSetupGuideModal, ApGuideTab } from './ApSetupGuideModal.tsx';
 import { OmadaAdoptionModal } from './OmadaAdoptionModal.tsx';
@@ -826,7 +827,13 @@ export const RouterManagement: React.FC<{
       const isOmada =
         r.device_type === 'TPLINK_OMADA' ||
         (r.device_type as string) === 'OMADA' ||
-        (r.model_name && (r.model_name.toUpperCase().includes('OMADA') || r.model_name.toUpperCase().includes('EAP')));
+        (r.model_name && (
+          r.model_name.toUpperCase().includes('OMADA') ||
+          r.model_name.toUpperCase().includes('EAP') ||
+          r.model_name.toUpperCase().includes('TP-LINK') ||
+          r.model_name.toUpperCase().includes('CPE') ||
+          r.model_name.toUpperCase().includes('PHAROS')
+        ));
       if (!isOmada) return false;
     } else if (deviceFilter !== 'ALL' && r.device_type !== deviceFilter) {
       return false;
@@ -1043,7 +1050,17 @@ export const RouterManagement: React.FC<{
                 <option value="ALL">Vifaa Vyote ({routers.length})</option>
                 <option value="MIKROTIK">🔴 MikroTik RouterOS ({routers.filter(r => !r.device_type || r.device_type === 'MIKROTIK').length})</option>
                 <option value="TPLINK_OMADA">
-                  🟢 TP-Link Omada EAPs ({routers.filter(r => r.device_type === 'TPLINK_OMADA' || (r.device_type as string) === 'OMADA' || (r.model_name && (r.model_name.toUpperCase().includes('OMADA') || r.model_name.toUpperCase().includes('EAP')))).length})
+                  🟢 TP-Link Omada & Pharos ({routers.filter(r =>
+                    r.device_type === 'TPLINK_OMADA' ||
+                    (r.device_type as string) === 'OMADA' ||
+                    (r.model_name && (
+                      r.model_name.toUpperCase().includes('OMADA') ||
+                      r.model_name.toUpperCase().includes('EAP') ||
+                      r.model_name.toUpperCase().includes('TP-LINK') ||
+                      r.model_name.toUpperCase().includes('CPE') ||
+                      r.model_name.toUpperCase().includes('PHAROS')
+                    ))
+                  ).length})
                 </option>
                 <option value="PHAROS_CPE">
                   📡 TP-Link Pharos CPEs ({routers.filter(r => (r.model_name && (r.model_name.includes('CPE') || r.model_name.includes('Pharos') || r.model_name.includes('WBS'))) || r.cpe_mode).length})
@@ -1584,7 +1601,20 @@ export const RouterManagement: React.FC<{
                             <span>Omada Wizard</span>
                           </button>
 
-                          {/* 3. Soft Reboot Omada AP */}
+                          {/* 4. Live Captive Portal Test Link */}
+                          <a
+                            href={`https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                            title="Jaribu ukurasa wa wateja wa Hotspot & malipo ya simu (Live Captive Portal)"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-300" />
+                            <span>⚡ Jaribu Portal</span>
+                            <ExternalLink className="w-3 h-3 text-indigo-200" />
+                          </a>
+
+                          {/* 5. Soft Reboot Omada AP */}
                           <button
                             type="button"
                             onClick={() => setRebootOmadaTarget(router)}
@@ -3103,8 +3133,16 @@ export const RouterManagement: React.FC<{
           setOmadaModalOpen(false);
           setSelectedOmadaRouter(null);
         }}
-        onSuccess={(_adopted) => {
+        onSuccess={(adopted) => {
+          setRouters((prev) => {
+            const exists = prev.some((r) => r.id === adopted.id);
+            if (exists) {
+              return prev.map((r) => (r.id === adopted.id ? adopted : r));
+            }
+            return [adopted, ...prev];
+          });
           fetchRouters();
+          onRoutersUpdated?.();
         }}
         existingRouter={selectedOmadaRouter}
         ownerId={ownerId}

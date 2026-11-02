@@ -820,21 +820,43 @@ const mergedEmail: EmailGatewayConfig = {
   saveRouter(router: RouterRecord): RouterRecord {
     const idx = this.routers.findIndex((r) => r.id === router.id);
     router.updated_at = new Date().toISOString();
-    if (!router.brand_name && router.owner_id) {
-      const owner = this.getOwnerById(router.owner_id);
-      if (owner?.business_name) {
-        router.brand_name = owner.business_name;
+
+    // Ensure router always has an owner_id (defaults to 1 if missing)
+    if (!router.owner_id) {
+      const firstOwner = this.owners[0];
+      router.owner_id = firstOwner?.id || 1;
+    }
+
+    if (router.owner_id) {
+      const owner = this.getOwnerById(Number(router.owner_id));
+      if (owner) {
+        if (!router.brand_name && owner.business_name) {
+          router.brand_name = owner.business_name;
+        }
+        if (!router.owner_name) {
+          router.owner_name = `${owner.name} (${owner.business_name || 'Hotspot'})`;
+        }
+        if (!Array.isArray(owner.assigned_router_ids)) {
+          owner.assigned_router_ids = [];
+        }
+        if (!owner.assigned_router_ids.includes(router.id)) {
+          owner.assigned_router_ids.push(router.id);
+          this.saveOwner(owner);
+        }
       }
     }
+
     if (!router.ssid) {
       router.ssid = `${(router.brand_name || router.name).replace(/[^a-zA-Z0-9]/g, '-').toUpperCase().slice(0, 16)}-WIFI`;
     }
+
     if (idx >= 0) {
       this.routers[idx] = router;
     } else {
       if (!router.created_at) router.created_at = new Date().toISOString();
       this.routers.push(router);
     }
+
     // Auto-link any existing batch vouchers created by this owner before router was added
     if (router.owner_id) {
       for (const v of this.vouchers) {

@@ -184,6 +184,12 @@ const DEFAULT_SETTINGS: GatewaySettings = {
     smtpSecure: false,
     enabled: true,
   },
+  omadaController: {
+    controllerUrl: process.env.OMADA_CONTROLLER_URL || 'https://omada.infotechwifi.com:8043',
+    username: process.env.OMADA_USERNAME || 'admin',
+    password: process.env.OMADA_PASSWORD || '',
+    isConfigured: Boolean(process.env.OMADA_PASSWORD),
+  },
 };
 
 class PersistentDatabase {
@@ -754,9 +760,42 @@ const mergedEmail: EmailGatewayConfig = {
       vodacom: { ...this.settings.vodacom, ...(newSettings.vodacom || {}) },
       emailGateway: mergedEmail,
       smsGateway: mergedSms,
+      omadaController: {
+        controllerUrl: newSettings.omadaController?.controllerUrl || this.settings.omadaController?.controllerUrl || process.env.OMADA_CONTROLLER_URL || 'https://omada.infotechwifi.com:8043',
+        username: newSettings.omadaController?.username || this.settings.omadaController?.username || process.env.OMADA_USERNAME || 'admin',
+        password: newSettings.omadaController?.password !== undefined ? newSettings.omadaController.password : (this.settings.omadaController?.password || ''),
+        omadacId: newSettings.omadaController?.omadacId || this.settings.omadaController?.omadacId,
+        isConfigured: Boolean(
+          (newSettings.omadaController?.password !== undefined ? newSettings.omadaController.password : this.settings.omadaController?.password)
+        ),
+      },
     };
     this.saveToDisk();
     return this.settings;
+  }
+
+  getOmadaControllerSettings(): any {
+    return this.settings.omadaController || {
+      controllerUrl: process.env.OMADA_CONTROLLER_URL || 'https://omada.infotechwifi.com:8043',
+      username: process.env.OMADA_USERNAME || 'admin',
+      password: process.env.OMADA_PASSWORD || '',
+      isConfigured: false,
+    };
+  }
+
+  saveOmadaControllerSettings(cfg: any): any {
+    const current = this.getOmadaControllerSettings();
+    const updated = {
+      ...current,
+      ...cfg,
+      controllerUrl: cfg.controllerUrl ? String(cfg.controllerUrl).trim().replace(/\/+$/, '') : current.controllerUrl,
+      username: cfg.username !== undefined ? String(cfg.username).trim() : current.username,
+      password: cfg.password !== undefined ? String(cfg.password).trim() : current.password,
+      isConfigured: Boolean(cfg.password || current.password),
+    };
+    this.settings.omadaController = updated;
+    this.saveToDisk();
+    return updated;
   }
 
   // --- Hotspot Owners / Tenants ---

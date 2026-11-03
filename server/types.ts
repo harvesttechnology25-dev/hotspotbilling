@@ -516,6 +516,14 @@ export interface SmsGatewayConfig {
   customApiKey?: string;
 }
 
+export interface OmadaControllerSettings {
+  controllerUrl?: string;
+  username?: string;
+  password?: string;
+  omadacId?: string;
+  isConfigured?: boolean;
+}
+
 export interface GatewaySettings {
   adminUsername?: string;
   adminPassword?: string;
@@ -530,6 +538,7 @@ export interface GatewaySettings {
   vodacom: VodacomConfig;
   smsGateway?: SmsGatewayConfig;
   emailGateway?: EmailGatewayConfig;
+  omadaController?: OmadaControllerSettings;
   hotspotName: string;
   supportPhone: string;
   autoLoginEnabled: boolean;

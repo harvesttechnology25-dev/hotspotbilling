@@ -118,6 +118,67 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
 
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Omada Controller Credentials State
+  const [controllerUrl, setControllerUrl] = useState('https://omada.infotechwifi.com:8043');
+  const [controllerUsername, setControllerUsername] = useState('admin');
+  const [controllerPassword, setControllerPassword] = useState('');
+  const [showControllerPassword, setShowControllerPassword] = useState(false);
+  const [showControllerCreds, setShowControllerCreds] = useState(false);
+  const [testingController, setTestingController] = useState(false);
+  const [controllerVerified, setControllerVerified] = useState(false);
+  const [controllerStatusMsg, setControllerStatusMsg] = useState('');
+
+  // Fetch Omada Controller login credentials status
+  const fetchControllerStatus = async () => {
+    try {
+      const res = await fetch('/api/v1/omada/controller-credentials');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.controllerUrl) setControllerUrl(data.controllerUrl);
+        if (data.username) setControllerUsername(data.username);
+        if (data.isConfigured) {
+          setControllerVerified(true);
+        } else {
+          setShowControllerCreds(true);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleTestAndSaveController = async () => {
+    if (!controllerUsername.trim() || !controllerPassword.trim()) {
+      setErrorMessage('Tafadhali weka Username na Password ya Omada Controller uliyoiweka wakati wa Setup Wizard.');
+      return;
+    }
+    setTestingController(true);
+    setErrorMessage('');
+    setControllerStatusMsg('');
+    try {
+      const res = await fetch('/api/v1/omada/controller-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          controllerUrl,
+          username: controllerUsername.trim(),
+          password: controllerPassword.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Login ya Omada imeshindwa. Hakikisha username na password ni sahihi.');
+      }
+      setControllerVerified(true);
+      setControllerStatusMsg('Akaunti ya Omada Controller imethibitishwa na kuunganishwa kikamilifu!');
+      setTimeout(() => setControllerStatusMsg(''), 4000);
+    } catch (err: any) {
+      setErrorMessage(err.message);
+    } finally {
+      setTestingController(false);
+    }
+  };
+
   // Fetch existing Omada Sites from backend
   const fetchSites = async () => {
     try {
@@ -158,6 +219,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
     if (isOpen) {
       fetchSites();
       fetchInformConfig();
+      fetchControllerStatus();
       if (existingRouter) {
         if (existingRouter.mac_address) setMacAddress(existingRouter.mac_address);
         if (existingRouter.brand_name) setBrandName(existingRouter.brand_name);
@@ -201,6 +263,9 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           name: siteName.trim(),
           nasIp,
           ownerId,
+          controllerUsername: controllerUsername.trim() || undefined,
+          controllerPassword: controllerPassword.trim() || undefined,
+          controllerUrl: controllerUrl.trim() || undefined,
         }),
       });
 
@@ -210,6 +275,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       }
 
       setSiteCreatedSuccess(true);
+      setControllerVerified(true);
       setSelectedSiteId(data.site.id);
       setSelectedSite(data.site);
       if (data.site.nas_ip) setNasIp(data.site.nas_ip);
@@ -221,6 +287,14 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       }, 900);
     } catch (err: any) {
       setErrorMessage(err.message || 'Hitilafu ya uundaji wa Site.');
+      if (
+        err.message &&
+        (err.message.includes('-30109') ||
+          err.message.includes('Invalid username or password') ||
+          err.message.includes('Login imeshindwa'))
+      ) {
+        setShowControllerCreds(true);
+      }
     } finally {
       setCreatingSite(false);
     }
@@ -483,6 +557,117 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                 <p className="text-xs text-teal-800 leading-relaxed">
                   Mfumo unatuma ombi la kutengeneza <strong>Site mpya</strong> kwenye Omada Controller (<code>omada.infotechwifi.com</code>) na <strong>kuzalisha moja kwa moja RADIUS NAS IP</strong> kwa ajili ya kuthibitisha wateja watakaonunua vocha.
                 </p>
+              </div>
+
+              {/* Omada Controller Admin Credentials Card */}
+              <div
+                className={`p-4 rounded-2xl border transition ${
+                  controllerVerified
+                    ? 'bg-emerald-50/70 border-emerald-300'
+                    : 'bg-amber-50/90 border-amber-300 shadow-sm'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Lock className={`w-4 h-4 ${controllerVerified ? 'text-emerald-700' : 'text-amber-700'}`} />
+                    <span className="text-xs font-black text-slate-900">
+                      Akaunti ya Omada Controller (Admin Credentials):
+                    </span>
+                    {controllerVerified ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Imeunganishwa
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300">
+                        Inahitaji Password
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowControllerCreds(!showControllerCreds)}
+                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer"
+                  >
+                    {showControllerCreds ? 'Ficha Mipangilio ▴' : 'Onyesha / Weka Password ▾'}
+                  </button>
+                </div>
+
+                {controllerStatusMsg && (
+                  <div className="mt-2 text-xs text-emerald-700 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{controllerStatusMsg}</span>
+                  </div>
+                )}
+
+                {showControllerCreds && (
+                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-3">
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Weka <strong>Username</strong> na <strong>Password</strong> uliyotengeneza kwenye ukurasa wa <em>Setup Wizard</em> wa Omada Controller (<code>https://omada.infotechwifi.com</code>) ili mfumo wetu uweze kuwasiliana na Controller na kuunda Site kiotomatiki.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Omada Admin Username:
+                        </label>
+                        <input
+                          type="text"
+                          value={controllerUsername}
+                          onChange={(e) => setControllerUsername(e.target.value)}
+                          placeholder="mfano: admin au jina uliloweka"
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Omada Admin Password:
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showControllerPassword ? 'text' : 'password'}
+                            value={controllerPassword}
+                            onChange={(e) => setControllerPassword(e.target.value)}
+                            placeholder="Password ya Omada Controller"
+                            className="w-full px-3 py-2 pr-9 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowControllerPassword(!showControllerPassword)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {showControllerPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Host: {controllerUrl}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleTestAndSaveController}
+                        disabled={testingController || !controllerPassword.trim()}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {testingController ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Inathibitisha...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+                            <span>Thibitisha na Hifadhi (Test & Save)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Existing Sites Selector (if any) */}

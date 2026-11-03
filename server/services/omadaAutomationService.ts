@@ -12,6 +12,8 @@
  * 5. Kuwasha huduma ya Hotspot Captive Portal (External Portal) na Open SSID
  */
 
+import { db } from '../db.js';
+
 export interface OmadaConfig {
   controllerUrl: string; // mfano: "https://omada.infotechwifi.com:8043" au "https://omada.infotechwifi.com"
   username: string;
@@ -110,8 +112,10 @@ export class OmadaAutomationService {
   private sessionCookie: string | null = null;
 
   constructor(customConfig?: Partial<OmadaConfig>) {
+    const dbOmada = typeof db !== 'undefined' ? (db as any).getOmadaControllerSettings?.() : undefined;
     const rawController =
       customConfig?.controllerUrl ||
+      dbOmada?.controllerUrl ||
       process.env.OMADA_CONTROLLER_URL ||
       'https://omada.infotechwifi.com:8043';
 
@@ -120,9 +124,9 @@ export class OmadaAutomationService {
 
     this.config = {
       controllerUrl: cleanUrl,
-      username: customConfig?.username || process.env.OMADA_USERNAME || 'admin',
-      password: customConfig?.password || process.env.OMADA_PASSWORD || 'Infotech@2026!',
-      omadacId: customConfig?.omadacId || process.env.OMADA_CONTROLLER_ID || undefined,
+      username: customConfig?.username || dbOmada?.username || process.env.OMADA_USERNAME || 'admin',
+      password: customConfig?.password || dbOmada?.password || process.env.OMADA_PASSWORD || 'Infotech@2026!',
+      omadacId: customConfig?.omadacId || dbOmada?.omadacId || process.env.OMADA_CONTROLLER_ID || undefined,
       radiusServerIp: customConfig?.radiusServerIp || process.env.VPS_IP || '13.140.173.98',
       radiusSecret: customConfig?.radiusSecret || process.env.RADIUS_SECRET || 'radius_secret_2026',
       radiusAuthPort: customConfig?.radiusAuthPort || 1812,

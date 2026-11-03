@@ -4699,6 +4699,62 @@ apiRouter.get('/omada/automation/config', (req: Request, res: Response) => {
 // RODLINK-STYLE OMADA SITE, CLAIM AP & HOTSPOT ENABLEMENT PIPELINE
 // =============================================================================
 
+// 0. Get & Test Omada Controller Credentials
+apiRouter.get('/omada/controller-credentials', (_req: Request, res: Response) => {
+  const settings = db.getOmadaControllerSettings();
+  res.json({
+    controllerUrl: settings.controllerUrl || 'https://omada.infotechwifi.com:8043',
+    username: settings.username || 'admin',
+    isConfigured: Boolean(settings.password),
+    hasPassword: Boolean(settings.password),
+  });
+});
+
+apiRouter.post('/omada/controller-credentials', async (req: Request, res: Response) => {
+  try {
+    const { controllerUrl, username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Tafadhali weka Username na Password ya Omada Controller.' });
+    }
+
+    const cleanUrl = controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : 'https://omada.infotechwifi.com:8043';
+    const cleanUser = String(username).trim();
+    const cleanPass = String(password).trim();
+
+    const testService = new OmadaAutomationService({
+      controllerUrl: cleanUrl,
+      username: cleanUser,
+      password: cleanPass,
+    });
+
+    const loginRes = await testService.login();
+
+    // Persist working credentials
+    const saved = db.saveOmadaControllerSettings({
+      controllerUrl: cleanUrl,
+      username: cleanUser,
+      password: cleanPass,
+      omadacId: loginRes.omadacId,
+    });
+
+    res.json({
+      success: true,
+      message: 'Omada Controller imeunganishwa kikamilifu! Username na Password zimethibitishwa.',
+      settings: {
+        controllerUrl: saved.controllerUrl,
+        username: saved.username,
+        omadacId: saved.omadacId,
+        isConfigured: true,
+      },
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      error: `Omada Controller Login imeshindwa: ${err.message}`,
+    });
+  }
+});
+
 // A. Orodha ya Sites za Omada
 apiRouter.get('/omada/sites', (req: Request, res: Response) => {
   const caller = getRequestUser(req);
@@ -4713,7 +4769,7 @@ apiRouter.get('/omada/sites', (req: Request, res: Response) => {
 apiRouter.post('/omada/sites/create', async (req: Request, res: Response) => {
   try {
     const caller = getRequestUser(req);
-    const { name, nasIp, ownerId } = req.body || {};
+    const { name, nasIp, ownerId, controllerUsername, controllerPassword, controllerUrl } = req.body || {};
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Tafadhali weka jina la Site (Site Name is required).' });
@@ -4724,7 +4780,17 @@ apiRouter.post('/omada/sites/create', async (req: Request, res: Response) => {
       ? Number(ownerId)
       : (caller ? Number(caller.parent_owner_id || caller.id) : (db.getOwners()[0]?.id || 1));
 
-    const automation = new OmadaAutomationService();
+    let customConfig: any = undefined;
+    if (controllerUsername && controllerPassword) {
+      customConfig = {
+        controllerUrl: controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : undefined,
+        username: String(controllerUsername).trim(),
+        password: String(controllerPassword).trim(),
+      };
+      db.saveOmadaControllerSettings(customConfig);
+    }
+
+    const automation = new OmadaAutomationService(customConfig);
     // 1. Create site in Omada Controller
     const siteId = await automation.createSite(cleanName);
     

@@ -130,6 +130,12 @@ if docker ps -a --format '{{.Names}}' | grep -Eq "^omada-controller$"; then
   docker rm omada-controller >/dev/null 2>&1 || true
 fi
 
+# Hakikisha port 29810 haishikiliwi na process nyingine kabla ya kuwasha Omada
+if command -v fuser &> /dev/null; then
+  fuser -k 29810/tcp >/dev/null 2>&1 || true
+  fuser -k 29810/udp >/dev/null 2>&1 || true
+fi
+
 # Anzisha Omada Controller Docker Container kwa kutumia Host Network au Port Mappings
 # mbentley/omada-controller ndiyo image thabiti zaidi na iliyopimwa duniani kote
 docker run -d \

@@ -171,6 +171,7 @@ export const RouterManagement: React.FC<{
   selectedRouterId?: number;
   onSelectRouter?: (id: number) => void;
   onRoutersUpdated?: () => void;
+  onNavigatePortal?: (routerId?: number) => void;
   lang?: 'sw' | 'en';
 }> = ({
   ownerId,
@@ -178,6 +179,7 @@ export const RouterManagement: React.FC<{
   selectedRouterId,
   onSelectRouter,
   onRoutersUpdated,
+  onNavigatePortal,
   lang = 'sw',
 }) => {
   const [routers, setRouters] = useState<RouterItem[]>([]);
@@ -225,12 +227,15 @@ export const RouterManagement: React.FC<{
   const [omadaModalOpen, setOmadaModalOpen] = useState(false);
   const [selectedOmadaRouter, setSelectedOmadaRouter] = useState<RouterItem | null>(null);
   const [omadaInitialStep, setOmadaInitialStep] = useState<number>(1);
+  const [omadaModalSessionKey, setOmadaModalSessionKey] = useState<number>(Date.now());
   const [checkingAdoptionId, setCheckingAdoptionId] = useState<number | null>(null);
   const [adoptionFeedback, setAdoptionFeedback] = useState<{ routerId: number; success: boolean; message: string } | null>(null);
 
   const handleOpenOmadaModal = (router?: RouterItem, step = 1) => {
+    // If no router provided, ensure selected router is explicitly null
     setSelectedOmadaRouter(router || null);
     setOmadaInitialStep(step);
+    setOmadaModalSessionKey(Date.now());
     setOmadaModalOpen(true);
   };
 
@@ -799,6 +804,10 @@ export const RouterManagement: React.FC<{
       const res = await fetch(`/api/v1/routers/${id}`, { method: 'DELETE' });
       if (res.ok) {
         setRouterToDelete(null);
+        if (selectedOmadaRouter?.id === id) {
+          setSelectedOmadaRouter(null);
+          setOmadaModalSessionKey(Date.now());
+        }
         setRouterNotice('Router/AP imeondolewa kikamilifu kwenye mfumo!');
         setTimeout(() => setRouterNotice(null), 4000);
         await fetchRouters();
@@ -3140,10 +3149,12 @@ export const RouterManagement: React.FC<{
 
       {/* TP-Link Omada AP Inform & Adoption Wizard Modal */}
       <OmadaAdoptionModal
+        key={selectedOmadaRouter ? `omada-modal-${selectedOmadaRouter.id}` : `omada-modal-new-${omadaModalSessionKey}`}
         isOpen={omadaModalOpen}
         onClose={() => {
           setOmadaModalOpen(false);
           setSelectedOmadaRouter(null);
+          setOmadaModalSessionKey(Date.now());
         }}
         onSuccess={(adopted) => {
           setRouters((prev) => {
@@ -3160,6 +3171,13 @@ export const RouterManagement: React.FC<{
         ownerId={ownerId}
         ownerName={ownerName}
         initialStep={omadaInitialStep}
+        onNavigatePortal={(targetRouterId) => {
+          setOmadaModalOpen(false);
+          if (targetRouterId && onSelectRouter) {
+            onSelectRouter(targetRouterId);
+          }
+          onNavigatePortal?.(targetRouterId);
+        }}
       />
 
       {/* ========================================================================= */}

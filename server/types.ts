@@ -215,7 +215,7 @@ export interface RouterRecord {
   portal_theme?: PortalThemeConfig;
   anti_tethering?: boolean;
   mac_address?: string;
-  adoption_status?: 'PENDING_INFORM' | 'CLAIMED' | 'ADOPTING' | 'ADOPTED' | 'FAILED' | 'DISCONNECTED';
+  adoption_status?: 'PENDING_INFORM' | 'CLAIMED' | 'ADOPTING' | 'ADOPTED' | 'FAILED' | 'ADOPTION_FAILED' | 'DISCONNECTED';
   ap_username?: string;
   ap_password?: string;
   inform_url?: string;

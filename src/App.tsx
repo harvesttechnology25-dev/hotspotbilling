@@ -277,7 +277,12 @@ export default function App() {
             currentUser={currentUser}
             onLogout={handleLogout}
             onSwitchUser={handleSwitchUser}
-            onNavigatePortal={() => handleSetViewMode('portal')}
+            onNavigatePortal={(targetRouterId?: number) => {
+              if (targetRouterId) {
+                handleSiteChange(targetRouterId);
+              }
+              handleSetViewMode('portal');
+            }}
             lang={lang}
             initialTab={adminInitialTab}
             selectedSiteRouterId={selectedSiteRouterId}

@@ -4917,10 +4917,10 @@ apiRouter.post('/omada/sites/claim-ap', async (req: Request, res: Response) => {
   }
 });
 
-// D. Hatua ya 3: Adapt AP (Baada ya mtumiaji kupaste URL kwenye AP)
+// D. Hatua ya 3: Adapt AP (Strict State Parity with Omada Controller)
 apiRouter.post('/omada/sites/adapt-ap', async (req: Request, res: Response) => {
   try {
-    const { siteId, macAddress, routerId } = req.body || {};
+    const { siteId, macAddress, routerId, apUsername, apPassword } = req.body || {};
     if (!macAddress && !routerId) {
       return res.status(400).json({ error: 'MAC address au routerId inahitajika.' });
     }
@@ -4931,43 +4931,125 @@ apiRouter.post('/omada/sites/adapt-ap', async (req: Request, res: Response) => {
       : db.getRouters().find((r) => r.device_type === 'TPLINK_OMADA' && r.mac_address && cleanMac && OmadaAdoptionService.normalizeMac(r.mac_address) === cleanMac);
 
     if (!router) {
-      return res.status(404).json({ error: 'Kifaa hakijapatikana.' });
+      return res.status(404).json({ error: 'Kifaa hakijapatikana kwenye mfumo.' });
     }
+
+    // Sasisha nenosiri la kifaa kama limeletwa na mtumiaji
+    if (apUsername) router.ap_username = String(apUsername).trim();
+    if (apPassword) {
+      router.ap_password = String(apPassword).trim();
+      router.api_password_hash = String(apPassword).trim();
+    }
+    db.saveRouter(router);
 
     const effectiveSiteId = siteId || `site_${router.location?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'default'}`;
     const automation = new OmadaAutomationService();
 
-    // Trigger adoption on controller
-    await automation.adoptAccessPoint(
+    const deviceMac = router.mac_address || macAddress;
+    const deviceUser = router.ap_username || 'admin';
+    const devicePass = router.ap_password || 'admin';
+
+    // Tuma amri ya ku-adopt kwenye Omada Controller
+    const adoptTrigger = await automation.adoptAccessPoint(
       effectiveSiteId,
-      router.mac_address || '50:D4:F7:2B:8C:1A',
-      router.ap_username || 'admin',
-      router.ap_password || 'Infotech@2026!'
+      deviceMac,
+      deviceUser,
+      devicePass
     );
 
-    // Wait and verify connected status
+    if (adoptTrigger.status === 'FAILED') {
+      router.status = 'OFFLINE';
+      router.adoption_status = 'ADOPTION_FAILED';
+      router.updated_at = new Date().toISOString();
+      db.saveRouter(router);
+
+      return res.status(400).json({
+        success: false,
+        status: 'ADOPT_FAILED',
+        adoptionStatus: 'ADOPTION_FAILED',
+        error: adoptTrigger.message,
+        router,
+      });
+    }
+
+    // Wait and verify real connected status from Omada Controller
     const poll = await automation.waitForApConnected(
       effectiveSiteId,
-      router.mac_address || '50:D4:F7:2B:8C:1A',
-      20
+      deviceMac,
+      25
     );
 
-    router.status = 'ONLINE';
-    router.adoption_status = 'ADOPTED';
-    router.last_adopted_at = new Date().toISOString();
-    router.last_seen_at = new Date().toISOString();
+    if (poll.connected) {
+      // SUCCESS: Controller and Infotech WiFi are 100% in sync
+      router.status = 'ONLINE';
+      router.adoption_status = 'ADOPTED';
+      router.last_adopted_at = new Date().toISOString();
+      router.last_seen_at = new Date().toISOString();
+      router.updated_at = new Date().toISOString();
+      db.saveRouter(router);
+
+      return res.json({
+        success: true,
+        status: 'CONNECTED',
+        adoptionStatus: 'ADOPTED',
+        router,
+        pollDuration: poll.waitDurationSeconds,
+        message: `Hongera! AP (${router.name}) imeunganishwa (Adopted & Connected) kikamilifu na Controller!`,
+      });
+    }
+
+    // FAILURE / NOT CONNECTED: STRICT PARITY
+    // Usionyeshe "Connected" wakati Controller ina ADOPT_FAILED au bado haijakubali
+    router.status = 'OFFLINE';
+    router.adoption_status = poll.failed ? 'ADOPTION_FAILED' : 'CLAIMED';
+    router.updated_at = new Date().toISOString();
     db.saveRouter(router);
 
-    res.json({
-      success: true,
-      status: 'CONNECTED',
-      adoptionStatus: 'ADOPTED',
+    return res.status(400).json({
+      success: false,
+      status: poll.status || 'ADOPT_FAILED',
+      adoptionStatus: router.adoption_status,
+      error: poll.error || 'Adoption imeshindikana kwenye Omada Controller. Hakikisha nenosiri la AP ni sahihi (mfano: "admin" au uliloweka kwenye AP GUI).',
       router,
       pollDuration: poll.waitDurationSeconds,
-      message: `Hongera! AP (${router.name}) imeunganishwa (Adopted & Connected) kikamilifu na Controller!`,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || 'Hitilafu ya ku-adopt AP.' });
+  }
+});
+
+// Live Status Check Endpoint directly with Omada Controller
+apiRouter.get('/omada/sites/:siteId/devices/:mac/live-status', async (req: Request, res: Response) => {
+  try {
+    const { siteId, mac } = req.params;
+    const automation = new OmadaAutomationService();
+    const live = await automation.getDeviceLiveStatus(siteId, mac);
+
+    // Sync local router record
+    const cleanMac = OmadaAdoptionService.normalizeMac(mac);
+    const router = db.getRouters().find(
+      (r) => r.device_type === 'TPLINK_OMADA' && r.mac_address && OmadaAdoptionService.normalizeMac(r.mac_address) === cleanMac
+    );
+
+    if (router) {
+      if (live.connected) {
+        router.status = 'ONLINE';
+        router.adoption_status = 'ADOPTED';
+        router.last_seen_at = new Date().toISOString();
+      } else if (live.failed || live.status === 'ADOPT_FAILED') {
+        router.status = 'OFFLINE';
+        router.adoption_status = 'ADOPTION_FAILED';
+      }
+      db.saveRouter(router);
+    }
+
+    res.json({
+      success: true,
+      live,
+      router,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

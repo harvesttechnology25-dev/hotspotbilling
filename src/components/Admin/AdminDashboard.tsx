@@ -69,7 +69,7 @@ export interface AdminDashboardProps {
   currentUser?: HotspotOwner;
   onLogout?: () => void;
   onSwitchUser?: (user: HotspotOwner) => void;
-  onNavigatePortal?: () => void;
+  onNavigatePortal?: (routerId?: number) => void;
   lang?: 'sw' | 'en';
   initialTab?: string;
   selectedSiteRouterId?: number | 'ALL';
@@ -1259,7 +1259,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {onNavigatePortal && (
               <button
                 type="button"
-                onClick={onNavigatePortal}
+                onClick={() => onNavigatePortal?.()}
                 className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#1b62b6] font-bold text-xs shadow-2xs transition cursor-pointer shrink-0 min-h-[36px]"
                 title={lang === 'sw' ? 'Fungua Captive Portal ya Wateja' : 'Open Captive Portal'}
               >
@@ -1471,6 +1471,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               selectedRouterId={selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined}
               onSelectRouter={handleSiteChange}
               onRoutersUpdated={fetchRouters}
+              onNavigatePortal={onNavigatePortal}
+              lang={lang}
             />
           )}
 

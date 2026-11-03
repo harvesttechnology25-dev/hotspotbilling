@@ -21,6 +21,7 @@ import {
   Sparkles,
   Layers,
   Zap,
+  PlusCircle,
 } from 'lucide-react';
 import { RouterItem, OmadaSiteItem } from '../../types/index.ts';
 
@@ -33,6 +34,7 @@ interface OmadaAdoptionModalProps {
   ownerName?: string;
   lang?: 'sw' | 'en';
   initialStep?: number;
+  onNavigatePortal?: (routerId: number) => void;
 }
 
 const OMADA_MODELS = [
@@ -60,6 +62,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   ownerName,
   lang = 'sw',
   initialStep = 1,
+  onNavigatePortal,
 }) => {
   // Rodlink-Style Steps:
   // 1: Create Omada Site & Auto-Assign RADIUS NAS IP
@@ -109,12 +112,15 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   const [adapting, setAdapting] = useState(false);
   const [adoptionSuccess, setAdoptionSuccess] = useState(false);
   const [adoptedRouter, setAdoptedRouter] = useState<RouterItem | null>(null);
+  const [adoptionFailedDetails, setAdoptionFailedDetails] = useState<string | null>(null);
 
   // Hotspot Enablement State
   const [ssid, setSsid] = useState('INFOTECH-HOTSPOT-WIFI');
   const [enablingHotspot, setEnablingHotspot] = useState(false);
   const [hotspotEnabledSuccess, setHotspotEnabledSuccess] = useState(false);
   const [portalUrl, setPortalUrl] = useState('https://wifi.infotechwifi.com/portal');
+  const [portalRedirectCountdown, setPortalRedirectCountdown] = useState<number | null>(null);
+  const [countdownPaused, setCountdownPaused] = useState<boolean>(false);
 
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -215,32 +221,111 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
     }
   };
 
+  // Generate random strong Omada AP device password
+  const generateNewApPassword = () => 'Omada@' + Math.floor(1000 + Math.random() * 9000) + '!Tz';
+
+  // Comprehensive reset to pristine clean state for new AP adoption or when starting over
+  const resetToNewAp = (targetStep = 1) => {
+    setActiveStep(targetStep);
+    setMacAddress('');
+    setSelectedModel(OMADA_MODELS[0].name);
+    setIsCustomModel(false);
+    setCustomModelText('');
+    setClaimingAp(false);
+    setApClaimedSuccess(false);
+    setClaimedRouter(null);
+    setApUsername('admin');
+    setApPassword(generateNewApPassword());
+    setShowPassword(false);
+    setCopiedUsername(false);
+    setCopiedPassword(false);
+    setCopiedInform(false);
+    setCopiedPortalUrl(false);
+    setAdapting(false);
+    setAdoptionSuccess(false);
+    setAdoptedRouter(null);
+    setEnablingHotspot(false);
+    setHotspotEnabledSuccess(false);
+    setSiteCreatedSuccess(false);
+    setAdoptionFailedDetails(null);
+    setPortalRedirectCountdown(null);
+    setCountdownPaused(false);
+    setErrorMessage('');
+    const defaultBrand = ownerName || 'Kariakoo Fast Wi-Fi';
+    setBrandName(defaultBrand);
+    setSsid(`${defaultBrand.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10)}-WIFI`);
+    setLocation('Dar es Salaam, Kariakoo');
+  };
+
+  // Automated or manual direct transition to Captive Portal once Hotspot is enabled
+  const handleGoToPortal = () => {
+    const targetRouterId = adoptedRouter?.id || claimedRouter?.id || existingRouter?.id;
+    if (targetRouterId && onNavigatePortal) {
+      onClose();
+      onNavigatePortal(targetRouterId);
+    } else if (portalUrl) {
+      window.open(portalUrl, '_blank');
+    }
+  };
+
+  useEffect(() => {
+    if (portalRedirectCountdown === null || countdownPaused) return;
+
+    if (portalRedirectCountdown <= 0) {
+      handleGoToPortal();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setPortalRedirectCountdown((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [portalRedirectCountdown, countdownPaused]);
+
   useEffect(() => {
     if (isOpen) {
       fetchSites();
       fetchInformConfig();
       fetchControllerStatus();
+
       if (existingRouter) {
-        if (existingRouter.mac_address) setMacAddress(existingRouter.mac_address);
-        if (existingRouter.brand_name) setBrandName(existingRouter.brand_name);
-        if (existingRouter.ssid) setSsid(existingRouter.ssid);
-        if (existingRouter.location) setLocation(existingRouter.location);
-        if (existingRouter.ap_username) setApUsername(existingRouter.ap_username);
-        if (existingRouter.ap_password) setApPassword(existingRouter.ap_password);
+        // Load existing router details strictly
+        setMacAddress(existingRouter.mac_address || '');
+        setBrandName(existingRouter.brand_name || ownerName || 'Kariakoo Fast Wi-Fi');
+        setSsid(
+          existingRouter.ssid ||
+          `${(existingRouter.brand_name || existingRouter.name || 'HOTSPOT').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10)}-WIFI`
+        );
+        setLocation(existingRouter.location || 'Dar es Salaam, Kariakoo');
+        setApUsername(existingRouter.ap_username || 'admin');
+        setApPassword(existingRouter.ap_password || generateNewApPassword());
+        setClaimedRouter(existingRouter);
+        setErrorMessage('');
+        setAdoptionFailedDetails(null);
+
         if (existingRouter.adoption_status === 'ADOPTED') {
-          setActiveStep(4);
+          setActiveStep(initialStep && initialStep !== 1 ? initialStep : 4);
           setAdoptionSuccess(true);
           setAdoptedRouter(existingRouter);
+          setApClaimedSuccess(true);
         } else if (existingRouter.adoption_status === 'CLAIMED') {
-          setActiveStep(3);
+          setActiveStep(initialStep && initialStep !== 1 ? initialStep : 3);
+          setApClaimedSuccess(true);
+          setAdoptionSuccess(false);
+          setAdoptedRouter(null);
+        } else {
+          setActiveStep(initialStep || 1);
+          setApClaimedSuccess(false);
+          setAdoptionSuccess(false);
+          setAdoptedRouter(null);
         }
       } else {
-        const defaultBrand = ownerName || 'Kariakoo Fast Wi-Fi';
-        setBrandName(defaultBrand);
-        setSsid(`${defaultBrand.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10)}-WIFI`);
+        // Pristine clean slate: No stale data from any deleted or previous AP!
+        resetToNewAp(initialStep || 1);
       }
     }
-  }, [isOpen, existingRouter, ownerName]);
+  }, [isOpen, existingRouter, ownerName, initialStep]);
 
   if (!isOpen) return null;
 
@@ -355,11 +440,17 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   };
 
   // ---------------------------------------------------------------------------
-  // STEP 4: ADAPT AP ON OMADA CONTROLLER
+  // STEP 4: ADAPT AP ON OMADA CONTROLLER (STRICT STATE PARITY)
   // ---------------------------------------------------------------------------
-  const handleAdaptAp = async () => {
+  const handleAdaptAp = async (overridePassword?: string) => {
     setAdapting(true);
     setErrorMessage('');
+    setAdoptionFailedDetails(null);
+    const passToUse = overridePassword !== undefined ? overridePassword : apPassword;
+    if (overridePassword !== undefined) {
+      setApPassword(overridePassword);
+    }
+
     try {
       const res = await fetch('/api/v1/omada/sites/adapt-ap', {
         method: 'POST',
@@ -368,17 +459,22 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           siteId: selectedSiteId,
           macAddress: macAddress.trim(),
           routerId: claimedRouter?.id || existingRouter?.id,
-          apUsername,
-          apPassword,
+          apUsername: apUsername.trim(),
+          apPassword: passToUse.trim(),
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || data.message || 'Adoption imeshindwa.');
+        const errorText = data.error || data.message || 'Adoption imeshindikana kwenye Omada Controller.';
+        setAdoptionFailedDetails(errorText);
+        setAdoptionSuccess(false);
+        throw new Error(errorText);
       }
 
+      // STRICT PARITY CONFIRMED: Controller status is CONNECTED
       setAdoptionSuccess(true);
+      setAdoptionFailedDetails(null);
       setAdoptedRouter(data.router);
       if (data.router) {
         onSuccess(data.router);
@@ -389,6 +485,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         setActiveStep(5);
       }, 1000);
     } catch (err: any) {
+      setAdoptionSuccess(false);
       setErrorMessage(err.message || 'Hitilafu ya ku-adopt AP.');
     } finally {
       setAdapting(false);
@@ -396,7 +493,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   };
 
   // ---------------------------------------------------------------------------
-  // STEP 5: ENABLE HOTSPOT & CAPTIVE PORTAL
+  // STEP 5: ENABLE HOTSPOT & CAPTIVE PORTAL (WITH DIRECT TRANSITION)
   // ---------------------------------------------------------------------------
   const handleEnableHotspot = async () => {
     if (!ssid.trim()) {
@@ -430,6 +527,9 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         setAdoptedRouter(data.router);
         onSuccess(data.router);
       }
+      // Start direct redirect countdown to Captive Portal (3 seconds)
+      setPortalRedirectCountdown(3);
+      setCountdownPaused(false);
     } catch (err: any) {
       setErrorMessage(err.message || 'Hitilafu ya kuwasha huduma ya Hotspot.');
     } finally {
@@ -482,6 +582,38 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
               <p className="text-xs text-slate-300 mt-0.5">
                 Uundaji wa Site, Ku-claim AP, Adoption, na Kuwasha Hotspot Captive Portal bila MikroTik router.
               </p>
+
+              {/* Status Indicator & Fresh AP Mode */}
+              <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
+                {existingRouter ? (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-900/60 border border-indigo-500/40 text-[11px] text-indigo-200 font-semibold">
+                    <span>Inakagua: <strong className="text-white">{existingRouter.name || existingRouter.mac_address}</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => resetToNewAp(1)}
+                      className="ml-1.5 px-2 py-0.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded text-[10px] font-black transition cursor-pointer"
+                      title="Badilisha na uanze ku-adopt AP Mpya bila taarifa za kifaa kilichofutwa"
+                    >
+                      ➕ Anza AP Mpya
+                    </button>
+                  </div>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-lg bg-teal-500/20 text-teal-300 text-[11px] font-bold border border-teal-500/30 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-teal-400" />
+                    <span>🟢 Usajili wa AP Mpya (Fresh AP Adoption)</span>
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => resetToNewAp(1)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 border border-slate-700"
+                  title="Futa data zote zilizojazwa na uanze upya hatua ya 1"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Anza Upya (Reset)</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -795,6 +927,26 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                 </p>
               </div>
 
+              {/* Informative notice if existingRouter is active */}
+              {existingRouter && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900">
+                  <div>
+                    <span className="font-bold">Unakagua taarifa za kifaa:</span> <span className="font-mono font-bold text-amber-950">{existingRouter.name} ({existingRouter.mac_address || 'Bila MAC'})</span>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      Kama unataka kusajili <strong>AP nyingine mpya</strong> (au kama hii ilishafutwa), bofya kitufe cha kulia:
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => resetToNewAp(2)}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>Sajili AP Mpya</span>
+                  </button>
+                </div>
+              )}
+
               <div className="border border-slate-200 p-5 rounded-2xl bg-white space-y-4 shadow-2xs">
                 {/* Site Selection */}
                 <div>
@@ -1030,7 +1182,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           )}
 
           {/* ================================================================= */}
-          {/* STEP 4: ADAPT AP (WAIT & CONNECT)                                */}
+          {/* STEP 4: ADAPT AP (WAIT & CONNECT WITH STRICT PARITY)              */}
           {/* ================================================================= */}
           {activeStep === 4 && (
             <div className="space-y-5">
@@ -1040,8 +1192,143 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   <span>Hatua ya 4: Unganisha na U-adopt Access Point (AP)</span>
                 </div>
                 <p className="text-xs text-indigo-800 leading-relaxed">
-                  Mfumo sasa unawasiliana na Omada Controller na kusubiri AP yako ya MAC <code>{macAddress}</code> iwe katika hali ya <strong>Adopted & Connected</strong>.
+                  Mfumo unathibitisha na kusubiri Omada Controller ikamilishe adoption ya AP ya MAC <code>{macAddress || '(Haijawekwa)'}</code>. Usawa unadumishwa kati ya Omada Controller na Infotech WiFi ili kuzuia taarifa zisizo sahihi.
                 </p>
+              </div>
+
+              {!macAddress.trim() && (
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                    <span>Hujaweka MAC Address ya AP unayotaka ku-adopt. Tafadhali rudi Hatua ya 2 uweke MAC Address.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(2)}
+                    className="px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer"
+                  >
+                    Rudi Hatua ya 2 &rarr;
+                  </button>
+                </div>
+              )}
+
+              {/* Adoption Failure Alert (When Omada Controller Reports Failed or Bad Password) */}
+              {adoptionFailedDetails && (
+                <div className="p-5 bg-rose-50 border-2 border-rose-300 rounded-3xl space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                      <AlertCircle className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-black text-rose-950">
+                          ⚠️ Adoption Imeshindikana Kwenye Omada Controller
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full bg-rose-200 text-rose-800 text-[10px] font-mono font-bold">
+                          CONTROLLER STATUS: ADOPT_FAILED
+                        </span>
+                      </div>
+                      <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                        {adoptionFailedDetails}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white/90 border border-rose-200 rounded-2xl text-xs space-y-2">
+                    <p className="text-[11px] text-slate-700 font-medium">
+                      💡 <strong>Sababu Kuu:</strong> AP za TP-Link Omada zikiwa mpya au baada ya ku-reset zinatumia nenosiri la kiwandani: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-teal-700">admin</code>. Kama uliweka nenosiri lingine kwenye AP GUI, hakikisha unaliweka hapa chini:
+                    </p>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAdaptAp('admin')}
+                        disabled={adapting}
+                        className="px-3.5 py-2 bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>🔑 Jaribu kwa Nenosiri: "admin" (Default)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAdaptAp()}
+                        disabled={adapting}
+                        className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>🔄 Jaribu Tena na Nenosiri Lililopo</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AP Device Account Configuration on Step 4 */}
+              <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Lock className="w-4 h-4 text-slate-600" />
+                    <span>Nenosiri la Kifaa cha AP (Device Account):</span>
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    MAC: {macAddress || 'N/A'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Username ya Kifaa cha AP:
+                    </label>
+                    <input
+                      type="text"
+                      value={apUsername}
+                      onChange={(e) => setApUsername(e.target.value)}
+                      placeholder="admin"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Password ya Kifaa cha AP:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={apPassword}
+                        onChange={(e) => setApPassword(e.target.value)}
+                        placeholder="Nenosiri la AP (mfano: admin au uliloweka)"
+                        className="w-full px-3 py-2 pr-9 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setApPassword('admin')}
+                    className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition cursor-pointer"
+                  >
+                    Weka "admin" (Factory Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setApPassword(generateNewApPassword())}
+                    className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition cursor-pointer"
+                  >
+                    🎲 Zalisha Nenosiri Jipya
+                  </button>
+                </div>
               </div>
 
               {adoptionSuccess ? (
@@ -1053,16 +1340,25 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                     AP ya TP-Link Omada Imeunganishwa Kikamilifu (Connected)!
                   </h4>
                   <p className="text-xs text-emerald-800 max-w-md mx-auto">
-                    Kifaa kipo ONLINE na kimeunganishwa na Controller ya <code>omada.infotechwifi.com</code>. Sasa bonyeza kitufe cha chini ili kuwasha Wi-Fi na Captive Portal.
+                    Kifaa kipo ONLINE na kimeunganishwa na Controller ya <code>omada.infotechwifi.com</code>. Usawa wa Controller na mfumo umethibitishwa. Sasa bonyeza kitufe cha chini ili kuwasha Wi-Fi na Captive Portal.
                   </p>
 
                   <div className="p-3 bg-white/80 rounded-2xl border border-emerald-200 inline-flex flex-wrap gap-4 text-xs font-mono font-bold text-slate-800 justify-center">
                     <span>MAC: {macAddress}</span>
-                    <span>Status: CONNECTED</span>
+                    <span className="text-emerald-700">CONTROLLER: CONNECTED</span>
                     <span>Firmware: v5.0.12</span>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-2 flex flex-wrap justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => resetToNewAp(2)}
+                      className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white font-black text-xs rounded-xl shadow-md transition inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>➕ Unganisha AP Nyingine</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setActiveStep(5)}
@@ -1083,20 +1379,20 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                       Bofya kitufe cha chini kuthibitisha Adoption:
                     </h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Kama tayari umeweka Inform URL kwenye AP, Controller itaikaribisha na kuifanya Connected.
+                      Controller itawasiliana na AP kwa kutumia nenosiri lililowekwa hapo juu na kuthibitisha muunganisho halisi.
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={handleAdaptAp}
-                    disabled={adapting}
-                    className="w-full sm:w-auto px-8 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition inline-flex items-center justify-center gap-2 cursor-pointer"
+                    onClick={() => handleAdaptAp()}
+                    disabled={adapting || !macAddress.trim()}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition inline-flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {adapting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Inaunganisha na Controller (Subiri sekunde chache)...</span>
+                        <span>Inakagua hali halisi ya Omada Controller (Subiri sekunde chache)...</span>
                       </>
                     ) : (
                       <>
@@ -1111,7 +1407,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           )}
 
           {/* ================================================================= */}
-          {/* STEP 5: ENABLE HOTSPOT SERVICE & CAPTIVE PORTAL                  */}
+          {/* STEP 5: ENABLE HOTSPOT SERVICE & DIRECT CAPTIVE PORTAL REDIRECT   */}
           {/* ================================================================= */}
           {activeStep === 5 && (
             <div className="space-y-5">
@@ -1121,7 +1417,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                   <span>Hatua ya Mwisho: Kuwasha Huduma ya Hotspot & Captive Portal</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Weka jina la Wi-Fi (SSID) linalotakiwa kurushwa hewani. Wateja wakiunganisha simu zao watapata arifa ya <strong>"Sign In to Network"</strong> na kufunguliwa ukurasa wa malipo ya simu (M-Pesa, Tigo Pesa, Airtel Money, Halopesa) au kuweka vocha.
+                  Weka jina la Wi-Fi (SSID) linalotakiwa kurushwa hewani. Mara tu hotspot ikishawashwa, utapelekwa moja kwa moja kwenye Captive Portal ili mteja au mmiliki aweze kujaribu au kulipia vifurushi papo hapo kwa simu.
                 </p>
               </div>
 
@@ -1135,7 +1431,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                       🎉 HONGERA! HOTSPOT NA CAPTIVE PORTAL ZIPO HEWANI!
                     </h4>
                     <p className="text-xs text-emerald-800 max-w-md mx-auto mt-1 leading-relaxed">
-                      Wi-Fi <strong>"{ssid}"</strong> sasa inarusha mtandao. Mteja akibonyeza analetewa ukurasa wa kulipia vifurushi papo hapo!
+                      Wi-Fi <strong>"{ssid}"</strong> sasa inarusha mtandao. Kifaa na Controller zimeunganishwa kikamilifu.
                     </p>
                   </div>
 
@@ -1154,21 +1450,56 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Direct Redirection Section to Captive Portal */}
+                  <div className="p-5 bg-gradient-to-br from-white to-teal-50/60 rounded-3xl border-2 border-teal-500/40 shadow-md max-w-lg mx-auto space-y-3">
+                    <div className="flex items-center justify-center gap-2 text-teal-950 font-black text-sm">
+                      <Sparkles className="w-5 h-5 text-amber-500" />
+                      <span>ELEKEZA KWENYE CAPTIVE PORTAL KULIPIA VIFURUSHI</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Mteja anayejiunga na Wi-Fi hii ataelekezwa hapa kulipia kwa M-Pesa, Tigo Pesa, Airtel Money, Halopesa au kuingiza vocha.
+                    </p>
+
+                    {portalRedirectCountdown !== null && portalRedirectCountdown > 0 && !countdownPaused ? (
+                      <div className="flex items-center justify-center gap-2 py-2 px-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-bold">
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                        <span>Inakuelekeza kwenye Captive Portal baada ya sekunde <strong>{portalRedirectCountdown}</strong>...</span>
+                        <button
+                          type="button"
+                          onClick={() => setCountdownPaused(true)}
+                          className="ml-2 text-slate-500 hover:text-slate-800 underline text-[11px] cursor-pointer"
+                        >
+                          Sitisha
+                        </button>
+                      </div>
+                    ) : null}
+
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={handleGoToPortal}
+                        className="w-full py-3.5 px-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-teal-700/25 transition flex items-center justify-center gap-2 cursor-pointer transform active:scale-98"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>🚀 Fungua Captive Portal Moja kwa Moja (Lipia / Jaribu WiFi)</span>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap justify-center gap-3 pt-2">
-                    <a
-                      href={portalUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl inline-flex items-center gap-1.5 transition"
+                    <button
+                      type="button"
+                      onClick={() => resetToNewAp(2)}
+                      className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-black rounded-xl shadow-md transition inline-flex items-center gap-1.5 cursor-pointer"
                     >
-                      <span>Jaribu Ukurasa wa Sign-in (Test Portal)</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                      <PlusCircle className="w-4 h-4" />
+                      <span>➕ Sajili / Unganisha AP Nyingine</span>
+                    </button>
 
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition cursor-pointer"
+                      className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer"
                     >
                       Kamilisha (Done)
                     </button>

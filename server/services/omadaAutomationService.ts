@@ -510,60 +510,212 @@ export class OmadaAutomationService {
 
   /**
    * =========================================================================
-   * POLING: KUANGALIA HALI YA AP MPAKA IWE "CONNECTED"
+   * HALI YA KIFAA KWENYE CONTROLLER (STRICT REAL-TIME LIVE STATUS)
    * =========================================================================
-   * Inachunguza kila sekunde kadhaa kama AP imefika hali ya CONNECTED (status 2).
+   * Inasoma hali halisi kutoka kwenye Omada Controller API bila kudanganya au
+   * kuweka connected feki. Kama kimefail, inaripoti ADOPT_FAILED na sababu.
    */
-  async waitForApConnected(
+  async getDeviceLiveStatus(
     siteId: string,
-    macAddress: string,
-    maxWaitSeconds = 30
-  ): Promise<{ connected: boolean; device?: any; waitDurationSeconds: number }> {
+    macAddress: string
+  ): Promise<{
+    connected: boolean;
+    failed: boolean;
+    status: 'CONNECTED' | 'ADOPT_FAILED' | 'ADOPTING' | 'PROVISIONING' | 'PENDING' | 'DISCONNECTED' | 'OFFLINE' | 'UNKNOWN';
+    statusCode?: number;
+    reason: string;
+    device?: any;
+  }> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+
     const cleanMac = macAddress.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
     const formattedHyphenMac = cleanMac.match(/.{1,2}/g)?.join('-') || macAddress;
     const formattedColonMac = cleanMac.match(/.{1,2}/g)?.join(':') || macAddress;
 
-    const startTime = Date.now();
-    const intervalMs = 3000;
-    const maxRetries = Math.ceil((maxWaitSeconds * 1000) / intervalMs);
+    // 1. Jaribu kupata taarifa za kifaa hiki moja kwa moja kwa MAC
+    try {
+      const url = `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}`;
+      const response = await this.safeFetch(url, {
+        method: 'GET',
+        headers: this.getAuthenticatedHeaders(),
+      });
 
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const url = `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}`;
-        const response = await this.safeFetch(url, {
+      const data = await response.json().catch(() => ({}));
+      let dev = data?.errorCode === 0 && data?.result ? data.result : null;
+
+      // 2. Kama haijapatikana moja kwa moja kwa device/{mac}, kagua orodha ya vifaa vyote vya Site
+      if (!dev) {
+        const listUrl = `${this.getApiBasePath()}/sites/${siteId}/devices?currentPage=1&currentPageSize=100`;
+        const listResp = await this.safeFetch(listUrl, {
           method: 'GET',
           headers: this.getAuthenticatedHeaders(),
         });
-
-        const data = await response.json().catch(() => ({}));
-
-        if (response.ok && data?.errorCode === 0 && data?.result) {
-          const dev = data.result;
-          // TP-Link Omada status codes: 0=Disconnected, 1=Pending, 2=Connected, 3=Adopting, 4=Upgrading
-          if (dev.status === 2 || dev.status === 'CONNECTED' || dev.state === 2) {
-            return {
-              connected: true,
-              device: dev,
-              waitDurationSeconds: Math.round((Date.now() - startTime) / 1000),
-            };
-          }
+        const listData = await listResp.json().catch(() => ({}));
+        if (listData?.errorCode === 0 && Array.isArray(listData?.result?.data)) {
+          dev = listData.result.data.find((d: any) => {
+            const m = (d.mac || d.macAddress || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+            return m === cleanMac;
+          });
         }
-      } catch (e) {
-        // Continue polling
       }
 
-      // Kama muda umezidi nusu na ni local simulation/sandbox, fanya auto-resolve ili usikwame
-      if ((Date.now() - startTime) / 1000 >= 6) {
+      if (dev) {
+        // TP-Link Omada status codes:
+        // 0 = Disconnected / Offline
+        // 1 = Pending (inasubiri adoption)
+        // 2 = Connected / Adopted (Mtandaoni)
+        // 3 = Adopting (Inajaribu kuungana)
+        // 4 = Upgrading
+        // 5 = Provisioning
+        // 6 = Heartbeat Missed
+        // 7 = Isolated
+        // 8 = Adopt Failed / Failed
+        // 9 = Managed by Others
+        const rawStatus = dev.status !== undefined ? dev.status : dev.state;
+        const failedReason = dev.adoptFailedReason || dev.failReason || dev.errorMsg || '';
+
+        if (rawStatus === 2 || rawStatus === 'CONNECTED' || dev.state === 2) {
+          return {
+            connected: true,
+            failed: false,
+            status: 'CONNECTED',
+            statusCode: 2,
+            reason: 'AP imeunganishwa kikamilifu (Connected & Online) kwenye Omada Controller.',
+            device: dev,
+          };
+        }
+
+        if (
+          rawStatus === 8 ||
+          rawStatus === 'ADOPT_FAILED' ||
+          rawStatus === 'FAILED' ||
+          Boolean(failedReason) ||
+          dev.statusCategory === 3
+        ) {
+          return {
+            connected: false,
+            failed: true,
+            status: 'ADOPT_FAILED',
+            statusCode: rawStatus,
+            reason: failedReason
+              ? `Adoption imeshindikana kwenye Omada Controller: ${failedReason}`
+              : 'Adoption imeshindikana kwenye Omada Controller (Device Adopt Failed). Nenosiri la AP si sahihi (Invalid Device Password).',
+            device: dev,
+          };
+        }
+
+        if (rawStatus === 3 || rawStatus === 'ADOPTING') {
+          return {
+            connected: false,
+            failed: false,
+            status: 'ADOPTING',
+            statusCode: 3,
+            reason: 'Omada Controller inatekeleza adoption kwenye AP (Adopting)...',
+            device: dev,
+          };
+        }
+
+        if (rawStatus === 5 || rawStatus === 'PROVISIONING') {
+          return {
+            connected: false,
+            failed: false,
+            status: 'PROVISIONING',
+            statusCode: 5,
+            reason: 'Omada Controller inaweka mipangilio kwenye AP (Provisioning)...',
+            device: dev,
+          };
+        }
+
+        if (rawStatus === 1 || rawStatus === 'PENDING') {
+          return {
+            connected: false,
+            failed: false,
+            status: 'PENDING',
+            statusCode: 1,
+            reason: 'Kifaa kinaonekana kwenye Omada Controller lakini kinasubiri kuthibitishwa (Pending Adoption).',
+            device: dev,
+          };
+        }
+
+        if (rawStatus === 0 || rawStatus === 'DISCONNECTED') {
+          return {
+            connected: false,
+            failed: false,
+            status: 'DISCONNECTED',
+            statusCode: 0,
+            reason: 'Kifaa kipo Disconnected / Offline kwenye Omada Controller.',
+            device: dev,
+          };
+        }
+
+        return {
+          connected: false,
+          failed: false,
+          status: 'UNKNOWN',
+          statusCode: rawStatus,
+          reason: `Hali ya kifaa kwenye Controller: ${rawStatus}`,
+          device: dev,
+        };
+      }
+    } catch (err: any) {
+      console.warn(`[Omada API] getDeviceLiveStatus error: ${err.message}`);
+    }
+
+    return {
+      connected: false,
+      failed: false,
+      status: 'UNKNOWN',
+      reason: `Kifaa cha MAC ${formattedColonMac} hakijajibu kwenye Omada Controller bado.`,
+    };
+  }
+
+  /**
+   * =========================================================================
+   * POLING: KUANGALIA HALI YA AP MPAKA IWE "CONNECTED"
+   * =========================================================================
+   * Inachunguza kila sekunde kadhaa kama AP imefika hali ya CONNECTED (status 2).
+   * Kama kifaa kimefeli (ADOPT_FAILED au status 8), inasitisha mara moja na kuripoti kosa.
+   */
+  async waitForApConnected(
+    siteId: string,
+    macAddress: string,
+    maxWaitSeconds = 25
+  ): Promise<{
+    connected: boolean;
+    failed: boolean;
+    status: string;
+    error?: string;
+    device?: any;
+    waitDurationSeconds: number;
+  }> {
+    const startTime = Date.now();
+    const intervalMs = 2500;
+    const maxRetries = Math.ceil((maxWaitSeconds * 1000) / intervalMs);
+
+    for (let i = 0; i < maxRetries; i++) {
+      const live = await this.getDeviceLiveStatus(siteId, macAddress);
+
+      // Kama kifaa kimekuwa Connected, kamilisha mara moja
+      if (live.connected) {
         return {
           connected: true,
-          device: {
-            mac: formattedColonMac,
-            name: `EAP-${cleanMac.slice(-4)}`,
-            status: 2,
-            ip: '192.168.0.254',
-            model: 'TP-Link Omada EAP610',
-            firmware: 'v5.0.12 Build 20260410',
-          },
+          failed: false,
+          status: 'CONNECTED',
+          device: live.device,
+          waitDurationSeconds: Math.round((Date.now() - startTime) / 1000),
+        };
+      }
+
+      // Kama kifaa kime-fail (ADOPT_FAILED au status 8), sitisha na rejesha kosa mara moja
+      if (live.failed || live.status === 'ADOPT_FAILED') {
+        return {
+          connected: false,
+          failed: true,
+          status: 'ADOPT_FAILED',
+          error: live.reason,
+          device: live.device,
           waitDurationSeconds: Math.round((Date.now() - startTime) / 1000),
         };
       }
@@ -571,8 +723,26 @@ export class OmadaAutomationService {
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
 
+    // Baada ya muda kuisha, angalia tena mara ya mwisho
+    const finalCheck = await this.getDeviceLiveStatus(siteId, macAddress);
+    if (finalCheck.connected) {
+      return {
+        connected: true,
+        failed: false,
+        status: 'CONNECTED',
+        device: finalCheck.device,
+        waitDurationSeconds: Math.round((Date.now() - startTime) / 1000),
+      };
+    }
+
     return {
       connected: false,
+      failed: finalCheck.failed || finalCheck.status === 'ADOPT_FAILED',
+      status: finalCheck.status,
+      error: finalCheck.failed
+        ? finalCheck.reason
+        : `Muda wa kusubiri umekwisha. Kifaa bado hakijawa Connected (Hali kwenye Controller: "${finalCheck.status}"). Hakikisha nenosiri la AP ni sahihi na kifaa kinawaka.`,
+      device: finalCheck.device,
       waitDurationSeconds: Math.round((Date.now() - startTime) / 1000),
     };
   }

@@ -26,6 +26,8 @@ import {
   Check,
   ArrowUpRight,
   ArrowDownLeft,
+  AlertTriangle,
+  WifiOff,
 } from 'lucide-react';
 
 interface DevicePerformanceModalProps {
@@ -45,6 +47,10 @@ interface TelemetryData {
   macAddressHyphenated: string;
   ipAddress: string;
   status: string;
+  isOnline?: boolean;
+  offlineReason?: string;
+  lastSeenAt?: string | null;
+  lastSeenAgoSeconds?: number;
   adoptionStatus: string;
   firmware: string;
   location: string;
@@ -58,7 +64,7 @@ interface TelemetryData {
     clockMhz: number;
     cores: number;
     architecture: string;
-    status: 'NORMAL' | 'HIGH' | 'CRITICAL';
+    status: 'NORMAL' | 'HIGH' | 'CRITICAL' | 'OFFLINE';
   };
   memory: {
     totalMb: number;
@@ -143,18 +149,22 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
   const macHyphen = telemetry?.macAddressHyphenated || macColon.replace(/:/g, '-');
   const portalUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`;
 
-  // Fallback metrics if telemetry endpoint hasn't replied yet
-  const cpuPercent = telemetry?.cpu?.usagePercent ?? 24;
-  const ramPercent = telemetry?.memory?.usagePercent ?? 42;
+  const isOnline = telemetry
+    ? (telemetry.isOnline ?? (telemetry.status === 'CONNECTED' || telemetry.status === 'ONLINE'))
+    : (router.status === 'ONLINE' || (router.status as string) === 'CONNECTED');
+
+  // Genuine metrics: if online, use live telemetry; if offline, strictly 0 (no simulated false load)
+  const cpuPercent = isOnline ? (telemetry?.cpu?.usagePercent ?? 24) : 0;
+  const ramPercent = isOnline ? (telemetry?.memory?.usagePercent ?? 42) : 0;
   const totalRam = telemetry?.memory?.totalMb ?? 128;
-  const usedRam = telemetry?.memory?.usedMb ?? 54;
-  const freeRam = telemetry?.memory?.freeMb ?? (totalRam - usedRam);
-  const signalDbm = telemetry?.wireless?.signalDbm ?? -54;
-  const signalQuality = telemetry?.wireless?.signalQualityPercent ?? 96;
-  const clientsCount = telemetry?.wireless?.connectedClientsCount ?? router.omada_clients_count ?? 3;
-  const txRate = telemetry?.wireless?.txRateMbps ?? 300;
-  const rxRate = telemetry?.wireless?.rxRateMbps ?? 300;
-  const uptimeStr = telemetry?.uptimeString || 'Siku 4, 12 masaa, 35 dk';
+  const usedRam = isOnline ? (telemetry?.memory?.usedMb ?? 54) : 0;
+  const freeRam = isOnline ? (telemetry?.memory?.freeMb ?? (totalRam - usedRam)) : totalRam;
+  const signalDbm = isOnline ? (telemetry?.wireless?.signalDbm ?? -54) : 0;
+  const signalQuality = isOnline ? (telemetry?.wireless?.signalQualityPercent ?? 96) : 0;
+  const clientsCount = isOnline ? (telemetry?.wireless?.connectedClientsCount ?? router.omada_clients_count ?? 0) : 0;
+  const txRate = isOnline ? (telemetry?.wireless?.txRateMbps ?? 300) : 0;
+  const rxRate = isOnline ? (telemetry?.wireless?.rxRateMbps ?? 300) : 0;
+  const uptimeStr = isOnline ? (telemetry?.uptimeString || 'Inafanya kazi') : 'Kimezimwa (OFFLINE)';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
@@ -163,18 +173,29 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
         {/* Modal Header */}
         <div className="px-6 py-5 bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white flex items-center justify-between border-b border-teal-900/40 relative">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shadow-inner">
-              <Activity className="w-6 h-6 stroke-[2.2] animate-pulse" />
+            <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shadow-inner ${
+              isOnline
+                ? 'bg-teal-500/20 border-teal-400/40 text-teal-300'
+                : 'bg-rose-500/20 border-rose-400/40 text-rose-300'
+            }`}>
+              <Activity className={`w-6 h-6 stroke-[2.2] ${isOnline ? 'animate-pulse' : ''}`} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-bold bg-teal-500/30 text-teal-200 px-2 py-0.5 rounded border border-teal-400/30">
                   {isOmada ? 'TP-LINK OMADA EAP' : (router.device_type || 'ACCESS POINT')}
                 </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black uppercase">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-                  <span>CONNECTED • LIVE ONLINE</span>
-                </span>
+                {isOnline ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black uppercase">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    <span>ONLINE • CONNECTED</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/40 text-[10px] font-black uppercase">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                    <span>OFFLINE • KIMEZIMWA</span>
+                  </span>
+                )}
               </div>
               <h3 className="text-lg font-black text-white mt-1 leading-tight flex items-center gap-2">
                 <span>{effectiveModel}</span>
@@ -208,6 +229,43 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
 
         {/* Modal Scrollable Body */}
         <div className="p-6 space-y-6 overflow-y-auto">
+
+          {/* OFFLINE DIAGNOSTIC BANNER */}
+          {!isOnline && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0 mt-0.5">
+                <WifiOff className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div className="text-xs space-y-1.5 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="font-black text-sm text-rose-900 flex items-center gap-1.5">
+                    <span>Access Point Ipo OFFLINE (Kimezimwa au Hakina Mawasiliano)</span>
+                  </h4>
+                  <span className="text-[10px] font-mono font-bold bg-rose-200/80 text-rose-800 px-2 py-0.5 rounded">
+                    Mawasiliano: Hakuna Heartbeat
+                  </span>
+                </div>
+                <p className="text-rose-800 leading-relaxed">
+                  {telemetry?.offlineReason ||
+                    'Hakuna mawasiliano ya Inform Heartbeat yaliyopokelewa kutoka kwa AP hii ndani ya sekunde 90 zilizopita. AP inaweza kuwa imezimwa (power off), imechomolewa kebo ya LAN/PoE, au haina mtandao wa kuwasiliana na Controller.'}
+                </p>
+                <div className="pt-1 flex items-center gap-3 text-[11px] text-rose-700 font-semibold flex-wrap">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    Angalia umeme wa AP (PoE Injector au Switch)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    Kebo ya mtandao iwe imechomekwa
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    Inform URL iwe: <strong className="font-mono text-rose-900 bg-rose-100 px-1 py-0.5 rounded">{telemetry?.informUrl || 'http://185.192.96.202:29810/inform'}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Section 1: 3 Big Live Performance Meters (RAM, CPU, Wireless Signal) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -220,21 +278,23 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   <span>CPU Performance</span>
                 </div>
                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                  cpuPercent > 75
+                  !isOnline
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : cpuPercent > 75
                     ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                 }`}>
-                  {telemetry?.cpu?.status || 'NORMAL'}
+                  {!isOnline ? 'OFFLINE' : (telemetry?.cpu?.status || 'NORMAL')}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="text-3xl font-black font-mono text-cyan-300">{cpuPercent}%</span>
-                  <span className="text-xs text-slate-400 ml-1.5">Load Utilization</span>
+                  <span className={`text-3xl font-black font-mono ${!isOnline ? 'text-slate-500' : 'text-cyan-300'}`}>{cpuPercent}%</span>
+                  <span className="text-xs text-slate-400 ml-1.5">{!isOnline ? 'Kimezimwa' : 'Load Utilization'}</span>
                 </div>
                 <div className="text-right text-[11px] font-mono text-slate-300">
-                  <span className="text-amber-300 font-bold">{telemetry?.cpu?.temperatureC ?? 41}°C</span>
+                  <span className={`${!isOnline ? 'text-slate-500' : 'text-amber-300'} font-bold`}>{!isOnline ? '0' : (telemetry?.cpu?.temperatureC ?? 41)}°C</span>
                   <span className="text-slate-500 block text-[10px]">Joto (Temp)</span>
                 </div>
               </div>
@@ -243,9 +303,9 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
               <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-500 rounded-full ${
-                    cpuPercent > 75 ? 'bg-rose-500' : cpuPercent > 50 ? 'bg-amber-400' : 'bg-cyan-400'
+                    !isOnline ? 'bg-slate-700' : cpuPercent > 75 ? 'bg-rose-500' : cpuPercent > 50 ? 'bg-amber-400' : 'bg-cyan-400'
                   }`}
-                  style={{ width: `${Math.min(100, Math.max(5, cpuPercent))}%` }}
+                  style={{ width: `${!isOnline ? 0 : Math.min(100, Math.max(5, cpuPercent))}%` }}
                 />
               </div>
 
@@ -268,18 +328,22 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   <HardDrive className="w-4 h-4 text-emerald-400" />
                   <span>RAM (Memory) Usage</span>
                 </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
-                  HEALTHY
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                  !isOnline
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                }`}>
+                  {!isOnline ? 'OFFLINE' : 'HEALTHY'}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="text-3xl font-black font-mono text-emerald-300">{ramPercent}%</span>
-                  <span className="text-xs text-slate-400 ml-1.5">Inatumika</span>
+                  <span className={`text-3xl font-black font-mono ${!isOnline ? 'text-slate-500' : 'text-emerald-300'}`}>{ramPercent}%</span>
+                  <span className="text-xs text-slate-400 ml-1.5">{!isOnline ? 'Kimezimwa' : 'Inatumika'}</span>
                 </div>
                 <div className="text-right text-[11px] font-mono text-slate-300">
-                  <span className="text-emerald-400 font-bold">{usedRam} MB</span>
+                  <span className={`${!isOnline ? 'text-slate-500' : 'text-emerald-400'} font-bold`}>{usedRam} MB</span>
                   <span className="text-slate-500 text-[10px]"> / {totalRam} MB</span>
                 </div>
               </div>
@@ -287,8 +351,8 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
               {/* Progress bar */}
               <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                 <div
-                  className="h-full transition-all duration-500 rounded-full bg-emerald-400"
-                  style={{ width: `${Math.min(100, Math.max(5, ramPercent))}%` }}
+                  className={`h-full transition-all duration-500 rounded-full ${!isOnline ? 'bg-slate-700' : 'bg-emerald-400'}`}
+                  style={{ width: `${!isOnline ? 0 : Math.min(100, Math.max(5, ramPercent))}%` }}
                 />
               </div>
 
@@ -311,18 +375,22 @@ export const DevicePerformanceModal: React.FC<DevicePerformanceModalProps> = ({
                   <Signal className="w-4 h-4 text-teal-400" />
                   <span>Wi-Fi Signal & Link</span>
                 </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full border bg-teal-500/20 text-teal-300 border-teal-500/40">
-                  BORA KABISA
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                  !isOnline
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                }`}>
+                  {!isOnline ? 'HAKUNA SIGNAL' : 'BORA KABISA'}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="text-3xl font-black font-mono text-teal-300">{signalDbm}</span>
-                  <span className="text-xs text-slate-400 ml-1">dBm</span>
+                  <span className={`text-3xl font-black font-mono ${!isOnline ? 'text-slate-500' : 'text-teal-300'}`}>{signalDbm}</span>
+                  <span className="text-xs text-slate-400 ml-1">{!isOnline ? '(Offline)' : 'dBm'}</span>
                 </div>
                 <div className="text-right text-[11px] font-mono text-teal-300">
-                  <span className="font-bold">{signalQuality}%</span>
+                  <span className={`font-bold ${!isOnline ? 'text-slate-500' : ''}`}>{signalQuality}%</span>
                   <span className="text-slate-500 block text-[10px]">Ubora wa Mawimbi</span>
                 </div>
               </div>

@@ -973,6 +973,16 @@ export const RouterManagement: React.FC<{
             >
               <span>🟢 + TP-Link Omada (Adopt)</span>
             </button>
+            <a
+              href="https://omada.infotechwifi.com"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/50 text-blue-200 text-xs font-bold flex items-center gap-1.5 transition"
+              title="Fungua Dashibodi ya TP-Link Omada Controller"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>🌐 Login Omada Controller</span>
+            </a>
             <button
               type="button"
               onClick={() => handleOpenAddModal('OPENWRT_CUDY')}
@@ -1199,34 +1209,36 @@ export const RouterManagement: React.FC<{
                         className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border flex items-center gap-1 ${
                           router.adoption_status === 'ADOPTED'
                             ? 'bg-teal-50 text-teal-800 border-teal-300'
+                            : router.adoption_status === 'CLAIMED'
+                            ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
                             : 'bg-amber-50 text-amber-800 border-amber-300'
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            router.adoption_status === 'ADOPTED' ? 'bg-teal-500 animate-pulse' : 'bg-amber-500'
+                            router.adoption_status === 'ADOPTED' ? 'bg-teal-500' : 'bg-amber-500'
                           }`}
                         />
-                        <span>{router.adoption_status === 'ADOPTED' ? 'ADOPTED' : 'PENDING ADOPT'}</span>
+                        <span>{router.adoption_status === 'ADOPTED' ? 'ADOPTED' : router.adoption_status === 'CLAIMED' ? 'CLAIMED' : 'PENDING ADOPT'}</span>
                       </span>
                     )}
 
                     <span
                       className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border flex items-center gap-1 ${
-                        router.status === 'ONLINE' || (router.status as string) === 'CONNECTED' || (router.device_type === 'TPLINK_OMADA' && router.adoption_status === 'ADOPTED')
+                        router.status === 'ONLINE' || (router.status as string) === 'CONNECTED'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-rose-50 text-rose-700 border-rose-200'
                       }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
-                          router.status === 'ONLINE' || (router.status as string) === 'CONNECTED' || (router.device_type === 'TPLINK_OMADA' && router.adoption_status === 'ADOPTED') ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                          router.status === 'ONLINE' || (router.status as string) === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
                         }`}
                       />
                       <span>
-                        {router.device_type === 'TPLINK_OMADA' && (router.status === 'ONLINE' || router.adoption_status === 'ADOPTED')
-                          ? 'CONNECTED'
-                          : router.status}
+                        {router.status === 'ONLINE' || (router.status as string) === 'CONNECTED'
+                          ? 'ONLINE'
+                          : 'OFFLINE'}
                       </span>
                     </span>
 

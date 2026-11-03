@@ -25,6 +25,7 @@ import {
   SubscriptionPackage,
   TenantFreeTrialSettings,
   DEFAULT_TENANT_FREE_TRIAL_SETTINGS,
+  OmadaSiteRecord,
 } from './types.js';
 import { mysqlService } from './mysqlService.js';
 
@@ -203,6 +204,7 @@ class PersistentDatabase {
   private companyInfo: CompanyPublicInfo = { ...DEFAULT_COMPANY_INFO };
   private settings: GatewaySettings = { ...DEFAULT_SETTINGS };
   private tenantFreeTrialSettings: TenantFreeTrialSettings = { ...DEFAULT_TENANT_FREE_TRIAL_SETTINGS };
+  private omadaSites: OmadaSiteRecord[] = [];
 
   constructor() {
     this.initStorage();
@@ -229,6 +231,7 @@ class PersistentDatabase {
         this.auditLogs = parsed.auditLogs || [];
         this.freeTrialClaims = parsed.freeTrialClaims || [];
         this.manualSubRequests = parsed.manualSubRequests || [];
+        this.omadaSites = parsed.omadaSites || [];
         this.subscriptionPackages =
           Array.isArray(parsed.subscriptionPackages) && parsed.subscriptionPackages.length > 0
             ? parsed.subscriptionPackages
@@ -591,6 +594,7 @@ class PersistentDatabase {
         manualSubRequests: this.manualSubRequests,
         subscriptionPackages: this.subscriptionPackages,
         tenantFreeTrialSettings: this.tenantFreeTrialSettings,
+        omadaSites: this.omadaSites,
         companyInfo: this.companyInfo,
         settings: this.settings,
       };
@@ -879,6 +883,48 @@ const mergedEmail: EmailGatewayConfig = {
     const initialLen = this.routers.length;
     this.routers = this.routers.filter((r) => r.id !== id);
     if (this.routers.length !== initialLen) {
+      this.saveToDisk();
+      return true;
+    }
+    return false;
+  }
+
+  // --- TP-Link Omada Sites ---
+  getOmadaSites(ownerId?: number): OmadaSiteRecord[] {
+    let sites = [...this.omadaSites];
+    if (ownerId) {
+      sites = sites.filter((s) => !s.owner_id || s.owner_id === ownerId);
+    }
+    // Update AP counts from active routers
+    const omadaRouters = this.routers.filter((r) => r.device_type === 'TPLINK_OMADA');
+    return sites.map((s) => ({
+      ...s,
+      ap_count: omadaRouters.filter((r) => r.location === s.name || r.name.includes(s.name)).length,
+    }));
+  }
+
+  getOmadaSiteById(id: string): OmadaSiteRecord | undefined {
+    return this.omadaSites.find((s) => s.id === id);
+  }
+
+  saveOmadaSite(site: OmadaSiteRecord): OmadaSiteRecord {
+    const idx = this.omadaSites.findIndex((s) => s.id === site.id);
+    site.updated_at = new Date().toISOString();
+    if (!site.created_at) site.created_at = new Date().toISOString();
+
+    if (idx >= 0) {
+      this.omadaSites[idx] = { ...this.omadaSites[idx], ...site };
+    } else {
+      this.omadaSites.push(site);
+    }
+    this.saveToDisk();
+    return site;
+  }
+
+  deleteOmadaSite(id: string): boolean {
+    const initialLen = this.omadaSites.length;
+    this.omadaSites = this.omadaSites.filter((s) => s.id !== id);
+    if (this.omadaSites.length !== initialLen) {
       this.saveToDisk();
       return true;
     }

@@ -52,13 +52,16 @@ export const VpsDevopsManager: React.FC = () => {
   const [copiedSqlSchema, setCopiedSqlSchema] = useState(false);
   const [sqlContent, setSqlContent] = useState<string>('');
   const [activeTab, setActiveTab] = useState<
-    'guide' | 'domain_ssl' | 'database' | 'github' | 'overview' | 'bashScript' | 'freeradius' | 'openvpn' | 'security'
+    'guide' | 'domain_ssl' | 'omada_controller' | 'database' | 'github' | 'overview' | 'bashScript' | 'freeradius' | 'openvpn' | 'security'
   >('guide');
   const [copiedGithub, setCopiedGithub] = useState(false);
   const [copiedGitUpdate, setCopiedGitUpdate] = useState(false);
   const [copiedOneLineGit, setCopiedOneLineGit] = useState(false);
   const [copiedSslCmd, setCopiedSslCmd] = useState(false);
   const [customDomain, setCustomDomain] = useState('wifi.kampuniyako.com');
+  const [omadaSubdomain, setOmadaSubdomain] = useState('omada.infotechwifi.com');
+  const [omadaEmail, setOmadaEmail] = useState('admin@infotechwifi.com');
+  const [copiedOmadaCmd, setCopiedOmadaCmd] = useState(false);
 
   const fetchStatus = async () => {
     try {
@@ -297,7 +300,19 @@ pm2 reload tz-wifi-billing || pm2 restart tz-wifi-billing`;
           }`}
         >
           <Globe className="w-3.5 h-3.5" />
-          <span>Domain & HTTPS (SSL)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('omada_controller')}
+          className={`py-2 px-4 rounded-xl transition flex items-center gap-1.5 ${
+            activeTab === 'omada_controller'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-blue-700 hover:bg-blue-50'
+          }`}
+        >
+          <Wifi className="w-3.5 h-3.5" />
+          <span>Omada Controller & Subdomain</span>
         </button>
 
         <button
@@ -1028,6 +1043,221 @@ pm2 reload tz-wifi-billing || pm2 restart tz-wifi-billing`;
                   <li><strong>Kimataifa (.com, .net):</strong> Namecheap.com, Cloudflare Registrar (takriban $8 - $10 kwa mwaka).</li>
                   <li>Malipo yanafanyika kirahisi kupitia M-Pesa, Tigo Pesa, au Kadi ya Visa/Mastercard.</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB: TP-LINK OMADA CONTROLLER & SUBDOMAIN SETUP */}
+      {/* ===================================================================== */}
+      {activeTab === 'omada_controller' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 p-6 rounded-3xl text-white border border-blue-800/40 shadow-xl space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-300 text-xs font-bold px-3 py-1 rounded-full border border-blue-500/30">
+                <Wifi className="w-4 h-4 text-blue-400" />
+                <span>TP-Link Omada Software Controller Architecture</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-500/20 text-emerald-300 text-[11px] px-2.5 py-1 rounded-lg border border-emerald-500/30 font-mono font-bold">
+                  Docker Automated Engine
+                </span>
+                <span className="bg-blue-500/20 text-blue-300 text-[11px] px-2.5 py-1 rounded-lg border border-blue-500/30 font-mono font-bold">
+                  Nginx + Let's Encrypt SSL
+                </span>
+              </div>
+            </div>
+
+            <h3 className="text-xl font-black text-white">
+              Sakinisha Omada Controller kwenye VPS & Weka Subdomain (HTTPS)
+            </h3>
+            <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
+              Script hii inasakinisha kiotomatiki <strong>TP-Link Omada Software Controller (v5.x+)</strong> kwenye Cloud VPS yako kwa kutumia Docker, inafungua ports zote za Access Point adoption (29810-29814), inasanidi <strong>Nginx Reverse Proxy</strong> kwa ajili ya Subdomain yako (mfano <code>omada.infotechwifi.com</code>), na inatoa <strong>Cheti cha Bure cha Let's Encrypt SSL</strong>.
+            </p>
+          </div>
+
+          {/* Interactive Generator & 1-Click Command */}
+          <div className="p-6 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-extrabold text-base text-white flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-blue-400" />
+                  <span>Amri ya Kusakinisha Kiotomatiki (1-Click Bash Command)</span>
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Badilisha Subdomain na Email hapa chini, kisha nakili na ubandike kwenye Terminal ya VPS yako:
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const cmd = `sudo bash deploy/install-omada-controller.sh ${omadaSubdomain || 'omada.infotechwifi.com'} ${omadaEmail || 'admin@infotechwifi.com'}`;
+                  navigator.clipboard.writeText(cmd);
+                  setCopiedOmadaCmd(true);
+                  setTimeout(() => setCopiedOmadaCmd(false), 2000);
+                }}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-md self-start md:self-auto cursor-pointer"
+              >
+                {copiedOmadaCmd ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedOmadaCmd ? 'Imenakiliwa Kikamilifu!' : 'Nakili Amri ya Usakinishaji'}</span>
+              </button>
+            </div>
+
+            {/* Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div>
+                <label className="text-[11px] text-slate-400 font-mono block mb-1">
+                  1. Subdomain ya Omada Controller:
+                </label>
+                <input
+                  type="text"
+                  value={omadaSubdomain}
+                  onChange={(e) => setOmadaSubdomain(e.target.value.toLowerCase().trim())}
+                  placeholder="omada.infotechwifi.com"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-blue-300 font-mono text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 font-mono block mb-1">
+                  2. Barua Pepe ya Arifa za SSL (Let's Encrypt):
+                </label>
+                <input
+                  type="email"
+                  value={omadaEmail}
+                  onChange={(e) => setOmadaEmail(e.target.value.trim())}
+                  placeholder="admin@infotechwifi.com"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-blue-300 font-mono text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Terminal Command Output */}
+            <div className="relative group">
+              <pre className="p-4 bg-slate-950 text-blue-300 font-mono text-xs rounded-2xl border border-slate-800 overflow-x-auto leading-relaxed">
+{`sudo bash deploy/install-omada-controller.sh ${omadaSubdomain || 'omada.infotechwifi.com'} ${omadaEmail || 'admin@infotechwifi.com'}`}
+              </pre>
+            </div>
+
+            <div className="p-3 bg-blue-950/60 rounded-xl border border-blue-800/40 text-blue-200 text-[11px] flex items-center justify-between flex-wrap gap-2">
+              <span>
+                ⚡ Script hii itafanya kila kitu: kuweka Docker, kuanzisha Omada Container, kufungua firewall, kusanidi Nginx, na kutoa cheti cha SSL (HTTPS).
+              </span>
+              <a
+                href={`https://${omadaSubdomain || 'omada.infotechwifi.com'}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-white underline font-bold hover:text-blue-300"
+              >
+                <span>Fungua Controller</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Key 3 Steps Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Step 1: DNS A-Record */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center gap-2 font-extrabold text-sm text-slate-900">
+                <Globe className="w-4 h-4 text-blue-600" />
+                <span>1. DNS A-Record (Cloudflare / cPanel)</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Kwenye paneli ya DNS ya domain yako (mfano Cloudflare au Namecheap), weka A-Record ifuatayo:
+              </p>
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 font-mono text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Record Type:</span>
+                  <strong className="text-blue-600">A</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Host / Name:</span>
+                  <strong className="text-blue-600">{omadaSubdomain.split('.')[0] || 'omada'}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Target (VPS IP):</span>
+                  <strong className="text-emerald-600 font-bold">{status?.vpsGatewayIp || '13.140.173.98'}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Cloudflare Proxy:</span>
+                  <span className="text-amber-600 font-bold">DNS Only (Grey Cloud)</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                *Weka <strong>DNS Only</strong> ili ports za AP adoption (29810-29814) ziweze kuwasiliana moja kwa moja na Controller.
+              </p>
+            </div>
+
+            {/* Step 2: Inform URL */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center gap-2 font-extrabold text-sm text-slate-900">
+                <Wifi className="w-4 h-4 text-emerald-600" />
+                <span>2. Inform URL kwa Access Points</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Kwenye ukurasa wa AP ya TP-Link Omada (http://192.168.0.254), weka Inform URL hii:
+              </p>
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-emerald-300 font-mono text-[11px] break-all leading-relaxed">
+                http://{omadaSubdomain || 'omada.infotechwifi.com'}:29810/inform
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Au unaweza kutumia IP ya moja kwa moja ya VPS: <code>http://{status?.vpsGatewayIp || '13.140.173.98'}:29810/inform</code>
+              </p>
+            </div>
+
+            {/* Step 3: Omada Ports */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center gap-2 font-extrabold text-sm text-slate-900">
+                <Shield className="w-4 h-4 text-indigo-600" />
+                <span>3. Ports za Omada Kwenye Firewall</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Script inafungua ports hizi kiotomatiki kwenye UFW:
+              </p>
+              <div className="space-y-1 text-[11px] font-mono text-slate-700">
+                <div className="flex justify-between bg-slate-50 px-2.5 py-1 rounded">
+                  <span>8043/tcp</span>
+                  <span className="text-indigo-600 font-bold">HTTPS Management API</span>
+                </div>
+                <div className="flex justify-between bg-slate-50 px-2.5 py-1 rounded">
+                  <span>29810/udp</span>
+                  <span className="text-emerald-600 font-bold">AP Inform & Discovery</span>
+                </div>
+                <div className="flex justify-between bg-slate-50 px-2.5 py-1 rounded">
+                  <span>29811 - 29814/tcp</span>
+                  <span className="text-blue-600 font-bold">AP Manager & Portal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Setup Wizard First Time Guide */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-blue-600" />
+              <span>Hatua za Kwanza Kwenye Omada Controller Setup Wizard (First-Time Initialization)</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs text-slate-600">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <strong className="text-slate-900 block font-bold">1. Fungua Kivinjari</strong>
+                <p>Tembelea <code>https://{omadaSubdomain || 'omada.infotechwifi.com'}</code></p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <strong className="text-slate-900 block font-bold">2. Jina la Controller</strong>
+                <p>Weka jina la kampuni (mfano: <code>INFOTECH-OMADA-HQ</code>)</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <strong className="text-slate-900 block font-bold">3. Admin Account</strong>
+                <p>Weka username na password thabiti utakayotumia kuingia</p>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <strong className="text-slate-900 block font-bold">4. Region & Timezone</strong>
+                <p>Chagua <code>Tanzania</code> na <code>Africa/Dar_es_Salaam</code></p>
               </div>
             </div>
           </div>

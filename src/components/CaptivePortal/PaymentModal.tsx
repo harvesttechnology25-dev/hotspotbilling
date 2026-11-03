@@ -17,6 +17,7 @@ import {
   Check,
   AlertTriangle,
   Wallet,
+  X,
 } from 'lucide-react';
 
 interface PaymentModalProps {
@@ -202,39 +203,49 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const targetLoginUrl = hotspotUrl || linkLogin;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-xs overflow-y-auto">
+      <div className="w-full max-w-md max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Carrier Header */}
         <div
-          className="p-5 text-white flex items-center justify-between"
+          className="p-4 sm:p-5 text-white flex items-center justify-between shrink-0 relative"
           style={{ backgroundColor: carrierInfo.brandColor }}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center font-black text-sm">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
               {carrier === 'VODACOM' && 'M-P'}
               {carrier === 'TIGO' && 'TIGO'}
               {carrier === 'AIRTEL' && 'AIR'}
               {carrier === 'HALOTEL' && 'HALO'}
             </div>
-            <div>
-              <h3 className="font-bold text-base leading-tight">
+            <div className="min-w-0">
+              <h3 className="font-bold text-sm sm:text-base leading-tight truncate">
                 {carrierInfo.name} USSD Push
               </h3>
-              <p className="text-xs text-white/80 font-mono mt-0.5">
+              <p className="text-[11px] sm:text-xs text-white/80 font-mono mt-0.5 truncate">
                 Ref: {externalReference}
               </p>
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-sm font-black">{formatTzs(plan.price)}</div>
-            <div className="text-[11px] text-white/80">{plan.name.split('(')[0]}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <div className="text-xs sm:text-sm font-black whitespace-nowrap">{formatTzs(plan.price)}</div>
+              <div className="text-[10px] sm:text-[11px] text-white/80 truncate max-w-[80px]">{plan.name.split('(')[0]}</div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white transition cursor-pointer min-h-[32px] min-w-[32px] flex items-center justify-center"
+              title={lang === 'sw' ? 'Funga Dirisha' : 'Close'}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {status === 'PENDING' && (
             <div className="space-y-5">
               {/* Simulated Phone USSD Screen */}

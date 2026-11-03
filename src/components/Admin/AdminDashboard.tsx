@@ -1195,30 +1195,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {/* Top Breadcrumb & Mobile Menu Toggle Bar */}
-        <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 sticky top-16 z-20 shadow-2xs">
-          <div className="flex items-center gap-3">
+        <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 sticky top-16 z-20 shadow-2xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Hamburger button on mobile */}
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition"
+              className="lg:hidden p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition shrink-0 min-h-[38px] min-w-[38px] flex items-center justify-center cursor-pointer"
               title="Open Navigation"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
-            <div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span className="font-semibold text-slate-600">
-                  {isVendor ? '👑 Vendor Master HQ' : `🏢 ${currentOwner?.business_name}`}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
+                <span className="font-semibold text-slate-600 truncate max-w-[85px] sm:max-w-[160px]">
+                  {isVendor ? '👑 Vendor HQ' : `🏢 ${currentOwner?.business_name || currentOwner?.name}`}
                 </span>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-bold text-slate-900">{currentItem?.label}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="font-bold text-slate-900 truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none">
+                  {currentItem?.label}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Header Active Site Selector Pill */}
             {availableRouters.length > 0 && (
               <button
@@ -1227,19 +1229,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setIsMobileSidebarOpen(true);
                   setIsSiteDropdownOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-300 bg-cyan-50/90 hover:bg-cyan-100 text-cyan-950 font-bold text-xs shadow-2xs transition cursor-pointer"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-cyan-300 bg-cyan-50/90 hover:bg-cyan-100 text-cyan-950 font-bold text-xs shadow-2xs transition cursor-pointer shrink-0 min-h-[36px]"
                 title={lang === 'sw' ? 'Badili Site ya MikroTik unayotaka kuisimamia' : 'Switch active MikroTik site'}
               >
-                <MapPin className="w-3.5 h-3.5 text-cyan-600" />
-                <span className="max-w-[140px] sm:max-w-[200px] truncate">
-                  {activeSite ? activeSite.name : (lang === 'sw' ? '🌐 Maeneo Yote' : '🌐 All Sites')}
+                <MapPin className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
+                <span className="max-w-[80px] xs:max-w-[110px] sm:max-w-[180px] truncate text-[11px] sm:text-xs">
+                  {activeSite ? activeSite.name : (lang === 'sw' ? '🌐 Maeneo' : '🌐 All Sites')}
                 </span>
                 <ChevronDown className="w-3 h-3 text-cyan-700 shrink-0" />
               </button>
             )}
 
             <span
-              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
+              className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${
                 isVendor
                   ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1258,11 +1260,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={onNavigatePortal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#1b62b6] font-bold text-xs shadow-2xs transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#1b62b6] font-bold text-xs shadow-2xs transition cursor-pointer shrink-0 min-h-[36px]"
                 title={lang === 'sw' ? 'Fungua Captive Portal ya Wateja' : 'Open Captive Portal'}
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>{lang === 'sw' ? 'Captive Portal' : 'Captive Portal'}</span>
+                <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">{lang === 'sw' ? 'Portal' : 'Portal'}</span>
               </button>
             )}
 
@@ -1271,11 +1273,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={onLogout}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs shadow-2xs transition"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs shadow-2xs transition shrink-0 min-h-[36px]"
                 title={lang === 'sw' ? 'Ondoka kwenye mfumo (Log Out)' : 'Sign Out / Log Out'}
               >
-                <LogOut className="w-3.5 h-3.5 text-rose-600" />
-                <span>{lang === 'sw' ? 'Ondoka (Log Out)' : 'Log Out'}</span>
+                <LogOut className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span className="hidden sm:inline">{lang === 'sw' ? 'Ondoka' : 'Logout'}</span>
               </button>
             )}
           </div>
@@ -1836,6 +1838,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }}
         lang={lang}
       />
+      {/* Mobile Bottom Navigation Bar (< 1024px) for Thumb-Friendly 1-Tap Access */}
+      <nav
+        aria-label="Mobile Navigation"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-1 flex items-center justify-around shadow-xl pb-safe"
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('overview');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition min-w-[54px] cursor-pointer ${
+            activeTab === 'overview'
+              ? 'text-[#1b62b6] font-bold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">
+            {lang === 'sw' ? 'Mapato' : 'Sales'}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('active_users');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition min-w-[54px] cursor-pointer relative ${
+            activeTab === 'active_users'
+              ? 'text-[#1b62b6] font-bold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Wifi className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">
+            {lang === 'sw' ? 'Watumiaji' : 'Users'}
+          </span>
+          <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('routers');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition min-w-[54px] cursor-pointer ${
+            activeTab === 'routers'
+              ? 'text-[#1b62b6] font-bold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Server className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">
+            {lang === 'sw' ? 'Routers & AP' : 'Routers'}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('vouchers');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition min-w-[54px] cursor-pointer ${
+            activeTab === 'vouchers'
+              ? 'text-[#1b62b6] font-bold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Tag className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">
+            {lang === 'sw' ? 'Vocha' : 'Vouchers'}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition min-w-[54px] cursor-pointer ${
+            isMobileSidebarOpen
+              ? 'text-[#1b62b6] font-bold'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">
+            {lang === 'sw' ? 'Menyu' : 'Menu'}
+          </span>
+        </button>
+      </nav>
     </div>
   );
 };

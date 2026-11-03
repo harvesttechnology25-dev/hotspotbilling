@@ -174,39 +174,39 @@ export const VoucherPrintLayout: React.FC<VoucherPrintLayoutProps> = ({
           {/* Right Action Controls */}
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* Format Toggle Buttons */}
-            <div className="flex items-center bg-slate-200/70 p-1 rounded-xl text-xs font-bold text-slate-700">
+            <div className="flex flex-wrap items-center bg-slate-200/70 p-1 rounded-xl text-xs font-bold text-slate-700 gap-1">
               <button
                 type="button"
                 onClick={() => setPrintFormat('A4_GRID')}
-                className={`px-3 py-1.5 rounded-lg transition ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition text-[11px] sm:text-xs ${
                   printFormat === 'A4_GRID'
                     ? 'bg-white text-indigo-900 shadow-xs'
                     : 'hover:text-slate-900'
                 }`}
               >
-                📄 A4 Tear-Off Grid
+                📄 A4 Grid
               </button>
               <button
                 type="button"
                 onClick={() => setPrintFormat('THERMAL_58MM')}
-                className={`px-3 py-1.5 rounded-lg transition ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition text-[11px] sm:text-xs ${
                   printFormat === 'THERMAL_58MM'
                     ? 'bg-white text-indigo-900 shadow-xs'
                     : 'hover:text-slate-900'
                 }`}
               >
-                🧾 Thermal (58mm)
+                🧾 58mm
               </button>
               <button
                 type="button"
                 onClick={() => setPrintFormat('THERMAL_80MM')}
-                className={`px-3 py-1.5 rounded-lg transition ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition text-[11px] sm:text-xs ${
                   printFormat === 'THERMAL_80MM'
                     ? 'bg-white text-indigo-900 shadow-xs'
                     : 'hover:text-slate-900'
                 }`}
               >
-                🧾 POS (80mm)
+                🧾 80mm
               </button>
             </div>
 

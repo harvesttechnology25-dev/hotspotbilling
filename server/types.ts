@@ -215,7 +215,7 @@ export interface RouterRecord {
   portal_theme?: PortalThemeConfig;
   anti_tethering?: boolean;
   mac_address?: string;
-  adoption_status?: 'PENDING_INFORM' | 'ADOPTING' | 'ADOPTED' | 'FAILED' | 'DISCONNECTED';
+  adoption_status?: 'PENDING_INFORM' | 'CLAIMED' | 'ADOPTING' | 'ADOPTED' | 'FAILED' | 'DISCONNECTED';
   ap_username?: string;
   ap_password?: string;
   inform_url?: string;
@@ -777,3 +777,18 @@ export const DEFAULT_COMPANY_INFO: CompanyPublicInfo = {
 
 export type User = HotspotOwner;
 export type Voucher = VoucherRecord;
+
+export interface OmadaSiteRecord {
+  id: string; // siteId e.g. site_kariakoo_hub
+  name: string;
+  nas_ip: string;
+  radius_profile_id?: string;
+  status: 'CONNECTED' | 'DISCONNECTED';
+  owner_id?: number;
+  ssid?: string;
+  hotspot_enabled: boolean;
+  captive_portal_url?: string;
+  ap_count: number;
+  created_at: string;
+  updated_at: string;
+}

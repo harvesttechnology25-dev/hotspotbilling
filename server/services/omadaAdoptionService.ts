@@ -725,6 +725,77 @@ export class OmadaAdoptionService {
   }
 
   /**
+   * Evaluate genuine real status of an Omada AP
+   * Checks whether inform packets or socket probes have arrived recently.
+   * If > 90 seconds without heartbeats and socket is unreachable, mark OFFLINE.
+   */
+  static async evaluateRealRouterStatus(router: RouterRecord): Promise<{
+    isOnline: boolean;
+    status: 'ONLINE' | 'OFFLINE';
+    lastSeenAgoSeconds: number;
+    reason: string;
+    reachable: boolean;
+  }> {
+    const rawMac = router.mac_address || '';
+    const normalizedMac = this.normalizeMac(rawMac);
+    const discovered = normalizedMac ? this.discoveredAps.get(normalizedMac) : null;
+
+    const now = Date.now();
+    let lastSeenTime = 0;
+    if (router.last_seen_at) {
+      lastSeenTime = new Date(router.last_seen_at).getTime();
+    }
+    if (discovered && discovered.lastSeenAt) {
+      const discTime = new Date(discovered.lastSeenAt).getTime();
+      if (discTime > lastSeenTime) {
+        lastSeenTime = discTime;
+      }
+    }
+
+    const lastSeenAgoSeconds = lastSeenTime > 0 ? Math.floor((now - lastSeenTime) / 1000) : 999999;
+
+    // Heartbeat window is 90 seconds (3 normal inform cycles of 30s)
+    const hasRecentHeartbeat = lastSeenTime > 0 && lastSeenAgoSeconds <= 90;
+
+    let socketReachable = false;
+    if (!hasRecentHeartbeat && router.ip_address && router.ip_address !== '127.0.0.1' && router.ip_address !== '0.0.0.0') {
+      try {
+        const probe = await this.testDeviceReachability(router.ip_address, 80, normalizedMac);
+        socketReachable = probe.reachable;
+        if (socketReachable) {
+          router.last_seen_at = new Date().toISOString();
+        }
+      } catch {
+        socketReachable = false;
+      }
+    }
+
+    const isOnline = (router.adoption_status === 'ADOPTED' || router.status === 'ONLINE') && (hasRecentHeartbeat || socketReachable);
+    const finalStatus: 'ONLINE' | 'OFFLINE' = isOnline ? 'ONLINE' : 'OFFLINE';
+
+    // Update DB if status changed
+    if (router.status !== finalStatus) {
+      router.status = finalStatus;
+      db.saveRouter(router);
+    }
+
+    let reason = '';
+    if (isOnline) {
+      reason = `AP ipo ONLINE. Inform Heartbeat imepokelewa sekunde ${lastSeenAgoSeconds} zilizopita.`;
+    } else {
+      reason = `AP ipo OFFLINE. Hakuna Inform Heartbeat ndani ya sekunde 90 zilizopita (mara ya mwisho ilionekana sekunde ${lastSeenAgoSeconds} zilizopita). AP inaweza kuwa imezimwa au imechomolewa kebo ya mtandao.`;
+    }
+
+    return {
+      isOnline,
+      status: finalStatus,
+      lastSeenAgoSeconds,
+      reason,
+      reachable: isOnline,
+    };
+  }
+
+  /**
    * Check live adoption status of an Omada AP
    */
   static checkAdoptionStatus(routerId: number): OmadaAdoptResult {
@@ -738,7 +809,7 @@ export class OmadaAdoptionService {
     }
 
     const informInfo = this.getInformInfo();
-    const isAdopted = router.adoption_status === 'ADOPTED' && router.status === 'ONLINE';
+    const isAdopted = router.adoption_status === 'ADOPTED';
 
     if (!isAdopted) {
       return {
@@ -749,13 +820,33 @@ export class OmadaAdoptionService {
       };
     }
 
-    router.last_seen_at = new Date().toISOString();
-    db.saveRouter(router);
+    // Determine genuine real-time online status based on real inform packets
+    const now = Date.now();
+    let lastSeenTime = router.last_seen_at ? new Date(router.last_seen_at).getTime() : 0;
+    const rawMac = router.mac_address || '';
+    const normalizedMac = this.normalizeMac(rawMac);
+    const discovered = normalizedMac ? this.discoveredAps.get(normalizedMac) : null;
+    if (discovered?.lastSeenAt) {
+      const discTime = new Date(discovered.lastSeenAt).getTime();
+      if (discTime > lastSeenTime) lastSeenTime = discTime;
+    }
+    const lastSeenAgoSeconds = lastSeenTime > 0 ? Math.floor((now - lastSeenTime) / 1000) : 999999;
+    const isOnline = lastSeenTime > 0 && lastSeenAgoSeconds <= 90;
+
+    if (!isOnline && router.status !== 'OFFLINE') {
+      router.status = 'OFFLINE';
+      db.saveRouter(router);
+    } else if (isOnline && router.status !== 'ONLINE') {
+      router.status = 'ONLINE';
+      db.saveRouter(router);
+    }
 
     const domainBase = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '');
     return {
       success: true,
-      message: `AP ya TP-Link Omada (${router.name}) ipo ONLINE na imeunganishwa kikamilifu na Controller ya VPS!`,
+      message: isOnline
+        ? `AP ya TP-Link Omada (${router.name}) ipo ONLINE na imeunganishwa kikamilifu na Controller ya VPS!`
+        : `AP ya TP-Link Omada (${router.name}) ime-adoptiwa lakini kwa sasa ipo OFFLINE (kifaa kimezimwa au kimechomolewa kebo ya LAN). Itakapowashwa itajionyesha moja kwa moja kuwa ONLINE.`,
       router,
       adoptionDetails: {
         macAddress: router.mac_address || '50:D4:F7:2B:8C:1A',
@@ -766,10 +857,10 @@ export class OmadaAdoptionService {
         provisionedSsid: router.ssid || 'HOTSPOT-WIFI',
         channel2g: router.omada_channel_2g || 6,
         channel5g: router.omada_channel_5g || 44,
-        signalStrengthDbm: -54,
+        signalStrengthDbm: isOnline ? -54 : 0,
         captivePortalUrl: `${domainBase}/?routerId=${router.id}&ap_vendor=omada`,
         radiusCoaPort: 3799,
-        status: 'CONNECTED',
+        status: isOnline ? 'CONNECTED' : 'OFFLINE',
       },
     };
   }
@@ -929,8 +1020,92 @@ export class OmadaAdoptionService {
       channel5g = undefined;
     }
 
-    // Dynamic, realistic live performance numbers
-    // Base variance to make it real-time and live
+    // Evaluate real inform/heartbeat presence
+    const rawMac = router.mac_address || '50:D4:F7:2B:8C:1A';
+    const macColon = this.normalizeMac(rawMac);
+    const macHyphen = this.formatMacWithHyphens(rawMac);
+
+    const now = Date.now();
+    let lastSeenTime = router.last_seen_at ? new Date(router.last_seen_at).getTime() : 0;
+    const discovered = macColon ? this.discoveredAps.get(macColon) : null;
+    if (discovered?.lastSeenAt) {
+      const discTime = new Date(discovered.lastSeenAt).getTime();
+      if (discTime > lastSeenTime) lastSeenTime = discTime;
+    }
+    const lastSeenAgoSeconds = lastSeenTime > 0 ? Math.floor((now - lastSeenTime) / 1000) : 999999;
+    const isOnline = lastSeenTime > 0 && lastSeenAgoSeconds <= 90;
+
+    if (!isOnline) {
+      if (router.status !== 'OFFLINE') {
+        router.status = 'OFFLINE';
+        db.saveRouter(router);
+      }
+
+      return {
+        success: true,
+        routerId: router.id,
+        routerName: router.name,
+        modelName,
+        brandName: router.brand_name || 'TZ-WiFi Hotspot',
+        deviceType: router.device_type || 'TPLINK_OMADA',
+        macAddress: macColon,
+        macAddressHyphenated: macHyphen,
+        ipAddress: router.ip_address || '192.168.0.254',
+        status: 'OFFLINE',
+        isOnline: false,
+        lastSeenAt: router.last_seen_at || (discovered?.lastSeenAt ?? null),
+        lastSeenAgoSeconds,
+        offlineReason: `AP haipatikani (OFFLINE). Hakuna Inform Heartbeat iliyopokelewa ndani ya sekunde 90 zilizopita. AP inaweza kuwa imezimwa (power off) au imechomolewa kebo ya LAN/PoE.`,
+        adoptionStatus: router.adoption_status || 'PENDING_INFORM',
+        firmware: router.omada_firmware || 'v5.0.12 Build 20260410',
+        location: router.location || 'Tanzania',
+        informUrl: router.inform_url || `http://${this.defaultVpsIp}:29810/inform`,
+        ssid: router.ssid || 'WIFI-HOTSPOT',
+        uptimeSeconds: 0,
+        uptimeString: 'Kimezimwa (OFFLINE)',
+        cpu: {
+          usagePercent: 0,
+          temperatureC: 0,
+          clockMhz: cpuClockMhz,
+          cores: cpuCores,
+          architecture: arch,
+          status: 'OFFLINE',
+        },
+        memory: {
+          totalMb: totalRamMb,
+          usedMb: 0,
+          freeMb: totalRamMb,
+          usagePercent: 0,
+          status: 'OFFLINE',
+        },
+        wireless: {
+          signalDbm: 0,
+          signalQualityPercent: 0,
+          channel2g,
+          channel5g,
+          channelWidth: '0 MHz (Offline)',
+          frequencyBands: bands,
+          txRateMbps: 0,
+          rxRateMbps: 0,
+          connectedClientsCount: 0,
+          ssid: router.ssid || 'HOTSPOT-WIFI',
+          txPowerDbm: 0,
+        },
+        ethernet: {
+          speedMbps: 0,
+          duplex: 'DISCONNECTED',
+          poeStatus: 'NO_LINK',
+        },
+        telemetryTimestamp: new Date().toISOString(),
+      };
+    }
+
+    if (router.status !== 'ONLINE') {
+      router.status = 'ONLINE';
+      db.saveRouter(router);
+    }
+
+    // Dynamic, realistic live performance numbers for genuine active connection
     const variance = (Math.sin(Date.now() / 4000) + 1) / 2; // 0.0 to 1.0
     const cpuUsagePercent = Math.round(18 + variance * 16); // 18% - 34%
     const cpuTemp = Math.round(39 + variance * 5); // 39°C - 44°C
@@ -953,10 +1128,6 @@ export class OmadaAdoptionService {
     const mins = Math.floor((uptimeSeconds % 3600) / 60);
     const uptimeString = `${days > 0 ? `${days} siku ` : ''}${hours} masaa, ${mins} dakika`;
 
-    const rawMac = router.mac_address || '50:D4:F7:2B:8C:1A';
-    const macColon = this.normalizeMac(rawMac);
-    const macHyphen = this.formatMacWithHyphens(rawMac);
-
     return {
       success: true,
       routerId: router.id,
@@ -967,7 +1138,10 @@ export class OmadaAdoptionService {
       macAddress: macColon,
       macAddressHyphenated: macHyphen,
       ipAddress: router.ip_address || '192.168.0.254',
-      status: (router.status === 'ONLINE' || router.adoption_status === 'ADOPTED') ? 'CONNECTED' : router.status,
+      status: 'CONNECTED',
+      isOnline: true,
+      lastSeenAt: router.last_seen_at || new Date().toISOString(),
+      lastSeenAgoSeconds,
       adoptionStatus: router.adoption_status || 'ADOPTED',
       firmware: router.omada_firmware || 'v5.0.12 Build 20260410',
       location: router.location || 'Tanzania',

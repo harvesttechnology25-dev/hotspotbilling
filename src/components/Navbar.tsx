@@ -69,16 +69,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => handleNavigate(currentUser ? 'admin' : 'welcome')}
             className="flex items-center gap-2 sm:gap-3 text-left cursor-pointer group shrink-0 min-w-0"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-[#1b62b6] to-[#005ea9] text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-[#1b62b6] to-[#005ea9] text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition shrink-0">
               <Wifi className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 <span className="font-black text-slate-900 text-sm sm:text-base tracking-tight font-['Sora',sans-serif] truncate">
-                  INFOTECH WiFi
+                  INFOTECH
                 </span>
-                <span className="hidden xs:inline-block px-1.5 sm:px-2 py-0.5 rounded-full bg-[#f8a30a]/20 text-[#a36803] text-[9px] sm:text-[10px] font-black tracking-wider uppercase shrink-0">
-                  MikroTik
+                <span className="px-1.5 py-0.5 rounded-md bg-[#f8a30a]/20 text-[#a36803] text-[9px] sm:text-[10px] font-black tracking-wider uppercase shrink-0">
+                  WiFi
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 hidden md:block truncate">
@@ -282,9 +282,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
+      {/* Backdrop overlay for mobile menu */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-xs md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Mobile Slide-Down Sheet Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-3 shadow-lg animate-in slide-in-from-top-2 duration-150">
+        <div className="relative z-40 md:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-3 shadow-xl animate-in slide-in-from-top-2 duration-150">
           {/* Current User Info (if logged in) */}
           {currentUser && (
             <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">

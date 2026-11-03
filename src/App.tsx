@@ -219,7 +219,7 @@ export default function App() {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans selection:bg-[#f8a30a] selection:text-slate-950">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/70 text-slate-900 flex flex-col font-sans selection:bg-[#f8a30a] selection:text-slate-950">
       {/* Top Header */}
       <Navbar
         viewMode={viewMode}
@@ -233,7 +233,7 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1">
+      <main className="flex-1 w-full max-w-full min-w-0">
         {viewMode === 'welcome' ? (
           <WelcomePage
             onNavigateLogin={() => handleSetViewMode('admin')}

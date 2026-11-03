@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+/* Mobile Viewport Optimization & Responsive Protections */
+html,
+body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure smooth touch scrolling across all mobile containers */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Touch-friendly scrollbar for horizontally scrollable tables and tab bars */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mobile Safe Area Padding */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0.5rem);
+}
+
+
 
 @media print {
   /* Hide all system chrome, navbar, sidebar, buttons, footers */

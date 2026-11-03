@@ -36,18 +36,18 @@ async function startServer() {
     next();
   });
 
-  // Mount API endpoints
-  app.use('/api/v1', apiRouter);
-  app.use('/api', apiRouter);
-
   // Health check endpoint
-  app.get('/health', (_req, res) => {
+  app.get(['/health', '/api/health', '/api/v1/health'], (_req, res) => {
     res.json({
       status: 'ok',
       service: 'tz-wifi-billing',
       timestamp: new Date().toISOString(),
     });
   });
+
+  // Mount API endpoints
+  app.use('/api/v1', apiRouter);
+  app.use('/api', apiRouter);
 
   // Omada Controller Inform discovery / heartbeat handler
   app.all(['/inform', '/inform/', '/api/v1/omada/inform', '/api/omada/inform'], (req, res) => {

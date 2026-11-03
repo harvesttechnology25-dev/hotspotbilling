@@ -4401,6 +4401,10 @@ apiRouter.put('/routers/:id', (req: Request, res: Response) => {
 
 apiRouter.delete('/routers/:id', (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const router = db.getRouterById(id);
+  if (router?.mac_address) {
+    OmadaAdoptionService.forgetDiscoveredAp(router.mac_address);
+  }
   const ok = db.deleteRouter(id);
   res.json({ success: ok });
 });
@@ -4942,14 +4946,25 @@ apiRouter.post('/omada/sites/adapt-ap', async (req: Request, res: Response) => {
     }
     db.saveRouter(router);
 
-    const effectiveSiteId = siteId || `site_${router.location?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'default'}`;
+    // Resolve exact siteId from database if not directly provided in payload
+    let effectiveSiteId = siteId;
+    if (!effectiveSiteId) {
+      const sites = db.getOmadaSites(router.owner_id);
+      if (sites.length > 0) {
+        const matchingSite = sites.find((s) => s.name.toLowerCase() === router?.location?.toLowerCase()) || sites[0];
+        effectiveSiteId = matchingSite.id;
+      } else {
+        effectiveSiteId = 'Default';
+      }
+    }
+
     const automation = new OmadaAutomationService();
 
     const deviceMac = router.mac_address || macAddress;
-    const deviceUser = router.ap_username || 'admin';
-    const devicePass = router.ap_password || 'admin';
+    const deviceUser = router.ap_username || apUsername || 'admin';
+    const devicePass = router.ap_password || apPassword || 'admin';
 
-    // Tuma amri ya ku-adopt kwenye Omada Controller
+    // Tuma amri ya ku-adopt kwenye Omada Controller (kwanza inasasisha Site Device Account)
     const adoptTrigger = await automation.adoptAccessPoint(
       effectiveSiteId,
       deviceMac,
@@ -5063,9 +5078,25 @@ apiRouter.post('/omada/sites/enable-hotspot', async (req: Request, res: Response
       router = db.getRouterById(Number(routerId));
     }
 
+    const appBase = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '');
+    const defaultPortalUrl = router
+      ? `${appBase}/?routerId=${router.id}&ap_vendor=omada`
+      : `${appBase}/portal`;
+
     const effectiveSsid = ssid || router?.ssid || 'TZWIFI-HOTSPOT';
-    const effectivePortalUrl = portalUrl || `${process.env.APP_URL || 'https://wifi.infotechwifi.com'}/portal`;
-    const effectiveSiteId = siteId || (router?.location ? `site_${router.location.toLowerCase().replace(/[^a-z0-9]/g, '')}` : 'site_default');
+    const effectivePortalUrl = portalUrl || defaultPortalUrl;
+    
+    let effectiveSiteId = siteId;
+    if (!effectiveSiteId && router) {
+      const sites = db.getOmadaSites(router.owner_id);
+      if (sites.length > 0) {
+        const matchingSite = sites.find((s) => s.name.toLowerCase() === router?.location?.toLowerCase()) || sites[0];
+        effectiveSiteId = matchingSite.id;
+      } else {
+        effectiveSiteId = 'Default';
+      }
+    }
+    effectiveSiteId = effectiveSiteId || 'Default';
 
     const automation = new OmadaAutomationService();
     const hotspotResult = await automation.enableHotspotPortal(

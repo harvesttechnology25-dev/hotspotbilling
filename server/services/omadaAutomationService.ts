@@ -422,6 +422,48 @@ export class OmadaAutomationService {
    * HATUA YA 2: KUSAJILI NA KUUNGA ACCESS POINT (ADOPTION)
    * =========================================================================
    * Hutuma MAC address ya AP kwenye Site iliyotengenezwa,
+  /**
+   * Kusanidi Device Account (Username & Password) kwenye Omada Site
+   * Hii inaruhusu Omada Controller ku-adopt AP kwa kutumia nenosiri sahihi
+   * bila kukataa au kutoa hitilafu ya "Invalid username or password".
+   */
+  async setSiteDeviceAccount(
+    siteId: string,
+    username = 'admin',
+    password = 'DevicePassword2026!'
+  ): Promise<boolean> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+
+    const deviceAccountUrl = `${this.getApiBasePath()}/sites/${siteId}/setting/device-account`;
+    const payload = JSON.stringify({ username, password });
+
+    const methods: ('PATCH' | 'POST' | 'PUT')[] = ['PATCH', 'POST', 'PUT'];
+    for (const method of methods) {
+      try {
+        const resp = await this.safeFetch(deviceAccountUrl, {
+          method,
+          headers: this.getAuthenticatedHeaders(),
+          body: payload,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && (data?.errorCode === 0 || data?.result)) {
+          console.log(`[Omada API] Site Device Account imesasishwa kikamilifu (${method}) kwa Site: ${siteId}`);
+          return true;
+        }
+      } catch (err: any) {
+        // Try next method
+      }
+    }
+    return false;
+  }
+
+  /**
+   * =========================================================================
+   * HATUA YA 2: KUSAJILI NA KUUNGA ACCESS POINT (ADOPTION)
+   * =========================================================================
+   * Hutuma MAC address ya AP kwenye Site iliyotengenezwa,
    * ikiwa na vigezo vya Device Account (username & password).
    */
   async adoptAccessPoint(
@@ -441,71 +483,119 @@ export class OmadaAutomationService {
     const controllerHost = this.config.controllerUrl.replace(/^https?:\/\//, '').split(':')[0];
     const informUrl = `http://${controllerHost}:29810/inform`;
 
-    // Jaribu endpoint ya Omada Batch Adopt au Adopt kwa MAC
-    const adoptUrl = `${this.getApiBasePath()}/sites/${siteId}/cmd/devices/${formattedHyphenMac}/adopt`;
-    const batchAdoptUrl = `${this.getApiBasePath()}/sites/${siteId}/devices/batch-adopt`;
-
+    // 1. Sasisha Site Device Account credentials kwenye Controller kwanza
+    // Hii inahakikisha Omada inatumia nenosiri hili kwa vifaa vyote vya site hii
     try {
-      const response = await this.safeFetch(adoptUrl, {
+      await this.setSiteDeviceAccount(siteId, apUsername, apPassword);
+    } catch (e: any) {
+      console.warn(`[Omada API] setSiteDeviceAccount non-fatal: ${e?.message}`);
+    }
+
+    // 2. Candidate Omada Controller Adoption Endpoints kwa matoleo ya v5.x & v6.x:
+    const candidateRequests: { url: string; method: string; body: any; name: string }[] = [
+      // Njia 1: POST /sites/{siteId}/cmd/devices (Standard Omada Controller Command Dispatcher)
+      {
+        name: 'cmd/devices',
+        url: `${this.getApiBasePath()}/sites/${siteId}/cmd/devices`,
         method: 'POST',
-        headers: this.getAuthenticatedHeaders(),
-        body: JSON.stringify({
+        body: {
+          cmd: 'adopt',
+          mac: formattedHyphenMac,
+          deviceMac: formattedHyphenMac,
+          username: apUsername,
+          password: apPassword,
+        },
+      },
+      // Njia 2: POST /sites/{siteId}/cmd/devices/adopt (Batch/Single Command Adopt)
+      {
+        name: 'cmd/devices/adopt',
+        url: `${this.getApiBasePath()}/sites/${siteId}/cmd/devices/adopt`,
+        method: 'POST',
+        body: {
+          deviceMacs: [formattedHyphenMac],
+          macs: [formattedHyphenMac],
           mac: formattedHyphenMac,
           username: apUsername,
           password: apPassword,
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok && data?.errorCode === 0) {
-        return {
-          macAddress: formattedColonMac,
-          siteId,
-          status: 'ADOPTING',
-          informUrl,
-          message: `AP (${formattedColonMac}) imepelekwa kwenye hatua ya Adoption kwenye Omada Controller!`,
-        };
-      }
-
-      // Jaribu batch adopt kama fallback
-      const batchResp = await this.safeFetch(batchAdoptUrl, {
+        },
+      },
+      // Njia 3: POST /sites/{siteId}/devices/{mac}/adopt (Direct Device Adopt bila /cmd/)
+      {
+        name: 'devices/{mac}/adopt',
+        url: `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}/adopt`,
         method: 'POST',
-        headers: this.getAuthenticatedHeaders(),
-        body: JSON.stringify({
+        body: {
+          mac: formattedHyphenMac,
+          username: apUsername,
+          password: apPassword,
+        },
+      },
+      // Njia 4: POST /sites/{siteId}/devices/adopt (Devices Collection Adopt)
+      {
+        name: 'devices/adopt',
+        url: `${this.getApiBasePath()}/sites/${siteId}/devices/adopt`,
+        method: 'POST',
+        body: {
+          mac: formattedHyphenMac,
+          deviceMac: formattedHyphenMac,
           macList: [formattedHyphenMac],
           username: apUsername,
           password: apPassword,
-        }),
-      });
+        },
+      },
+      // Njia 5: PATCH /sites/{siteId}/devices/{mac} (Device Action/State Update)
+      {
+        name: 'devices/{mac}',
+        url: `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}`,
+        method: 'PATCH',
+        body: {
+          action: 'adopt',
+          username: apUsername,
+          password: apPassword,
+        },
+      },
+    ];
 
-      const batchData = await batchResp.json().catch(() => ({}));
-      if (batchResp.ok && batchData?.errorCode === 0) {
-        return {
-          macAddress: formattedColonMac,
-          siteId,
-          status: 'ADOPTING',
-          informUrl,
-          message: `AP (${formattedColonMac}) imesajiliwa kupitia Batch Adopt!`,
-        };
+    let lastErrorMsg = '';
+
+    for (const cand of candidateRequests) {
+      try {
+        const response = await this.safeFetch(cand.url, {
+          method: cand.method,
+          headers: this.getAuthenticatedHeaders(),
+          body: JSON.stringify(cand.body),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        console.log(`[Omada Adopt] ${cand.name} -> HTTP ${response.status}:`, data);
+
+        if (response.ok && data?.errorCode === 0) {
+          return {
+            macAddress: formattedColonMac,
+            siteId,
+            status: 'ADOPTING',
+            informUrl,
+            message: `Amri ya Adoption imekubaliwa na Omada Controller (${cand.name}) kwa AP ${formattedColonMac}!`,
+          };
+        }
+
+        if (data?.msg && !data.msg.includes('Unsupported request path')) {
+          lastErrorMsg = data.msg;
+        }
+      } catch (err: any) {
+        console.warn(`[Omada Adopt] Hitilafu ya endpoint ${cand.name}: ${err.message}`);
       }
-
-      return {
-        macAddress: formattedColonMac,
-        siteId,
-        status: 'ADOPTING',
-        informUrl,
-        message: `Ombi la Adoption limetumwa kwenye Omada Controller. Hakikisha AP imewekwa Inform URL: ${informUrl}`,
-      };
-    } catch (err: any) {
-      return {
-        macAddress: formattedColonMac,
-        siteId,
-        status: 'ADOPTING',
-        informUrl,
-        message: `Adoption trigger imekamilika kwa MAC ${formattedColonMac}. Inform URL: ${informUrl}`,
-      };
     }
+
+    return {
+      macAddress: formattedColonMac,
+      siteId,
+      status: 'ADOPTING',
+      informUrl,
+      message: lastErrorMsg
+        ? `Ombi la Adoption limetumwa kwenye Omada Controller: ${lastErrorMsg}`
+        : `Ombi la Adoption limetumwa kwenye Omada Controller. Hakikisha AP imewekwa Inform URL: ${informUrl}`,
+    };
   }
 
   /**
@@ -561,6 +651,26 @@ export class OmadaAutomationService {
         }
       }
 
+      // 3. Kama kifaa hakijapatikana kwenye Site hii, kagua kwenye Default site
+      if (!dev && siteId !== 'Default' && siteId !== 'default') {
+        try {
+          const defUrl = `${this.getApiBasePath()}/sites/Default/devices?currentPage=1&currentPageSize=100`;
+          const defResp = await this.safeFetch(defUrl, {
+            method: 'GET',
+            headers: this.getAuthenticatedHeaders(),
+          });
+          const defData = await defResp.json().catch(() => ({}));
+          if (defData?.errorCode === 0 && Array.isArray(defData?.result?.data)) {
+            dev = defData.result.data.find((d: any) => {
+              const m = (d.mac || d.macAddress || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+              return m === cleanMac;
+            });
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
       if (dev) {
         // TP-Link Omada status codes:
         // 0 = Disconnected / Offline
@@ -574,7 +684,7 @@ export class OmadaAutomationService {
         // 8 = Adopt Failed / Failed
         // 9 = Managed by Others
         const rawStatus = dev.status !== undefined ? dev.status : dev.state;
-        const failedReason = dev.adoptFailedReason || dev.failReason || dev.errorMsg || '';
+        const failedReason = dev.adoptFailedReason || dev.failReason || dev.errorMsg || dev.error_msg || '';
 
         if (rawStatus === 2 || rawStatus === 'CONNECTED' || dev.state === 2) {
           return {
@@ -601,7 +711,7 @@ export class OmadaAutomationService {
             statusCode: rawStatus,
             reason: failedReason
               ? `Adoption imeshindikana kwenye Omada Controller: ${failedReason}`
-              : 'Adoption imeshindikana kwenye Omada Controller (Device Adopt Failed). Nenosiri la AP si sahihi (Invalid Device Password).',
+              : 'Adoption imeshindikana kwenye Omada Controller (Device Adopt Failed). Hakikisha nenosiri la AP (mfano "admin" kwa default) linaendana na lililowekwa kwenye kifaa.',
             device: dev,
           };
         }

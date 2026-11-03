@@ -386,6 +386,15 @@ export class OmadaAdoptionService {
   }
 
   /**
+   * Remove or forget an AP from discovery cache and memory
+   */
+  static forgetDiscoveredAp(rawMac: string): boolean {
+    if (!rawMac) return false;
+    const normalized = this.normalizeMac(rawMac);
+    return this.discoveredAps.delete(normalized);
+  }
+
+  /**
    * Test live device reachability (Socket Ping / Port probe & Inform presence)
    */
   static async testDeviceReachability(

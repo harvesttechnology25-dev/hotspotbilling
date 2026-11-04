@@ -33,6 +33,20 @@ export default function App() {
 
   const [viewMode, setViewMode] = useState<'welcome' | 'portal' | 'admin'>(() => {
     try {
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname.toLowerCase();
+        const search = window.location.search.toLowerCase();
+        if (
+          path.startsWith('/portal') ||
+          search.includes('portal=true') ||
+          search.includes('target=portal') ||
+          search.includes('link-login') ||
+          search.includes('clientmac') ||
+          search.includes('mac=')
+        ) {
+          return 'portal';
+        }
+      }
       const savedUser = localStorage.getItem('tzwifi_user');
       const savedView = localStorage.getItem('tzwifi_view_mode') as 'welcome' | 'portal' | 'admin' | null;
       if (savedView && ['welcome', 'portal', 'admin'].includes(savedView)) {
@@ -101,9 +115,25 @@ export default function App() {
     }
   };
 
-  // Guard views: only authenticated users can access the portal preview;
-  // and when logged in, keep user in admin/portal view (no welcome page)
+  // Guard views: only authenticated users can access the portal preview from within admin;
+  // but if accessing /portal URL or hotspot redirect, allow captive portal directly for customers!
   useEffect(() => {
+    const isDirectPortal =
+      typeof window !== 'undefined' &&
+      (window.location.pathname.toLowerCase().startsWith('/portal') ||
+        window.location.search.toLowerCase().includes('portal=true') ||
+        window.location.search.toLowerCase().includes('target=portal') ||
+        window.location.search.toLowerCase().includes('link-login') ||
+        window.location.search.toLowerCase().includes('clientmac') ||
+        window.location.search.toLowerCase().includes('mac='));
+
+    if (isDirectPortal) {
+      if (viewMode !== 'portal') {
+        setViewMode('portal');
+      }
+      return;
+    }
+
     if (!currentUser && viewMode === 'portal') {
       handleSetViewMode('welcome');
     } else if (currentUser && viewMode === 'welcome') {
@@ -218,19 +248,23 @@ export default function App() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
+  const isCustomerPortalGuest = viewMode === 'portal' && !currentUser;
+
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/70 text-slate-900 flex flex-col font-sans selection:bg-[#f8a30a] selection:text-slate-950">
-      {/* Top Header */}
-      <Navbar
-        viewMode={viewMode}
-        setViewMode={handleSetViewMode}
-        lang={lang}
-        setLang={handleSetLang}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        onOpenAbout={() => setIsAboutModalOpen(true)}
-        onOpenContact={() => setIsContactModalOpen(true)}
-      />
+      {/* Top Header (Hufichwa mteja wa Wi-Fi anapoingia kwenye Captive Portal) */}
+      {!isCustomerPortalGuest && (
+        <Navbar
+          viewMode={viewMode}
+          setViewMode={handleSetViewMode}
+          lang={lang}
+          setLang={handleSetLang}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onOpenAbout={() => setIsAboutModalOpen(true)}
+          onOpenContact={() => setIsContactModalOpen(true)}
+        />
+      )}
 
       {/* Main View Area */}
       <main className="flex-1 w-full max-w-full min-w-0">
@@ -242,11 +276,11 @@ export default function App() {
             onOpenContact={() => setIsContactModalOpen(true)}
             lang={lang}
           />
-        ) : viewMode === 'portal' && currentUser ? (
+        ) : viewMode === 'portal' ? (
           <CaptivePortal
             lang={lang}
-            currentOwnerId={currentUser.id}
-            selectedRouterId={currentUser.role === 'VENDOR_ADMIN' ? 'ALL' : selectedSiteRouterId}
+            currentOwnerId={currentUser?.id}
+            selectedRouterId={currentUser?.role === 'VENDOR_ADMIN' ? 'ALL' : selectedSiteRouterId}
             onNavigateAddRouter={() => {
               setAdminInitialTab('routers');
               handleSetViewMode('admin');

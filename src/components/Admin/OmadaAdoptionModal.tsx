@@ -126,9 +126,14 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
 
   // Omada Controller Credentials State
   const [controllerUrl, setControllerUrl] = useState('https://omada.infotechwifi.com:8043');
+  const [authMode, setAuthMode] = useState<'CREDENTIALS' | 'OPENAPI'>('CREDENTIALS');
   const [controllerUsername, setControllerUsername] = useState('admin');
   const [controllerPassword, setControllerPassword] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [omadacId, setOmadacId] = useState('5015eb6741252b75a3633605c471738f');
   const [showControllerPassword, setShowControllerPassword] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
   const [showControllerCreds, setShowControllerCreds] = useState(false);
   const [testingController, setTestingController] = useState(false);
   const [controllerVerified, setControllerVerified] = useState(false);
@@ -142,6 +147,9 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         const data = await res.json();
         if (data.controllerUrl) setControllerUrl(data.controllerUrl);
         if (data.username) setControllerUsername(data.username);
+        if (data.clientId) setClientId(data.clientId);
+        if (data.omadacId) setOmadacId(data.omadacId);
+        if (data.hasOpenApi) setAuthMode('OPENAPI');
         if (data.isConfigured) {
           setControllerVerified(true);
         } else {
@@ -154,30 +162,45 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   };
 
   const handleTestAndSaveController = async () => {
-    if (!controllerUsername.trim() || !controllerPassword.trim()) {
-      setErrorMessage('Tafadhali weka Username na Password ya Omada Controller uliyoiweka wakati wa Setup Wizard.');
+    if (authMode === 'CREDENTIALS' && (!controllerUsername.trim() || !controllerPassword.trim())) {
+      setErrorMessage('Tafadhali weka Username na Password ya Omada Controller.');
       return;
     }
+    if (authMode === 'OPENAPI' && (!clientId.trim() || !clientSecret.trim())) {
+      setErrorMessage('Tafadhali weka Client ID na Client Secret za Omada Open API.');
+      return;
+    }
+
     setTestingController(true);
     setErrorMessage('');
     setControllerStatusMsg('');
     try {
+      const payload = authMode === 'OPENAPI'
+        ? {
+            controllerUrl,
+            clientId: clientId.trim(),
+            clientSecret: clientSecret.trim(),
+            omadacId: omadacId.trim() || '5015eb6741252b75a3633605c471738f',
+          }
+        : {
+            controllerUrl,
+            username: controllerUsername.trim(),
+            password: controllerPassword.trim(),
+          };
+
       const res = await fetch('/api/v1/omada/controller-credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          controllerUrl,
-          username: controllerUsername.trim(),
-          password: controllerPassword.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Login ya Omada imeshindwa. Hakikisha username na password ni sahihi.');
+        throw new Error(data.error || 'Login ya Omada imeshindwa. Hakikisha taarifa ulizoweka ni sahihi.');
       }
       setControllerVerified(true);
-      setControllerStatusMsg('Akaunti ya Omada Controller imethibitishwa na kuunganishwa kikamilifu!');
+      setControllerStatusMsg(authMode === 'OPENAPI' ? 'Omada Open API (Client Credentials) imethibitishwa kikamilifu!' : 'Akaunti ya Omada Controller imethibitishwa kikamilifu!');
       setTimeout(() => setControllerStatusMsg(''), 4000);
+      fetchSites();
     } catch (err: any) {
       setErrorMessage(err.message);
     } finally {
@@ -734,46 +757,132 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
 
                 {showControllerCreds && (
                   <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-3">
-                    <p className="text-[11px] text-slate-600 leading-relaxed">
-                      Weka <strong>Username</strong> na <strong>Password</strong> uliyotengeneza kwenye ukurasa wa <em>Setup Wizard</em> wa Omada Controller (<code>https://omada.infotechwifi.com</code>) ili mfumo wetu uweze kuwasiliana na Controller na kuunda Site kiotomatiki.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Omada Admin Username:
-                        </label>
-                        <input
-                          type="text"
-                          value={controllerUsername}
-                          onChange={(e) => setControllerUsername(e.target.value)}
-                          placeholder="mfano: admin au jina uliloweka"
-                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Omada Admin Password:
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showControllerPassword ? 'text' : 'password'}
-                            value={controllerPassword}
-                            onChange={(e) => setControllerPassword(e.target.value)}
-                            placeholder="Password ya Omada Controller"
-                            className="w-full px-3 py-2 pr-9 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowControllerPassword(!showControllerPassword)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                          >
-                            {showControllerPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                      </div>
+                    {/* Auth Mode Toggle */}
+                    <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('CREDENTIALS')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                          authMode === 'CREDENTIALS'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🔑 Username & Password
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('OPENAPI')}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition cursor-pointer ${
+                          authMode === 'OPENAPI'
+                            ? 'bg-teal-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        ⚡ Omada Open API (Client ID)
+                      </button>
                     </div>
+
+                    {authMode === 'CREDENTIALS' ? (
+                      <>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          Weka <strong>Username</strong> na <strong>Password</strong> ya Administrator wa Omada Controller (<code>https://omada.infotechwifi.com</code>).
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Omada Admin Username:
+                            </label>
+                            <input
+                              type="text"
+                              value={controllerUsername}
+                              onChange={(e) => setControllerUsername(e.target.value)}
+                              placeholder="mfano: admin au jina uliloweka"
+                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Omada Admin Password:
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showControllerPassword ? 'text' : 'password'}
+                                value={controllerPassword}
+                                onChange={(e) => setControllerPassword(e.target.value)}
+                                placeholder="Password ya Omada Controller"
+                                className="w-full px-3 py-2 pr-9 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowControllerPassword(!showControllerPassword)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                              >
+                                {showControllerPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          Omada Open API hutumia <strong>Client ID</strong> na <strong>Client Secret</strong> kupata Access Token moja kwa moja bila hofu ya nenosiri kubadilika.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Open API Client ID:
+                            </label>
+                            <input
+                              type="text"
+                              value={clientId}
+                              onChange={(e) => setClientId(e.target.value)}
+                              placeholder="Weka Client ID kutoka Omada Open API"
+                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500 font-mono"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Open API Client Secret:
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showClientSecret ? 'text' : 'password'}
+                                value={clientSecret}
+                                onChange={(e) => setClientSecret(e.target.value)}
+                                placeholder="Weka Client Secret"
+                                className="w-full px-3 py-2 pr-9 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500 font-mono"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowClientSecret(!showClientSecret)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                              >
+                                {showClientSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Omada Controller ID (omadacId):
+                            </label>
+                            <input
+                              type="text"
+                              value={omadacId}
+                              onChange={(e) => setOmadacId(e.target.value)}
+                              placeholder="5015eb6741252b75a3633605c471738f"
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:border-teal-500"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
                       <span className="text-[10px] text-slate-500 font-mono">
@@ -782,7 +891,10 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                       <button
                         type="button"
                         onClick={handleTestAndSaveController}
-                        disabled={testingController || !controllerPassword.trim()}
+                        disabled={
+                          testingController ||
+                          (authMode === 'CREDENTIALS' ? !controllerPassword.trim() : !clientId.trim() || !clientSecret.trim())
+                        }
                         className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                       >
                         {testingController ? (

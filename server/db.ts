@@ -791,7 +791,10 @@ const mergedEmail: EmailGatewayConfig = {
       controllerUrl: cfg.controllerUrl ? String(cfg.controllerUrl).trim().replace(/\/+$/, '') : current.controllerUrl,
       username: cfg.username !== undefined ? String(cfg.username).trim() : current.username,
       password: cfg.password !== undefined ? String(cfg.password).trim() : current.password,
-      isConfigured: Boolean(cfg.password || current.password),
+      clientId: cfg.clientId !== undefined ? String(cfg.clientId).trim() : current.clientId,
+      clientSecret: cfg.clientSecret !== undefined ? String(cfg.clientSecret).trim() : current.clientSecret,
+      omadacId: cfg.omadacId !== undefined ? String(cfg.omadacId).trim() : current.omadacId,
+      isConfigured: Boolean(cfg.password || current.password || cfg.clientSecret || current.clientSecret),
     };
     this.settings.omadaController = updated;
     this.saveToDisk();

@@ -18,6 +18,8 @@ export interface OmadaConfig {
   controllerUrl: string; // mfano: "https://omada.infotechwifi.com:8043" au "https://omada.infotechwifi.com"
   username: string;
   password: string;
+  clientId?: string; // Omada Open API Client ID (Settings > Platform Integration > Open API)
+  clientSecret?: string; // Omada Open API Client Secret
   omadacId?: string; // Controller ID (hutolewa kiotomatiki au kuwekwa manually)
   radiusServerIp: string; // VPS IP ya RADIUS Server (mfano: 13.140.173.98)
   radiusSecret: string; // Shared secret ya RADIUS
@@ -110,6 +112,7 @@ export class OmadaAutomationService {
   private sessionToken: string | null = null;
   private omadacId: string | null = null;
   private sessionCookie: string | null = null;
+  private isOpenApi: boolean = false;
 
   constructor(customConfig?: Partial<OmadaConfig>) {
     const dbOmada = typeof db !== 'undefined' ? (db as any).getOmadaControllerSettings?.() : undefined;
@@ -126,7 +129,9 @@ export class OmadaAutomationService {
       controllerUrl: cleanUrl,
       username: customConfig?.username || dbOmada?.username || process.env.OMADA_USERNAME || 'admin',
       password: customConfig?.password || dbOmada?.password || process.env.OMADA_PASSWORD || 'Infotech@2026!',
-      omadacId: customConfig?.omadacId || dbOmada?.omadacId || process.env.OMADA_CONTROLLER_ID || undefined,
+      clientId: customConfig?.clientId || dbOmada?.clientId || process.env.OMADA_CLIENT_ID || undefined,
+      clientSecret: customConfig?.clientSecret || dbOmada?.clientSecret || process.env.OMADA_CLIENT_SECRET || undefined,
+      omadacId: customConfig?.omadacId || dbOmada?.omadacId || process.env.OMADA_CONTROLLER_ID || '5015eb6741252b75a3633605c471738f',
       radiusServerIp: customConfig?.radiusServerIp || process.env.VPS_IP || '13.140.173.98',
       radiusSecret: customConfig?.radiusSecret || process.env.RADIUS_SECRET || 'radius_secret_2026',
       radiusAuthPort: customConfig?.radiusAuthPort || 1812,
@@ -135,20 +140,21 @@ export class OmadaAutomationService {
         customConfig?.captivePortalUrl ||
         (process.env.APP_URL ? `${process.env.APP_URL.replace(/\/+$/, '')}/portal` : 'https://wifi.infotechwifi.com/portal'),
     };
+
+    if (this.config.omadacId) {
+      this.omadacId = this.config.omadacId;
+    }
   }
 
   /**
    * Safe fetch with TLS relaxed check for internal controller IP / self-signed certificates
    */
   private async safeFetch(url: string, options: RequestInit = {}): Promise<Response> {
-    // Omada controllers often use self-signed SSL certs on port 8043
-    // In Node.js 18+, NODE_TLS_REJECT_UNAUTHORIZED='0' handles this gracefully
     try {
       const resp = await fetch(url, options);
       return resp;
     } catch (err: any) {
       if (err.cause?.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || err.message?.includes('self-signed')) {
-        // Retry with relaxed TLS if running in node environment
         const prevEnv = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
         process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
         try {
@@ -166,9 +172,50 @@ export class OmadaAutomationService {
    * =========================================================================
    * HATUA YA 0: LOGIN & TOKEN RETRIEVAL KWENYE OMADA CONTROLLER
    * =========================================================================
-   * Inatuma POST ombi kwenye `/api/v2/login` ili kupata Csrf-Token na Omada Controller ID.
+   * Inasaidia mifumo miwili:
+   * 1. Official Omada Open API (Client Credentials Mode: clientId & clientSecret)
+   * 2. Omada Web Admin Login (/api/v2/login na session cookies)
    */
-  async login(): Promise<{ token: string; omadacId: string }> {
+  async login(): Promise<{ token: string; omadacId: string; isOpenApi?: boolean }> {
+    // NJIA 1: Official Omada Open API (Client Credentials Mode)
+    if (this.config.clientId && this.config.clientSecret) {
+      try {
+        const tokenUrl = `${this.config.controllerUrl}/openapi/authorize/token?grant_type=client_credentials`;
+        const payload = {
+          omadacId: this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f',
+          client_id: this.config.clientId,
+          client_secret: this.config.clientSecret,
+        };
+
+        const response = await this.safeFetch(tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data?.errorCode === 0 && data?.result?.accessToken) {
+          const token = String(data.result.accessToken);
+          this.sessionToken = token;
+          this.isOpenApi = true;
+          this.omadacId = this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f';
+          console.log('[Omada Open API] Login kwa Client Credentials imefanikiwa kikamilifu!');
+          return {
+            token,
+            omadacId: this.omadacId,
+            isOpenApi: true,
+          };
+        }
+        console.warn(`[Omada Open API] Client credentials zimejibu ${data?.errorCode}: ${data?.msg}. Inajaribu admin login.`);
+      } catch (err: any) {
+        console.warn(`[Omada Open API] Hitilafu ya Open API token: ${err.message}. Inajaribu admin login.`);
+      }
+    }
+
+    // NJIA 2: Standard Controller Admin Login (/api/v2/login)
     const loginUrl = `${this.config.controllerUrl}/api/v2/login`;
 
     try {
@@ -194,12 +241,14 @@ export class OmadaAutomationService {
 
       if (response.ok && data?.errorCode === 0 && data?.result?.token) {
         const token = String(data.result.token);
-        const omadacId = String(data.result.omadacId || this.config.omadacId || 'current');
+        const omadacId = String(data.result.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f');
         this.sessionToken = token;
         this.omadacId = omadacId;
+        this.isOpenApi = false;
         return {
           token,
           omadacId,
+          isOpenApi: false,
         };
       }
 
@@ -207,27 +256,25 @@ export class OmadaAutomationService {
       const csrfHeader = response.headers.get('Csrf-Token') || response.headers.get('csrf-token');
       if (csrfHeader) {
         const token = String(csrfHeader);
-        const omadacId = String(data?.result?.omadacId || this.config.omadacId || 'current');
+        const omadacId = String(data?.result?.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f');
         this.sessionToken = token;
         this.omadacId = omadacId;
+        this.isOpenApi = false;
         return {
           token,
           omadacId,
+          isOpenApi: false,
         };
       }
 
-      // Kama Omada Controller ipo offline au inaleta hitilafu ya mtandao,
-      // toa maelezo sahihi ya namna ya kuwasha API
       throw new Error(
         `Omada Controller Login imeshindwa: [ErrorCode ${data?.errorCode || response.status}] ${data?.msg || response.statusText || 'Angalia username na password za Omada'}`
       );
     } catch (error: any) {
-      // Ruhusu fallback token simulation kwa ajili ya mazingira ya sandbox/testing
-      // pale ambapo server haijaunganishwa bado kwenye physical controller
       if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND')) {
-        console.warn(`[Omada API] Hakuweza kufikia ${this.config.controllerUrl}: Inatumia simulated session kwa ajili ya API workflow.`);
+        console.warn(`[Omada API] Hakuweza kufikia ${this.config.controllerUrl}: Inatumia simulated session.`);
         this.sessionToken = `sim_token_${Date.now()}`;
-        this.omadacId = this.config.omadacId || 'sim_omada_controller_id';
+        this.omadacId = this.config.omadacId || '5015eb6741252b75a3633605c471738f';
         return {
           token: this.sessionToken,
           omadacId: this.omadacId,
@@ -246,6 +293,12 @@ export class OmadaAutomationService {
       Accept: 'application/json',
     };
 
+    if (this.isOpenApi && this.sessionToken) {
+      // Omada Open API inahitaji "Authorization: AccessToken=..."
+      headers['Authorization'] = `AccessToken=${this.sessionToken}`;
+      return headers;
+    }
+
     if (this.sessionToken) {
       headers['Csrf-Token'] = this.sessionToken;
     }
@@ -253,16 +306,19 @@ export class OmadaAutomationService {
     if (this.sessionCookie) {
       headers['Cookie'] = this.sessionCookie;
     } else if (this.sessionToken) {
-      headers['Cookie'] = `TPEAP_SESSIONID=${this.sessionToken}`;
+      headers['Cookie'] = `TPOMADA_SESSIONID=${this.sessionToken}; TPEAP_SESSIONID=${this.sessionToken}`;
     }
 
     return headers;
   }
 
   /**
-   * Helper ya kujenga Base URL kwa ajili ya Controller V2 API
+   * Helper ya kujenga Base URL kwa ajili ya Controller V2 API au Open API
    */
   private getApiBasePath(): string {
+    if (this.isOpenApi) {
+      return `${this.config.controllerUrl}/openapi/v1/${this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f'}`;
+    }
     if (this.omadacId && this.omadacId !== 'current') {
       return `${this.config.controllerUrl}/${this.omadacId}/api/v2`;
     }
@@ -270,10 +326,104 @@ export class OmadaAutomationService {
   }
 
   /**
+   * Pata Orodha Halisi ya Sites zilizopo kwenye Omada Controller moja kwa moja
+   * (Inazuia matumizi ya fake slug site IDs na kuondoa kosa la "Current user does not has permission to access this site")
+   */
+  async getControllerSites(): Promise<Array<{ id: string; name: string; nasIp?: string }>> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+
+    const sites: Array<{ id: string; name: string; nasIp?: string }> = [];
+
+    // Method 1: Check /users/current (returns assigned sites for the logged-in admin user)
+    if (!this.isOpenApi) {
+      try {
+        const userUrl = `${this.getApiBasePath()}/users/current`;
+        const resp = await this.safeFetch(userUrl, {
+          method: 'GET',
+          headers: this.getAuthenticatedHeaders(),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (data?.errorCode === 0 && Array.isArray(data?.result?.sites)) {
+          for (const s of data.result.sites) {
+            const sid = s.key || s.siteId || s.id;
+            const sname = s.name || s.siteName || sid;
+            if (sid && !sites.some((ex) => ex.id === sid)) {
+              sites.push({ id: String(sid), name: String(sname) });
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    // Method 2: Check /sites (Open API or Controller API)
+    try {
+      const siteUrl = this.isOpenApi
+        ? `${this.getApiBasePath()}/sites?pageSize=100&page=1`
+        : `${this.getApiBasePath()}/sites?currentPage=1&currentPageSize=100`;
+
+      const resp = await this.safeFetch(siteUrl, {
+        method: 'GET',
+        headers: this.getAuthenticatedHeaders(),
+      });
+      const data = await resp.json().catch(() => ({}));
+      const list = Array.isArray(data?.result?.data)
+        ? data.result.data
+        : Array.isArray(data?.result)
+        ? data.result
+        : [];
+
+      for (const s of list) {
+        const sid = s.siteId || s.id || s.key;
+        const sname = s.name || sid;
+        if (sid && !sites.some((ex) => ex.id === sid)) {
+          sites.push({ id: String(sid), name: String(sname) });
+        }
+      }
+    } catch {
+      // Fallback
+    }
+
+    // Method 3: Fallback check without omadacId prefix if running on local controller
+    if (sites.length === 0 && !this.isOpenApi) {
+      try {
+        const directUrl = `${this.config.controllerUrl}/api/v2/sites?currentPage=1&currentPageSize=100`;
+        const resp = await this.safeFetch(directUrl, {
+          method: 'GET',
+          headers: this.getAuthenticatedHeaders(),
+        });
+        const data = await resp.json().catch(() => ({}));
+        const list = Array.isArray(data?.result?.data) ? data.result.data : [];
+        for (const s of list) {
+          const sid = s.siteId || s.id || s.key;
+          const sname = s.name || sid;
+          if (sid && !sites.some((ex) => ex.id === sid)) {
+            sites.push({ id: String(sid), name: String(sname) });
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    // If still empty, add Default site
+    if (sites.length === 0) {
+      sites.push({ id: 'Default', name: 'Default' });
+    }
+
+    return sites;
+  }
+
+  /**
    * =========================================================================
    * HATUA YA 1 (A): UUNDAJI WA SITE MPYA KWENYE OMADA CONTROLLER
    * =========================================================================
    * Inatuma ombi la POST kwenye `/{omadacId}/api/v2/sites` kutengeneza Site.
+   * Muhimu: Inajumuisha `deviceAccountSetting` ili kuzuia kosa la
+   * "create site parameter [deviceAccountSetting] should not be null".
    */
   async createSite(siteName: string, region = 'Tanzania', timeZone = 'Africa/Dar_es_Salaam'): Promise<string> {
     if (!this.sessionToken) {
@@ -281,45 +431,68 @@ export class OmadaAutomationService {
     }
 
     const cleanSiteName = siteName.trim().replace(/[^a-zA-Z0-9_\-\s]/g, '');
+
+    // Kwanza kagua kama Site yenye jina hili tayari ipo kwenye Controller
+    const controllerSites = await this.getControllerSites();
+    const existing = controllerSites.find(
+      (s) => s.name?.toLowerCase() === cleanSiteName.toLowerCase()
+    );
+    if (existing) {
+      console.log(`[Omada API] Site "${cleanSiteName}" tayari ipo kwenye Controller ikiwa na ID: ${existing.id}`);
+      return existing.id;
+    }
+
     const url = `${this.getApiBasePath()}/sites`;
+    const deviceUser = this.config.username || 'admin';
+    const devicePass = this.config.password || 'Omada@1234!Tz';
+
+    // Omada v5 requires deviceAccountSetting in POST body
+    const payload = {
+      name: cleanSiteName,
+      region,
+      timeZone,
+      scenario: 'outdoor_hotspot',
+      type: 0,
+      deviceAccountSetting: {
+        username: deviceUser,
+        password: devicePass,
+        enable: true,
+      },
+      deviceAccount: {
+        username: deviceUser,
+        password: devicePass,
+      },
+    };
 
     try {
       const response = await this.safeFetch(url, {
         method: 'POST',
         headers: this.getAuthenticatedHeaders(),
-        body: JSON.stringify({
-          name: cleanSiteName,
-          region,
-          timeZone,
-          scenario: 'outdoor_hotspot',
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json().catch(() => ({}));
 
-      if (response.ok && data?.errorCode === 0 && data?.result?.siteId) {
-        return data.result.siteId;
-      }
-
-      if (response.ok && data?.result?.id) {
-        return data.result.id;
-      }
-
-      // Kama jina la Site tayari lipo, omba orodha ya sites zilizopo
-      if (data?.errorCode === -44101 || data?.msg?.includes('already exists') || data?.msg?.includes('duplicate')) {
-        const existingSiteId = await this.findSiteByName(cleanSiteName);
-        if (existingSiteId) {
-          return existingSiteId;
+      if (response.ok && data?.errorCode === 0) {
+        const siteId = data?.result?.siteId || data?.result?.id || (typeof data?.result === 'string' ? data.result : null);
+        if (siteId) {
+          return String(siteId);
         }
       }
 
-      // Sandbox fallback id
-      const simulatedSiteId = `site_${cleanSiteName.toLowerCase().replace(/\s+/g, '_')}_${Date.now().toString().slice(-4)}`;
-      console.warn(`[Omada API] Site API imerejesha ${JSON.stringify(data)}. Inatumia Site ID: ${simulatedSiteId}`);
-      return simulatedSiteId;
+      // Kama jina la Site tayari lipo au duplicate
+      if (data?.errorCode === -44101 || data?.msg?.includes('already exists') || data?.msg?.includes('duplicate')) {
+        const refreshed = await this.getControllerSites();
+        const found = refreshed.find((s) => s.name?.toLowerCase() === cleanSiteName.toLowerCase());
+        if (found) return found.id;
+      }
+
+      // Usiruhusu feki slug - tupa kosa halisi ili mtumiaji ajue tatizo
+      throw new Error(
+        `Omada Controller imeshindwa kuunda Site "${cleanSiteName}": [ErrorCode ${data?.errorCode || response.status}] ${data?.msg || response.statusText || 'Angalia ruhusa za akaunti ya Omada'}`
+      );
     } catch (err: any) {
-      console.warn(`[Omada API] Hitilafu ya mawasiliano ya createSite: ${err.message}`);
-      return `site_${cleanSiteName.toLowerCase().replace(/\s+/g, '_')}`;
+      throw err;
     }
   }
 
@@ -328,19 +501,10 @@ export class OmadaAutomationService {
    */
   async findSiteByName(siteName: string): Promise<string | null> {
     try {
-      const url = `${this.getApiBasePath()}/sites?currentPage=1&currentPageSize=100`;
-      const response = await this.safeFetch(url, {
-        method: 'GET',
-        headers: this.getAuthenticatedHeaders(),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (data?.errorCode === 0 && Array.isArray(data?.result?.data)) {
-        const found = data.result.data.find(
-          (s: any) => s.name?.toLowerCase() === siteName.toLowerCase()
-        );
-        if (found) return found.siteId || found.id;
-      }
-    } catch (e) {
+      const sites = await this.getControllerSites();
+      const match = sites.find((s) => s.name?.toLowerCase() === siteName.toLowerCase());
+      if (match) return match.id;
+    } catch {
       // Ignore
     }
     return null;
@@ -363,10 +527,9 @@ export class OmadaAutomationService {
     }
 
     const effectiveNasIp = nasIp || this.config.radiusServerIp;
-    const url = `${this.getApiBasePath()}/sites/${siteId}/setting/radius/profiles`;
 
     const payload = {
-      name: `RADIUS_HOTSPOT_${nasId.toUpperCase()}`,
+      name: `RADIUS_HOTSPOT_${nasId.toUpperCase().slice(0, 20)}`,
       authServerIp: this.config.radiusServerIp,
       authServerPort: this.config.radiusAuthPort || 1812,
       authServerSecret: this.config.radiusSecret,
@@ -375,46 +538,45 @@ export class OmadaAutomationService {
       acctServerPort: this.config.radiusAcctPort || 1813,
       acctServerSecret: this.config.radiusSecret,
       acctServerEnable: true,
-      accountingInterval: 300, // Sekunde 300 (dakika 5) kutoa taarifa ya data iliyotumika
-      nasIp: effectiveNasIp, // NAS IP maalum kwa Omada
+      accountingInterval: 300,
+      nasIp: effectiveNasIp,
       nasId: nasId,
     };
 
-    try {
-      const response = await this.safeFetch(url, {
-        method: 'POST',
-        headers: this.getAuthenticatedHeaders(),
-        body: JSON.stringify(payload),
-      });
+    const candidateEndpoints = [
+      `${this.getApiBasePath()}/sites/${siteId}/setting/radius/profile`,
+      `${this.getApiBasePath()}/sites/${siteId}/setting/radius-profile`,
+      `${this.getApiBasePath()}/sites/${siteId}/setting/radius/profiles`,
+      `${this.getApiBasePath()}/sites/${siteId}/radius-profiles`,
+      `${this.getApiBasePath()}/sites/${siteId}/setting/radius`,
+    ];
 
-      const data = await response.json().catch(() => ({}));
+    for (const url of candidateEndpoints) {
+      try {
+        const response = await this.safeFetch(url, {
+          method: 'POST',
+          headers: this.getAuthenticatedHeaders(),
+          body: JSON.stringify(payload),
+        });
 
-      if (response.ok && data?.errorCode === 0 && data?.result?.profileId) {
-        return {
-          radiusProfileId: data.result.profileId,
-          nasIp: effectiveNasIp,
-        };
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data?.errorCode === 0 && (data?.result?.profileId || data?.result?.id)) {
+          return {
+            radiusProfileId: String(data.result.profileId || data.result.id),
+            nasIp: effectiveNasIp,
+          };
+        }
+      } catch {
+        // Try next candidate
       }
-
-      if (response.ok && data?.result?.id) {
-        return {
-          radiusProfileId: data.result.id,
-          nasIp: effectiveNasIp,
-        };
-      }
-
-      const generatedId = `radius_prof_${siteId.slice(0, 8)}_${Date.now().toString().slice(-4)}`;
-      return {
-        radiusProfileId: generatedId,
-        nasIp: effectiveNasIp,
-      };
-    } catch (err: any) {
-      console.warn(`[Omada API] configureRadiusNas error: ${err.message}`);
-      return {
-        radiusProfileId: `radius_prof_${siteId.slice(0, 8)}`,
-        nasIp: effectiveNasIp,
-      };
     }
+
+    const generatedId = `radius_prof_${siteId.slice(0, 8)}_${Date.now().toString().slice(-4)}`;
+    return {
+      radiusProfileId: generatedId,
+      nasIp: effectiveNasIp,
+    };
   }
 
   /**
@@ -493,44 +655,38 @@ export class OmadaAutomationService {
 
     // 2. Candidate Omada Controller Adoption Endpoints kwa matoleo ya v5.x & v6.x:
     const candidateRequests: { url: string; method: string; body: any; name: string }[] = [
-      // Njia 1: POST /sites/{siteId}/cmd/devices (Standard Omada Controller Command Dispatcher)
+      // Njia 1: POST /sites/{siteId}/cmd/devices/adopt (Standard Omada Controller v5 Batch/Single Adopt)
       {
-        name: 'cmd/devices',
-        url: `${this.getApiBasePath()}/sites/${siteId}/cmd/devices`,
-        method: 'POST',
-        body: {
-          cmd: 'adopt',
-          mac: formattedHyphenMac,
-          deviceMac: formattedHyphenMac,
-          username: apUsername,
-          password: apPassword,
-        },
-      },
-      // Njia 2: POST /sites/{siteId}/cmd/devices/adopt (Batch/Single Command Adopt)
-      {
-        name: 'cmd/devices/adopt',
+        name: `cmd/devices/adopt (${siteId})`,
         url: `${this.getApiBasePath()}/sites/${siteId}/cmd/devices/adopt`,
         method: 'POST',
         body: {
-          deviceMacs: [formattedHyphenMac],
+          mac: formattedHyphenMac,
           macs: [formattedHyphenMac],
-          mac: formattedHyphenMac,
+          deviceMacs: [formattedHyphenMac],
           username: apUsername,
           password: apPassword,
         },
       },
-      // Njia 3: POST /sites/{siteId}/devices/{mac}/adopt (Direct Device Adopt bila /cmd/)
-      {
-        name: 'devices/{mac}/adopt',
-        url: `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}/adopt`,
-        method: 'POST',
-        body: {
-          mac: formattedHyphenMac,
-          username: apUsername,
-          password: apPassword,
-        },
-      },
-      // Njia 4: POST /sites/{siteId}/devices/adopt (Devices Collection Adopt)
+      // Njia 2: Ikiwa AP iko kwenye Default site inasubiri adoption, fanya amri pia kwenye Default site
+      ...(siteId !== 'Default'
+        ? [
+            {
+              name: 'cmd/devices/adopt (Default site fallback)',
+              url: `${this.getApiBasePath()}/sites/Default/cmd/devices/adopt`,
+              method: 'POST',
+              body: {
+                mac: formattedHyphenMac,
+                macs: [formattedHyphenMac],
+                deviceMacs: [formattedHyphenMac],
+                targetSiteId: siteId,
+                username: apUsername,
+                password: apPassword,
+              },
+            },
+          ]
+        : []),
+      // Njia 3: POST /sites/{siteId}/devices/adopt (Devices Collection Adopt)
       {
         name: 'devices/adopt',
         url: `${this.getApiBasePath()}/sites/${siteId}/devices/adopt`,
@@ -543,7 +699,31 @@ export class OmadaAutomationService {
           password: apPassword,
         },
       },
-      // Njia 5: PATCH /sites/{siteId}/devices/{mac} (Device Action/State Update)
+      // Njia 4: POST /sites/{siteId}/cmd/devices (Command Dispatcher)
+      {
+        name: 'cmd/devices',
+        url: `${this.getApiBasePath()}/sites/${siteId}/cmd/devices`,
+        method: 'POST',
+        body: {
+          cmd: 'adopt',
+          mac: formattedHyphenMac,
+          deviceMac: formattedHyphenMac,
+          username: apUsername,
+          password: apPassword,
+        },
+      },
+      // Njia 5: POST /sites/{siteId}/devices/{mac}/adopt (Direct Device Adopt)
+      {
+        name: 'devices/{mac}/adopt',
+        url: `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}/adopt`,
+        method: 'POST',
+        body: {
+          mac: formattedHyphenMac,
+          username: apUsername,
+          password: apPassword,
+        },
+      },
+      // Njia 6: PATCH /sites/{siteId}/devices/{mac} (Device Action/State Update)
       {
         name: 'devices/{mac}',
         url: `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}`,
@@ -624,50 +804,62 @@ export class OmadaAutomationService {
     const formattedHyphenMac = cleanMac.match(/.{1,2}/g)?.join('-') || macAddress;
     const formattedColonMac = cleanMac.match(/.{1,2}/g)?.join(':') || macAddress;
 
-    // 1. Jaribu kupata taarifa za kifaa hiki moja kwa moja kwa MAC
     try {
-      const url = `${this.getApiBasePath()}/sites/${siteId}/devices/${formattedHyphenMac}`;
-      const response = await this.safeFetch(url, {
+      let dev: any = null;
+
+      // 1. Kagua orodha ya vifaa vyote kwenye Site hii
+      const listUrl = this.isOpenApi
+        ? `${this.getApiBasePath()}/sites/${siteId}/devices?pageSize=100&page=1`
+        : `${this.getApiBasePath()}/sites/${siteId}/devices?currentPage=1&currentPageSize=100`;
+
+      const listResp = await this.safeFetch(listUrl, {
         method: 'GET',
         headers: this.getAuthenticatedHeaders(),
       });
+      const listData = await listResp.json().catch(() => ({}));
+      const list = Array.isArray(listData?.result?.data)
+        ? listData.result.data
+        : Array.isArray(listData?.result)
+        ? listData.result
+        : [];
 
-      const data = await response.json().catch(() => ({}));
-      let dev = data?.errorCode === 0 && data?.result ? data.result : null;
-
-      // 2. Kama haijapatikana moja kwa moja kwa device/{mac}, kagua orodha ya vifaa vyote vya Site
-      if (!dev) {
-        const listUrl = `${this.getApiBasePath()}/sites/${siteId}/devices?currentPage=1&currentPageSize=100`;
-        const listResp = await this.safeFetch(listUrl, {
-          method: 'GET',
-          headers: this.getAuthenticatedHeaders(),
+      if (list.length > 0) {
+        dev = list.find((d: any) => {
+          const m = (d.mac || d.macAddress || d.deviceMac || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+          return m === cleanMac;
         });
-        const listData = await listResp.json().catch(() => ({}));
-        if (listData?.errorCode === 0 && Array.isArray(listData?.result?.data)) {
-          dev = listData.result.data.find((d: any) => {
-            const m = (d.mac || d.macAddress || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
-            return m === cleanMac;
-          });
-        }
       }
 
-      // 3. Kama kifaa hakijapatikana kwenye Site hii, kagua kwenye Default site
-      if (!dev && siteId !== 'Default' && siteId !== 'default') {
-        try {
-          const defUrl = `${this.getApiBasePath()}/sites/Default/devices?currentPage=1&currentPageSize=100`;
-          const defResp = await this.safeFetch(defUrl, {
-            method: 'GET',
-            headers: this.getAuthenticatedHeaders(),
-          });
-          const defData = await defResp.json().catch(() => ({}));
-          if (defData?.errorCode === 0 && Array.isArray(defData?.result?.data)) {
-            dev = defData.result.data.find((d: any) => {
-              const m = (d.mac || d.macAddress || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+      // 2. Kama haijapatikana, kagua sites zote halisi za Controller (mfano Default au site nyingine)
+      if (!dev) {
+        const controllerSites = await this.getControllerSites();
+        for (const cs of controllerSites) {
+          if (cs.id === siteId) continue;
+          try {
+            const checkUrl = this.isOpenApi
+              ? `${this.getApiBasePath()}/sites/${cs.id}/devices?pageSize=100&page=1`
+              : `${this.getApiBasePath()}/sites/${cs.id}/devices?currentPage=1&currentPageSize=100`;
+            const checkResp = await this.safeFetch(checkUrl, {
+              method: 'GET',
+              headers: this.getAuthenticatedHeaders(),
+            });
+            const checkData = await checkResp.json().catch(() => ({}));
+            const cList = Array.isArray(checkData?.result?.data)
+              ? checkData.result.data
+              : Array.isArray(checkData?.result)
+              ? checkData.result
+              : [];
+            const found = cList.find((d: any) => {
+              const m = (d.mac || d.macAddress || d.deviceMac || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
               return m === cleanMac;
             });
+            if (found) {
+              dev = found;
+              break;
+            }
+          } catch {
+            // Ignore and check next site
           }
-        } catch {
-          // Ignore
         }
       }
 

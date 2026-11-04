@@ -1,0 +1,226 @@
+angalia hizi logs root@vmi3609738:/var/www/tz-wifi-billing# tail -n 200 /opt/omada/logs/server.log | grep -i -E "error|warn|fail|adopt|exception"
+11-03-2026 19:59:59.123 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 19:59:59.149 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices, method:GET
+11-03-2026 20:00:01.666 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:00:01.933 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices, method:GET
+11-03-2026 20:00:04.595 WARN [https-jsse-nio-8043-exec-3] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:00:05.002 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices, method:GET
+11-03-2026 20:00:07.610 WARN [https-jsse-nio-8043-exec-10] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:00:08.034 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_6189/devices, method:GET
+11-03-2026 20:15:35.160 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.m.d.d.m.s.i(): OmadacId(5015eb6741252b75a3633605c471738f) device host not enable
+11-03-2026 20:15:44.130 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.m.d.d.m.s.i(): OmadacId(5015eb6741252b75a3633605c471738f) device host not enable
+11-03-2026 20:19:54.615 WARN [netty-tcp-server-worker-17-4] [] c.t.s.e.t.n.EcspLengthFrameDecoder(): Adjusted frame length exceeds 10485760 : 808464436 - discarded
+11-03-2026 20:19:56.059 WARN [netty-tcp-server-worker-20-2] [] c.t.s.e.t.n.EcspLengthFrameDecoder(): Adjusted frame length exceeds 10485760 : 808464436 - discarded
+11-03-2026 20:51:53.381 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.m.p.w.c.c.a(): create site parameter [deviceAccountSetting] should not be null
+11-03-2026 20:51:53.426 WARN [https-jsse-nio-8043-exec-2] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/radius/profiles, method:POST
+11-03-2026 20:52:10.873 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.m.d.d.m.s.i(): OmadacId(5015eb6741252b75a3633605c471738f) device host not enable
+11-03-2026 20:52:10.874 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.m.c.a.a.e(): omadac OmadacId(5015eb6741252b75a3633605c471738f) not exist, can't get device host
+11-03-2026 20:58:14.967 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/device-account, method:PATCH
+11-03-2026 20:58:15.015 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/device-account, method:POST
+11-03-2026 20:58:15.055 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/device-account, method:PUT
+11-03-2026 20:58:15.115 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/cmd/devices, method:POST
+11-03-2026 20:58:15.170 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/cmd/devices/adopt, method:POST
+11-03-2026 20:58:15.195 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6/adopt, method:POST
+11-03-2026 20:58:15.217 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/adopt, method:POST
+11-03-2026 20:58:15.236 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:PATCH
+11-03-2026 20:58:15.257 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:15.288 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:15.325 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:17.840 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:17.875 WARN [https-jsse-nio-8043-exec-10] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:17.905 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:20.427 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:20.464 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:20.497 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:23.011 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:23.048 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:23.091 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:25.609 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:25.636 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:25.701 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:28.232 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:28.267 WARN [https-jsse-nio-8043-exec-10] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:28.295 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:30.822 WARN [https-jsse-nio-8043-exec-3] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:30.846 WARN [https-jsse-nio-8043-exec-2] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:30.868 WARN [https-jsse-nio-8043-exec-3] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:33.412 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:33.466 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:33.507 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:36.022 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:36.054 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:36.114 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:38.660 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:38.822 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:38.878 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:58:41.391 WARN [https-jsse-nio-8043-exec-10] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 20:58:41.429 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 20:58:41.462 WARN [https-jsse-nio-8043-exec-10] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 20:59:15.896 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.m.d.d.m.s.i(): OmadacId(5015eb6741252b75a3633605c471738f) device host not enable
+11-03-2026 20:59:15.897 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.m.c.a.a.e(): omadac OmadacId(5015eb6741252b75a3633605c471738f) not exist, can't get device host
+11-03-2026 21:01:38.993 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/device-account, method:PATCH
+11-03-2026 21:01:39.028 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/device-account, method:POST
+11-03-2026 21:01:39.052 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/setting/device-account, method:PUT
+11-03-2026 21:01:39.092 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/cmd/devices, method:POST
+11-03-2026 21:01:39.129 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/cmd/devices/adopt, method:POST
+11-03-2026 21:01:39.173 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6/adopt, method:POST
+11-03-2026 21:01:39.206 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/adopt, method:POST
+11-03-2026 21:01:39.232 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:PATCH
+11-03-2026 21:01:39.254 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:39.282 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:39.307 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:41.822 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:41.854 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:41.883 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:44.534 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:44.682 WARN [https-jsse-nio-8043-exec-2] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:44.732 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:47.287 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:47.327 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:47.390 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:49.906 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:49.944 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:49.973 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:52.487 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:52.536 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:52.579 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:55.100 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:55.132 WARN [https-jsse-nio-8043-exec-2] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:55.184 WARN [https-jsse-nio-8043-exec-4] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:01:57.697 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:01:57.731 WARN [https-jsse-nio-8043-exec-11] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:01:57.759 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:02:00.277 WARN [https-jsse-nio-8043-exec-3] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:02:00.396 WARN [https-jsse-nio-8043-exec-10] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:02:00.436 WARN [https-jsse-nio-8043-exec-7] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:02:02.959 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:02:03.020 WARN [https-jsse-nio-8043-exec-1] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:02:03.069 WARN [https-jsse-nio-8043-exec-6] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+11-03-2026 21:02:05.586 WARN [https-jsse-nio-8043-exec-8] [] c.t.s.o.d.RestDispatcher(): Unsupported path, path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices/20-E1-5D-44-18-E6, method:GET
+11-03-2026 21:02:05.620 WARN [https-jsse-nio-8043-exec-9] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/site_mwatulole_3385/devices, method:GET
+11-03-2026 21:02:05.678 WARN [https-jsse-nio-8043-exec-2] [] c.t.s.o.a.d.i.PermissionCheckHandler(): Current user does not has permission to access this site. path:/5015eb6741252b75a3633605c471738f/api/v2/sites/Default/devices, method:GET
+root@vmi3609738:/var/www/tz-wifi-billing# then angalia hii API documentation ya Omada Open API Access Guide
+1 Overview
+1.1 Status Code
+Status CodeExplain400Bad Request. Request format incorrect or request parameter missing401Unauthorized access403Forbidden413Request-size limit exceeded417Request-size limit exceeded429API Rate limit exceeded500Internal server error
+1.2 General Error Code In Result
+Error CodeExplain-1005Operation forbidden-1505The current user does not have permissions to access this site-44106The client id or client secret is invalid-44107The response type is invalid-44108The CSRF token is invalid-44109The session id is invalid-44110The auth code has expired-44111The grant type is invalid-44112The access token has expired. Please re-initiate the refreshToken process to obtain the access token.-44113The access token is Invalid-44114The refresh token has expired. Please re-initiate the authentication process to obtain the refresh token.-44116Open API authorized failed, please check whether the input parameters are legal.-44118This interface only supports the authorization code mode, not the client credentials mode.
+1.3 Process Introduction
+Omada's Open API supports the REST API of most Controller services. This feature allows Omada users to write custom applications, embed APIs, or combine their own applications. The REST API supports HTTP GET and POST operations by providing specific URLs for each query. The output of these operations is returned in JSON format. To access the API securely, the Omada API framework supports the OAuth 2.0 protocol for authentication and authorization, which allows you to access resources authorized by users without obtaining user names and passwords, and supports the authorization code mode and client credentials mode.
+The authorization code grant type is used to obtain both access tokens and refresh tokens and is optimized for confidential clients. Since this is a redirection-based flow, the client must be capable of interacting with the resource owner's user-agent (typically a web browser) and capable of receiving incoming requests (via redirection) from the authorization server.
+The following is the authorization code mode process：
+1、The user visits the client.
+2、The client directs the user to the authentication server (Omada).
+3、User logs in (/openapi/login), and authorize the third-party client.
+4、The authentication server directs the user to the redirection URL specified by the client in advance, and attaches an authorization code (redirect URL + ?code={authorization code}, if the redirect URL is https://redirect.com, it is https://redirect.com?code=authCode).
+5、The client uses the authorization code to exchange the accessToken from the authentication server (Omada).
+6、The authentication server (Omada) authenticates the client and issues an access token.
+7、The client uses the access token to apply for resources from the resource server (Omada).
+8、The resource server (Omada) confirms the access token and opens resources to the client.
+9、The client can exchange an access token through refresh token, client ID, and client secret.
+The client can request an access token using only its client credentials (or other supported means of authentication) when the client is requesting access to the protected resources under its control, or those of another resource owner that have been previously arranged with the authorization server (the method of which is beyond the scope of this specification).
+The following is the client credentials mode process：
+1、The user opens the client, and the client requires the user to authorize.
+2、The user agrees to authorize the client.
+3、The client uses the authorization obtained to apply for an access token from the authentication server (Omada).
+4、The authentication server (Omada) authenticates the client and issues an access token.
+5、The client uses the access token to apply for resources from the resource server (Omada).
+6、The resource server (Omada) confirms the access token and open resources to the client.
+7、The client can exchange an access token through refresh token, client ID, and client secret.
+Note: Most interface has a concurrency limit. We recommend that you modify global configurations before other configurations of the site.
+2 Access Process
+2.1 Create Application
+1、To access the Open API, first create an application at Settings > Platform Integration in the MSP or Global view. You can customize the content.：
+Authorization code mode: You can define the Application name and Redirect URL. When calling the interface in this mode, the authority is the same as that of the login user.
+Client mode: You can define the Application name and access permissions. When calling the interface in this mode, the rights are the same as the login Application.
+2、After the creation is successful, each Application will have a corresponding client ID and client secret, which will be used for subsequent access to the Open API. You can view the details on the interface to know the Omada ID and the access address of the Open API.
+2.2 Authorization Code Mode Access Process
+2.2.1 Login Authentication & Obtain Authorization Code
+2.2.1.1 redirect URL not specified
+When the redirect URL is not specified, the operation process is as follows.
+First of all, you need to log in. When using the Open API function later, its authority is the same as that of the current login user. The login interface uses the POST method, the interface path is /openapi/authorize/login.
+In the Query, fill in the client ID (The field name is client_id) and msp id or customer id(The field name is omadac_id).
+In the Body, fill in the user name(The field name is username) and password(The field name is password).
+After logging in successfully, it will return the csrfToken, sessionId.
+Note: Please save the return parameters for later use.
+An example of the curl command of the login interface is as follows:
+Request:
+curl "https://localhost:8043/openapi/authorize/login?client_id=38f2d1b616434374b3f3215246f39940&omadac_id=beed48c7a2b0ea97c9698408843119f3" -H 'content-type:application/json' -d '{"username":"admin","password":"tplink123"}' -X POST -i -k --insecure
+Response:
+{"errorCode":0,"msg":"Open API Log in successfully.","result":{"csrfToken":"51cb83c7d00a4e85b3dd2d6174a614d9","sessionId":"2fc0ca155ab94957a9a9e6a3b00662ea"}}
+After logging in, you need to obtain the authorization code. The obtaining the authorization interface uses the POST method, the interface path is as follows: /openapi/authorize/code.
+In the Query, fill in the client ID(The field name is client_id) and response type(The field name is response_type), msp id or customer id(The field name is omadac_id). The response_type represents the reply type, and is filled with "code" by default in authorization code mode.
+In the Headers, fill in the csrf token(The field name is Csrf-Token) and cookie(The field name is Cookie) obtained in the login step. Note that the prefix "TPOMADA_SESSIONID=" is required when filling in the cookie. After obtaining authorization code successfully, it will return the authorization code.
+Note: The authorization code is only available for 2 minutes. If it expires, you need to obtain it again.
+An example of the curl command of the obtaining authorization code interface is as follows:
+Request:
+curl "https://localhost:8043/openapi/authorize/code?client_id=29f2fdbeb5a84d50b9b1cdd08cd1a3ff&omadac_id=de382a0e78f4deb681f3128c3e75dbd1&response_type=code" -H 'content-type:application/json' -H 'Csrf-Token:ae6b935c92cf4b1b9f3eb852e20ed2b8' -H 'Cookie:TPOMADA_SESSIONID=9cb86bf3a99e48a59e4f3bb464a3c443' -X POST -i -k --insecure
+Response:
+{"errorCode":0,"msg":"Open API Authorize successfully.","result":"OC-9iyxaKVOVMBpYhQ4NryaYBjghj3dTY32"}
+2.2.1.2 redirect URL already specified
+When the redirect URL is specified, the operation process is as follows.
+Omada customized the login page for the third party. Note that client ID is required to carry. When logging in directly through the login page, the user will be redirected to the third-party service with the authorization code. For example, if the redirect URL is http://test.com:8082/redirect/test, Omada will send a redirect request http://test.com:8082/redirect/test?code={authorization code}, and the client can directly parse the authorization code for subsequent processing. If you don't know your login URL, go to Settings > Platform Integration > Open API, find your application and click the View button to check the Oauth Login Page Address.
+In the Query, fill in the client ID(The field name is client_id)
+Note: If you need to redirect the authorization code, please contact our technical support to add your domain name to the trusted list of the Omada system.
+2.2.2 Obtain Access Token
+After the authorization code is obtained, it will be used to obtain the access token. The obtaining the access token interface uses the POST method, the interface path is as follows: /openapi/authorize/token.
+In the Query, fill in the grant type(The field name is grant_type). The grant type indicates the authentication method, and the authorization code needs to be filled in with "authorization_code"
+In the Body, fill in the client ID(the field name is client_id) and client secret(the field name is client_secret).
+After obtaining access token successfully, it will return the access token(The field name is accessToken), token type(The field name is tokenType), expire time(The field name is expiresIn, unit is second), refresh token(The field name is refreshToken).
+An example of the curl command of the obtaining access token interface is as follows:
+Request:
+curl "https://localhost:8043/openapi/authorize/token?grant_type=authorization_code&code=OC-y8fyWAyICCqCWw44Oi9GeSr7fQIKHg7g" -H 'content-type:application/json' -d '{"client_id": "29f2fdbeb5a84d50b9b1cdd08cd1a3ff", "client_secret": "cf6b13af0dd045628c9f05f088eb5493"}' -X POST -i -k --insecure
+Response:
+{"errorCode":0,"msg":"Open API Get Access Token successfully.","result":{"accessToken":"AT-bllLYOOYASck11SBSDmmHs85lCrkN6Gi","tokenType":"bearer","expiresIn":7200,"refreshToken":"RT-HqvaDuSxEqayM75U2ukTRnBl6f6fiRAc"}}
+2.2.3 Access API Interface
+After obtaining access token, it will be used to access API interfaces.
+In the Header, fill in the access token. Note prefix of the access token in the Authorization header is "AccessToken=" .
+Other parameters can be filled in according to the description in the online document
+An example of the curl command of the get site list interface is as follows:
+Request:
+curl "https://localhost:8043/openapi/v1/de382a0e78f4deb681f3128c3e75dbd1/sites?pageSize=1&page=1" -H 'content-type:application/json' -H 'Authorization:AccessToken=AT-RCio7FS9p46wSD7dM8CwNQA7ylcrmAcV' -X GET -i -k --insecure
+Response:
+{"errorCode":0,"msg":"Success.","result":{"totalRows":1,"currentPage":1,"currentSize":1,"data":[{"siteId":"640effd1b3f2ae5b912275ec","name":"323233232","region":"China mainland","timeZone":"UTC","scenario":"Hotel","type":0}]}}
+2.2.4 Refresh Access Token
+Currently, the access token is valid for 2 hours, and the refresh token is valid for 14 days. If the access token expires, you can use the refresh token interface to obtain a new access token. The refresh access token interface uses the POST method, the interface path is as follows: /openapi/authorize/token. If the refresh token also expires, you will need to go through the previous authentication process again.
+In the Query, fill in the grant type(The field name is grant_type), refresh token(The field name is refresh_token). The grant type indicate the authentication method, and the refresh token needs to be filled in with "refresh_token"
+In the Body, fill in the client ID(the field name is client_id) and client secret(the field name is client_secret).
+An example of the curl command of the refresh token interface is as follows: Request:
+curl "https://localhost:8043/openapi/authorize/token?client_id=185586e0df424f5ea938de13cba91e01&client_secret=767372a5258a4fc1a03c57f3d071fc35&refresh_token=RT-AhzwqCenDCZ84qpBHnZhYs3j2RGw9q8E&grant_type=refresh_token" -H 'content-type:application/json' -X POST -i -k --insecure
+Response:
+{"errorCode":0,"msg":"Open API Get Access Token successfully.","result":{"accessToken":"AT-w9veJNQlaK8dH08qEQZCTas6y70IRAii","tokenType":"bearer","expiresIn":7001,"refreshToken":"RT-AhzwqCenDCZ84qpBHnZhYs3j2RGw9q8E"}}
+Note: A refresh token can be used only once within its validity period. After you use the refresh token to refresh the access token, the current refresh token will become invalid and the interface response will return a new valid refresh token. Please update the refresh token for the next access token refresh.
+2.3 Client Credentials Mode Access Process
+2.3.1 Obtain Access Token
+The client credentials mode can directly obtain the access token without the need to obtain the authorization code.
+In the Query, fill in the grant type(the field name is grant_type). The grant type indicate the authentication method, and the client credentials code needs to be filled in with "client_credentials"
+In the Body, fill in the msp id or customer id(The field name is omadacId), client ID(the field name is client_id) and client secret(the field name is client_secret).
+An example of the curl command of the obtaining access token interface is as follows: Request:
+curl "https://localhost:8043/openapi/authorize/token?grant_type=client_credentials" -H 'content-type:application/json' -d '{"omadacId": "de382a0e78f4deb681f3128c3e75dbd1", "client_id": "185586e0df424f5ea938de13cba91e01", "client_secret": "767372a5258a4fc1a03c57f3d071fc35"}' -X POST -i -k --insecure
+Response:
+{"errorCode":0,"msg":"Open API Get Access Token successfully.","result":{"accessToken":"AT-bjaJkIMIiekZY6NBufoQO4hdmJTswlwU","tokenType":"bearer","expiresIn":7200,"refreshToken":"RT-3ZjJgcORJSh76UCh7pj0rs5VRISIpagV"}}
+Note: After obtaining the token, if you copy or import sites, or change application permission-related parameters (such as role/site/customer privilege) in the controller, the original token will become invalid and you need to authorize it again.
+2.3.2 Access API Interface
+This step is the same as the authorization code mode.
+2.3.3 Refresh Access Token
+This step is the same as the authorization code mode.
+2.4 Batch Processing OpenAPIs
+You can process up to 20 other OpenAPIs through the OpenAPI Batch Processing OpenAPIs, excluding MSP OpenAPIs. All processing should use the same omadacId.
+In MSP mode, You can process up to 20 other OpenAPIs through the OpenAPI Batch Processing MSP OpenAPIs. For dealing with MSP OpenAPIs, the same mspId should be used. For dealing with other non MSP OpenAPIs, the corresponding customerId should be used.
+3 Domain Name (Dedicated to CBC)
+3.1 Front-end Login Domain Name
+Singapore：aps1-omada-controller.tplinkcloud.com
+Europe：euw1-omada-controller.tplinkcloud.com
+US：use1-omada-controller.tplinkcloud.com
+Note: If you don't know your service area, find the domain name as follows: go to Settings > Platform Integration > Open API, find your application and click the View button to check the Oauth Login Page Address.
+3.2 Rest API Domain Name
+Singapore：aps1-northbound-omada-controller.tplinkcloud.com
+Europe：euw1-northbound-omada-controller.tplinkcloud.com
+US：use1-northbound-omada-controller.tplinkcloud.com
+Note: If you don't know your service area, find the domain name as follows: go to Settings > Platform Integration > Open API, find your application and click the View button to check the Interface Access Address.
+4 Domain Name (Dedicated to local)
+4.1 Front-end Login Domain Name
+Find the domain name as follows: go to Settings > Platform Integration > Open API, find your application and click the View button to check the Oauth Login Page Address.
+4.2 Rest API Domain Name
+Find the domain name as follows: go to Settings > Platform Integration > Open API, find your application and click the View button to check the Interface Access Address.
+5 Appendix. angalia hii

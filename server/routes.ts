@@ -4709,26 +4709,35 @@ apiRouter.get('/omada/controller-credentials', (_req: Request, res: Response) =>
   res.json({
     controllerUrl: settings.controllerUrl || 'https://omada.infotechwifi.com:8043',
     username: settings.username || 'admin',
-    isConfigured: Boolean(settings.password),
+    clientId: settings.clientId || '',
+    omadacId: settings.omadacId || '5015eb6741252b75a3633605c471738f',
+    isConfigured: Boolean(settings.password || (settings.clientId && settings.clientSecret)),
     hasPassword: Boolean(settings.password),
+    hasOpenApi: Boolean(settings.clientId && settings.clientSecret),
   });
 });
 
 apiRouter.post('/omada/controller-credentials', async (req: Request, res: Response) => {
   try {
-    const { controllerUrl, username, password } = req.body || {};
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Tafadhali weka Username na Password ya Omada Controller.' });
-    }
-
+    const { controllerUrl, username, password, clientId, clientSecret, omadacId } = req.body || {};
     const cleanUrl = controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : 'https://omada.infotechwifi.com:8043';
-    const cleanUser = String(username).trim();
-    const cleanPass = String(password).trim();
+    const cleanUser = username ? String(username).trim() : 'admin';
+    const cleanPass = password ? String(password).trim() : '';
+    const cleanClientId = clientId ? String(clientId).trim() : undefined;
+    const cleanClientSecret = clientSecret ? String(clientSecret).trim() : undefined;
+    const cleanOmadacId = omadacId ? String(omadacId).trim() : undefined;
+
+    if (!cleanPass && (!cleanClientId || !cleanClientSecret)) {
+      return res.status(400).json({ error: 'Tafadhali weka Password ya Omada Controller au Client ID & Client Secret za Open API.' });
+    }
 
     const testService = new OmadaAutomationService({
       controllerUrl: cleanUrl,
       username: cleanUser,
       password: cleanPass,
+      clientId: cleanClientId,
+      clientSecret: cleanClientSecret,
+      omadacId: cleanOmadacId,
     });
 
     const loginRes = await testService.login();
@@ -4738,16 +4747,19 @@ apiRouter.post('/omada/controller-credentials', async (req: Request, res: Respon
       controllerUrl: cleanUrl,
       username: cleanUser,
       password: cleanPass,
-      omadacId: loginRes.omadacId,
+      clientId: cleanClientId,
+      clientSecret: cleanClientSecret,
+      omadacId: loginRes.omadacId || cleanOmadacId || '5015eb6741252b75a3633605c471738f',
     });
 
     res.json({
       success: true,
-      message: 'Omada Controller imeunganishwa kikamilifu! Username na Password zimethibitishwa.',
+      message: 'Omada Controller imeunganishwa kikamilifu! Taarifa zimethibitishwa.',
       settings: {
         controllerUrl: saved.controllerUrl,
         username: saved.username,
         omadacId: saved.omadacId,
+        hasOpenApi: Boolean(saved.clientId && saved.clientSecret),
         isConfigured: true,
       },
     });
@@ -4759,13 +4771,45 @@ apiRouter.post('/omada/controller-credentials', async (req: Request, res: Respon
   }
 });
 
-// A. Orodha ya Sites za Omada
-apiRouter.get('/omada/sites', (req: Request, res: Response) => {
+// A. Orodha ya Sites za Omada (Ikiwa na Live Sync kutoka Controller)
+apiRouter.get('/omada/sites', async (req: Request, res: Response) => {
   const caller = getRequestUser(req);
   const ownerId = req.query.ownerId
     ? Number(req.query.ownerId)
     : (caller && caller.role !== 'VENDOR_ADMIN' ? Number(caller.parent_owner_id || caller.id) : undefined);
-  const sites = db.getOmadaSites(ownerId);
+  
+  let sites = db.getOmadaSites(ownerId);
+
+  // Kama hakuna sites bado au ombi lina ?sync=true, vuta sites moja kwa moja kutoka Omada Controller
+  if (sites.length === 0 || req.query.sync === 'true') {
+    try {
+      const automation = new OmadaAutomationService();
+      const liveSites = await automation.getControllerSites();
+      const existingIds = new Set(sites.map((s) => s.id));
+      for (const ls of liveSites) {
+        if (!existingIds.has(ls.id)) {
+          const nowIso = new Date().toISOString();
+          const synced = {
+            id: ls.id,
+            name: ls.name || 'Omada Site',
+            nas_ip: '100.108.0.1',
+            radius_profile_id: 'default',
+            status: 'CONNECTED' as const,
+            owner_id: ownerId || 1,
+            hotspot_enabled: false,
+            ap_count: 0,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+          db.saveOmadaSite(synced);
+        }
+      }
+      sites = db.getOmadaSites(ownerId);
+    } catch (syncErr: any) {
+      console.warn('[Omada Sites Sync] Info:', syncErr.message);
+    }
+  }
+
   res.json(sites);
 });
 

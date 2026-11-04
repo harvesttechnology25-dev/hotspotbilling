@@ -1495,24 +1495,37 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleAdaptAp()}
-                    disabled={adapting || !macAddress.trim()}
-                    className="w-full sm:w-auto px-8 py-3.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition inline-flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {adapting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Inakagua hali halisi ya Omada Controller (Subiri sekunde chache)...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="w-4 h-4" />
-                        <span>Kagua na U-adopt AP Sasa (Adapt AP)</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAdaptAp()}
+                      disabled={adapting || !macAddress.trim()}
+                      className="w-full sm:w-auto px-7 py-3.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition inline-flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {adapting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Inakagua Controller...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="w-4 h-4" />
+                          <span>Kagua na U-adopt AP Sasa (Adapt AP)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdaptAp()}
+                      disabled={adapting || !macAddress.trim()}
+                      className="w-full sm:w-auto px-5 py-3.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 shadow-md transition inline-flex items-center justify-center gap-2 cursor-pointer"
+                      title="Kama uli-adopt moja kwa moja kwenye Controller kwa manual, bofya hapa kuthibitisha"
+                    >
+                      <RefreshCw className="w-4 h-4 text-emerald-400" />
+                      <span>Thibitisha Manual Adoption (Ipo Connected Tayari)</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

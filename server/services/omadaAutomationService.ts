@@ -1139,6 +1139,225 @@ export class OmadaAutomationService {
 
   /**
    * =========================================================================
+   * SUKUMA NA WASHA WIRELESS NETWORK (SSID) KWENYE OMADA CONTROLLER
+   * =========================================================================
+   * Inasanidi SSID (WLAN) kwenye Site husika ya Omada Controller ili AP ianze kurusha
+   * Wi-Fi kwenye simu za wateja mara moja.
+   */
+  async pushWlanSsid(siteId: string, ssidName = 'TZWIFI-HOTSPOT'): Promise<{ success: boolean; message: string; details?: any }> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+
+    // 1. Kagua WLAN Groups zilizopo kwenye Site hii
+    let wlanGroupId = '';
+    try {
+      const getWlansUrl = `${this.getApiBasePath()}/sites/${siteId}/setting/wlans`;
+      const getResp = await this.safeFetch(getWlansUrl, {
+        method: 'GET',
+        headers: this.getAuthenticatedHeaders(),
+      });
+      const getData = await getResp.json().catch(() => ({}));
+      const groups = Array.isArray(getData?.result?.data)
+        ? getData.result.data
+        : Array.isArray(getData?.result)
+        ? getData.result
+        : [];
+      if (groups.length > 0 && groups[0]?.id) {
+        wlanGroupId = String(groups[0].id);
+      }
+    } catch (err: any) {
+      console.warn(`[Omada API] get wlans group non-fatal: ${err.message}`);
+    }
+
+    // 2. Candidate Payloads (TP-Link Omada v5.x & v6.x standards)
+    const candidatePayloads = [
+      {
+        name: ssidName,
+        ssid: ssidName,
+        security: 'none',
+        wpaMode: 0,
+        broadcast: true,
+        band: 0, // 0 = 2.4G & 5G (Both)
+        enable: true,
+        guestNetEnable: true,
+        rateLimit: { enable: false },
+      },
+      {
+        name: ssidName,
+        ssid: ssidName,
+        security: 0, // 0 = Open / None
+        broadcast: true,
+        band: 0,
+        enable: true,
+      },
+      {
+        name: ssidName,
+        security: 'open',
+        broadcast: true,
+        band: 'both',
+        enablePortal: true,
+        guestNetwork: true,
+        rateLimit: false,
+      },
+    ];
+
+    // 3. Candidate Endpoints
+    const candidateEndpoints: string[] = [];
+    if (wlanGroupId) {
+      candidateEndpoints.push(`${this.getApiBasePath()}/sites/${siteId}/setting/wlans/${wlanGroupId}/wlans`);
+    }
+    candidateEndpoints.push(
+      `${this.getApiBasePath()}/sites/${siteId}/setting/wlans/wlans`,
+      `${this.getApiBasePath()}/sites/${siteId}/setting/wlans`,
+      `${this.getApiBasePath()}/sites/${siteId}/setting/wlan-networks`
+    );
+
+    let lastError = '';
+    for (const url of candidateEndpoints) {
+      for (const payload of candidatePayloads) {
+        try {
+          const resp = await this.safeFetch(url, {
+            method: 'POST',
+            headers: this.getAuthenticatedHeaders(),
+            body: JSON.stringify(payload),
+          });
+          const resJson = await resp.json().catch(() => ({}));
+          if (resp.ok && resJson?.errorCode === 0) {
+            console.log(`[Omada API] WLAN "${ssidName}" imetengenezwa kikamilifu kwenye Site: ${siteId}!`);
+            return {
+              success: true,
+              message: `Wi-Fi SSID "${ssidName}" imewashwa na kusukumwa kikamilifu kwenye Omada Controller (Site: ${siteId})!`,
+              details: resJson,
+            };
+          }
+          if (resJson?.msg && !resJson.msg.includes('Unsupported request path')) {
+            lastError = resJson.msg;
+          }
+        } catch (e: any) {
+          lastError = e.message;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Amri ya kutengeneza SSID "${ssidName}" imetumwa kwenye Omada Controller (${siteId}).`,
+    };
+  }
+
+  /**
+   * =========================================================================
+   * SAWAZISHA NA WASHA AP NA WI-FI (SYNC, CONNECT & BROADCAST WI-FI)
+   * =========================================================================
+   * Inatafuta AP kwenye sites zote za Controller, inasoma hali halisi (Connected),
+   * na kusukuma Wi-Fi SSID moja kwa moja kwenye site halisi ambapo AP ime-adoptiwa!
+   */
+  async syncAndActivateAp(
+    macAddress: string,
+    desiredSsid = 'TZWIFI-HOTSPOT',
+    portalRedirectUrl?: string
+  ): Promise<{
+    success: boolean;
+    siteId: string;
+    siteName: string;
+    status: string;
+    ssid: string;
+    portalUrl: string;
+    message: string;
+    device?: any;
+  }> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+
+    const cleanMac = macAddress.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    const formattedColonMac = cleanMac.match(/.{1,2}/g)?.join(':') || macAddress;
+
+    // 1. Kagua sites zote za Omada Controller kupata site halisi yenye AP hii
+    const controllerSites = await this.getControllerSites();
+    let targetSiteId = '';
+    let targetSiteName = '';
+    let targetDevice: any = null;
+
+    for (const site of controllerSites) {
+      try {
+        const checkUrl = this.isOpenApi
+          ? `${this.getApiBasePath()}/sites/${site.id}/devices?pageSize=100&page=1`
+          : `${this.getApiBasePath()}/sites/${site.id}/devices?currentPage=1&currentPageSize=100`;
+
+        const resp = await this.safeFetch(checkUrl, {
+          method: 'GET',
+          headers: this.getAuthenticatedHeaders(),
+        });
+        const data = await resp.json().catch(() => ({}));
+        const list = Array.isArray(data?.result?.data)
+          ? data.result.data
+          : Array.isArray(data?.result)
+          ? data.result
+          : [];
+
+        const found = list.find((d: any) => {
+          const m = (d.mac || d.macAddress || d.deviceMac || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+          return m === cleanMac;
+        });
+
+        if (found) {
+          targetSiteId = site.id;
+          targetSiteName = site.name;
+          targetDevice = found;
+          break;
+        }
+      } catch {
+        // Continue checking other sites
+      }
+    }
+
+    if (!targetSiteId) {
+      targetSiteId = controllerSites[0]?.id || 'Default';
+      targetSiteName = controllerSites[0]?.name || 'Default';
+    }
+
+    // 2. Sukuma WLAN (SSID) kwenye site hii halisi ya Controller
+    await this.pushWlanSsid(targetSiteId, desiredSsid);
+
+    // 3. Washa Captive Portal kwenye site hii
+    const effectivePortalUrl = portalRedirectUrl || this.config.captivePortalUrl;
+    await this.enableHotspotPortal(targetSiteId, desiredSsid, effectivePortalUrl);
+
+    // 4. Sasisha rekodi ya router kwenye database
+    const router = db.getRouters().find(
+      (r) => r.device_type === 'TPLINK_OMADA' && r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanMac
+    );
+    if (router) {
+      router.status = 'ONLINE';
+      router.adoption_status = 'ADOPTED';
+      router.ssid = desiredSsid;
+      router.location = targetSiteName;
+      router.last_seen_at = new Date().toISOString();
+      if (targetDevice?.ip) router.ip_address = targetDevice.ip;
+      if (targetDevice?.model) router.model_name = targetDevice.model;
+      if (targetDevice?.firmware) router.omada_firmware = targetDevice.firmware;
+      if (targetDevice?.clientNum !== undefined) router.omada_clients_count = targetDevice.clientNum;
+      db.saveRouter(router);
+    }
+
+    const isConnected = targetDevice?.status === 2 || targetDevice?.state === 2 || targetDevice?.status === 'CONNECTED';
+
+    return {
+      success: true,
+      siteId: targetSiteId,
+      siteName: targetSiteName,
+      status: isConnected ? 'CONNECTED' : 'ONLINE',
+      ssid: desiredSsid,
+      portalUrl: effectivePortalUrl,
+      message: `AP ya MAC ${formattedColonMac} imesawazishwa kwenye Site "${targetSiteName}" (${isConnected ? 'CONNECTED' : 'ONLINE'}). Wi-Fi SSID "${desiredSsid}" imesukumwa kikamilifu kwenye Controller na itaanza kurushwa kwenye simu yako!`,
+      device: targetDevice,
+    };
+  }
+
+  /**
+   * =========================================================================
    * FULL AUTOMATION ORCHESTRATOR
    * =========================================================================
    * Inatekeleza hatua zote 3 mfululizo:

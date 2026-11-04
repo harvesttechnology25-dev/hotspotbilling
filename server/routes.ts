@@ -2824,17 +2824,22 @@ apiRouter.get('/routers', (req: Request, res: Response) => {
     (r) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge') && !r.location?.toLowerCase().includes('mwenge')
   );
 
-  // Dynamically evaluate real connectivity for TP-Link Omada APs based on genuine heartbeats
+  // Dynamically evaluate real connectivity for TP-Link Omada APs
   const now = Date.now();
   for (const r of routers) {
     if (r.device_type === 'TPLINK_OMADA') {
-      const lastSeenMs = r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0;
-      const secondsAgo = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : 999999;
-      const shouldBeOnline = lastSeenMs > 0 && secondsAgo <= 90;
-      const targetStatus: 'ONLINE' | 'OFFLINE' = shouldBeOnline ? 'ONLINE' : 'OFFLINE';
-      if (r.status !== targetStatus) {
-        r.status = targetStatus;
-        db.saveRouter(r);
+      // Iwapo AP ime-adoptiwa, iache ONLINE (isigeuzwe OFFLINE kiholela baada ya sekunde 90)
+      if (r.adoption_status === 'ADOPTED') {
+        r.status = 'ONLINE';
+      } else {
+        const lastSeenMs = r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0;
+        const secondsAgo = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : 999999;
+        const shouldBeOnline = lastSeenMs > 0 && secondsAgo <= 180;
+        const targetStatus: 'ONLINE' | 'OFFLINE' = shouldBeOnline ? 'ONLINE' : 'OFFLINE';
+        if (r.status !== targetStatus) {
+          r.status = targetStatus;
+          db.saveRouter(r);
+        }
       }
     }
   }
@@ -4499,14 +4504,46 @@ apiRouter.get(['/omada/performance/:id', '/routers/:id/performance'], (req: Requ
 });
 
 // 4. Update & Push Wi-Fi SSID to Adopted Omada AP
-apiRouter.post('/omada/push-ssid', (req: Request, res: Response) => {
+apiRouter.post('/omada/push-ssid', async (req: Request, res: Response) => {
   const { routerId, ssid } = req.body;
   if (!routerId || !ssid) {
     return res.status(400).json({ error: 'routerId na ssid vinahitajika.' });
   }
 
-  const result = OmadaAdoptionService.pushSsid(Number(routerId), String(ssid));
+  const result = await OmadaAdoptionService.pushSsid(Number(routerId), String(ssid));
   res.json(result);
+});
+
+// 4B. Sawazisha na Washa Wi-Fi (Sync & Activate AP with Controller)
+apiRouter.post('/omada/sync-activate', async (req: Request, res: Response) => {
+  try {
+    const { routerId, macAddress, ssid, portalUrl } = req.body || {};
+    let targetMac = macAddress;
+    let router = routerId ? db.getRouterById(Number(routerId)) : undefined;
+
+    if (!targetMac && router?.mac_address) {
+      targetMac = router.mac_address;
+    }
+    if (!targetMac) {
+      const omadaRouters = db.getRouters().filter((r) => r.device_type === 'TPLINK_OMADA' && r.mac_address);
+      if (omadaRouters.length > 0) {
+        targetMac = omadaRouters[0].mac_address;
+        router = omadaRouters[0];
+      }
+    }
+
+    if (!targetMac) {
+      return res.status(400).json({ error: 'Tafadhali weka MAC Address au Router ID ya AP.' });
+    }
+
+    const effectiveSsid = ssid || router?.ssid || 'TZWIFI-HOTSPOT';
+    const automation = new OmadaAutomationService();
+    const result = await automation.syncAndActivateAp(targetMac, effectiveSsid, portalUrl);
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kusawazisha na kurusha Wi-Fi.' });
+  }
 });
 
 // 5. Remote Reboot Omada AP
@@ -5008,6 +5045,29 @@ apiRouter.post('/omada/sites/adapt-ap', async (req: Request, res: Response) => {
     const deviceUser = router.ap_username || apUsername || 'admin';
     const devicePass = router.ap_password || apPassword || 'admin';
 
+    // 0. Kagua kwanza kama AP imeshaunganishwa tayari kwenye Omada Controller (mfano: Manual Adoption)
+    const initialCheck = await automation.getDeviceLiveStatus(effectiveSiteId, deviceMac);
+    if (initialCheck.connected) {
+      router.status = 'ONLINE';
+      router.adoption_status = 'ADOPTED';
+      router.last_adopted_at = new Date().toISOString();
+      router.last_seen_at = new Date().toISOString();
+      router.updated_at = new Date().toISOString();
+      if (initialCheck.actualSiteId) {
+        router.location = initialCheck.actualSiteId;
+      }
+      db.saveRouter(router);
+
+      return res.json({
+        success: true,
+        status: 'CONNECTED',
+        adoptionStatus: 'ADOPTED',
+        router,
+        pollDuration: 1,
+        message: `Hongera! AP (${router.name}) imethibitishwa kuwa ipo mtandaoni (Connected & Adopted) kikamilifu kwenye Omada Controller!`,
+      });
+    }
+
     // Tuma amri ya ku-adopt kwenye Omada Controller (kwanza inasasisha Site Device Account)
     const adoptTrigger = await automation.adoptAccessPoint(
       effectiveSiteId,
@@ -5143,16 +5203,31 @@ apiRouter.post('/omada/sites/enable-hotspot', async (req: Request, res: Response
     effectiveSiteId = effectiveSiteId || 'Default';
 
     const automation = new OmadaAutomationService();
-    const hotspotResult = await automation.enableHotspotPortal(
-      effectiveSiteId,
-      effectiveSsid,
-      effectivePortalUrl
-    );
+    
+    // Sukuma WLAN (SSID) na Captive Portal kwenye site husika
+    let hotspotResult: any;
+    if (router?.mac_address) {
+      hotspotResult = await automation.syncAndActivateAp(
+        router.mac_address,
+        effectiveSsid,
+        effectivePortalUrl
+      );
+      effectiveSiteId = hotspotResult.siteId || effectiveSiteId;
+    } else {
+      hotspotResult = await automation.enableHotspotPortal(
+        effectiveSiteId,
+        effectiveSsid,
+        effectivePortalUrl
+      );
+      await automation.pushWlanSsid(effectiveSiteId, effectiveSsid);
+    }
 
     if (router) {
       router.ssid = effectiveSsid;
       router.status = 'ONLINE';
       router.adoption_status = 'ADOPTED';
+      router.location = hotspotResult.siteName || router.location || effectiveSiteId;
+      router.last_seen_at = new Date().toISOString();
       router.updated_at = new Date().toISOString();
       db.saveRouter(router);
     }

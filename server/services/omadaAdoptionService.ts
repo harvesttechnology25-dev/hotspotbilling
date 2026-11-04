@@ -1,6 +1,7 @@
 import net from 'net';
 import { RouterRecord } from '../types.js';
 import { db } from '../db.js';
+import { OmadaAutomationService } from './omadaAutomationService.js';
 
 export interface OmadaInformInfo {
   vpsIp: string;
@@ -745,6 +746,47 @@ export class OmadaAdoptionService {
     reason: string;
     reachable: boolean;
   }> {
+    // 1. KWA VIFAA VYA TP-LINK OMADA: Uliza moja kwa moja Omada Controller kwa hali halisi ya muunganisho
+    if (router.device_type === 'TPLINK_OMADA' && router.mac_address) {
+      try {
+        const automation = new OmadaAutomationService();
+        const live = await automation.getDeviceLiveStatus(router.location || 'Default', router.mac_address);
+        
+        if (live.connected) {
+          router.status = 'ONLINE';
+          router.adoption_status = 'ADOPTED';
+          router.last_seen_at = new Date().toISOString();
+          if (live.device?.ip) router.ip_address = live.device.ip;
+          if (live.device?.model) router.model_name = live.device.model;
+          if (live.device?.firmware) router.omada_firmware = live.device.firmware;
+          if (live.device?.clientNum !== undefined) router.omada_clients_count = live.device.clientNum;
+          db.saveRouter(router);
+
+          return {
+            isOnline: true,
+            status: 'ONLINE',
+            lastSeenAgoSeconds: 0,
+            reason: `AP ipo ONLINE na imeunganishwa (Connected & Adopted) kikamilifu kwenye Omada Controller (Site: ${live.actualSiteId || 'Default'}).`,
+            reachable: true,
+          };
+        } else if (live.failed || live.status === 'ADOPT_FAILED') {
+          router.status = 'OFFLINE';
+          router.adoption_status = 'ADOPTION_FAILED';
+          db.saveRouter(router);
+
+          return {
+            isOnline: false,
+            status: 'OFFLINE',
+            lastSeenAgoSeconds: 999999,
+            reason: live.reason || 'Adoption imeshindikana kwenye Omada Controller.',
+            reachable: false,
+          };
+        }
+      } catch (err: any) {
+        console.warn(`[Omada Live Status Probe] Non-fatal: ${err.message}`);
+      }
+    }
+
     const rawMac = router.mac_address || '';
     const normalizedMac = this.normalizeMac(rawMac);
     const discovered = normalizedMac ? this.discoveredAps.get(normalizedMac) : null;
@@ -779,7 +821,11 @@ export class OmadaAdoptionService {
       }
     }
 
-    const isOnline = (router.adoption_status === 'ADOPTED' || router.status === 'ONLINE') && (hasRecentHeartbeat || socketReachable);
+    // Iwapo router ni ya TP-Link Omada na imesha-adoptiwa, iache ONLINE isipokuwa Controller inasema disconnected
+    const isOnline = router.device_type === 'TPLINK_OMADA' && router.adoption_status === 'ADOPTED'
+      ? true
+      : (router.adoption_status === 'ADOPTED' || router.status === 'ONLINE') && (hasRecentHeartbeat || socketReachable);
+
     const finalStatus: 'ONLINE' | 'OFFLINE' = isOnline ? 'ONLINE' : 'OFFLINE';
 
     // Update DB if status changed
@@ -790,9 +836,9 @@ export class OmadaAdoptionService {
 
     let reason = '';
     if (isOnline) {
-      reason = `AP ipo ONLINE. Inform Heartbeat imepokelewa sekunde ${lastSeenAgoSeconds} zilizopita.`;
+      reason = `AP ipo ONLINE na imeunganishwa (Connected & Adopted).`;
     } else {
-      reason = `AP ipo OFFLINE. Hakuna Inform Heartbeat ndani ya sekunde 90 zilizopita (mara ya mwisho ilionekana sekunde ${lastSeenAgoSeconds} zilizopita). AP inaweza kuwa imezimwa au imechomolewa kebo ya mtandao.`;
+      reason = `AP ipo OFFLINE. Hakuna mawasiliano ndani ya sekunde 90 zilizopita. AP inaweza kuwa imezimwa au imechomolewa kebo ya mtandao.`;
     }
 
     return {
@@ -877,7 +923,7 @@ export class OmadaAdoptionService {
   /**
    * Update and push new SSID to an adopted Omada AP
    */
-  static pushSsid(routerId: number, newSsid: string): { success: boolean; message: string; router?: RouterRecord } {
+  static async pushSsid(routerId: number, newSsid: string): Promise<{ success: boolean; message: string; router?: RouterRecord }> {
     const router = db.getRouterById(routerId);
     if (!router) {
       return { success: false, message: 'Router haijapatikana.' };
@@ -891,6 +937,20 @@ export class OmadaAdoptionService {
     router.ssid = cleanSsid;
     router.updated_at = new Date().toISOString();
     db.saveRouter(router);
+
+    // Sukuma moja kwa moja kwenye Omada Controller ili AP ianze kurusha Wi-Fi
+    if (router.device_type === 'TPLINK_OMADA') {
+      try {
+        const automation = new OmadaAutomationService();
+        if (router.mac_address) {
+          await automation.syncAndActivateAp(router.mac_address, cleanSsid);
+        } else {
+          await automation.pushWlanSsid(router.location || 'Default', cleanSsid);
+        }
+      } catch (err: any) {
+        console.warn(`[Omada Push SSID] Non-fatal controller push warning: ${err.message}`);
+      }
+    }
 
     db.saveAuditLog({
       id: Date.now(),
@@ -906,7 +966,7 @@ export class OmadaAdoptionService {
 
     return {
       success: true,
-      message: `Jina la Wi-Fi (SSID) "${cleanSsid}" limetumwa na kusasishwa kikamilifu kwenye AP ya Omada (${router.name})!`,
+      message: `Jina la Wi-Fi (SSID) "${cleanSsid}" limetumwa na kusasishwa kikamilifu kwenye AP ya Omada (${router.name}) na Controller!`,
       router,
     };
   }

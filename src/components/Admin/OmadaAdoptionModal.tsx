@@ -118,7 +118,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   const [ssid, setSsid] = useState('INFOTECH-HOTSPOT-WIFI');
   const [enablingHotspot, setEnablingHotspot] = useState(false);
   const [hotspotEnabledSuccess, setHotspotEnabledSuccess] = useState(false);
-  const [portalUrl, setPortalUrl] = useState('https://wifi.infotechwifi.com/portal');
+  const [portalUrl, setPortalUrl] = useState('https://infotechwifi.com');
   const [portalRedirectCountdown, setPortalRedirectCountdown] = useState<number | null>(null);
   const [countdownPaused, setCountdownPaused] = useState<boolean>(false);
 
@@ -273,6 +273,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
     setAdoptionFailedDetails(null);
     setPortalRedirectCountdown(null);
     setCountdownPaused(false);
+    setPortalUrl('https://infotechwifi.com');
     setErrorMessage('');
     const defaultBrand = ownerName || 'Kariakoo Fast Wi-Fi';
     setBrandName(defaultBrand);
@@ -324,6 +325,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         setApUsername(existingRouter.ap_username || 'admin');
         setApPassword(existingRouter.ap_password || generateNewApPassword());
         setClaimedRouter(existingRouter);
+        setPortalUrl(`https://infotechwifi.com/?routerId=${existingRouter.id}&ap_vendor=omada`);
         setErrorMessage('');
         setAdoptionFailedDetails(null);
 
@@ -446,6 +448,14 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
 
       setApClaimedSuccess(true);
       setClaimedRouter(data.router);
+      if (data.router?.id) {
+        setPortalUrl(`https://infotechwifi.com/?routerId=${data.router.id}&ap_vendor=omada`);
+      }
+      if (data.router?.ssid) {
+        setSsid(data.router.ssid);
+      } else if (brandName) {
+        setSsid(`${brandName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 14)}-HOTSPOT`);
+      }
       if (data.apUsername) setApUsername(data.apUsername);
       if (data.apPassword) setApPassword(data.apPassword);
       if (data.informUrl) setInformUrl(data.informUrl);
@@ -1658,6 +1668,16 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                       onChange={(e) => setPortalUrl(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700 focus:outline-none focus:border-teal-500"
                     />
+                  </div>
+
+                  <div className="p-3.5 bg-teal-50/80 border border-teal-200 rounded-xl space-y-1 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-teal-900">
+                      <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Kiotomatiki Kwenye Omada Controller:</span>
+                    </div>
+                    <p className="text-[11px] text-teal-800 leading-relaxed">
+                      Mfumo utatengeneza jina la Wi-Fi <strong>"{ssid}"</strong> na kuweka IP ya VPS <strong>({nasIp || '13.140.173.98'})</strong> kiotomatiki kwenye RADIUS Server Profile, External Portal, na Walled Garden kwenye Omada Controller.
+                    </p>
                   </div>
 
                   <button

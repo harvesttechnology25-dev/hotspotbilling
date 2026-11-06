@@ -223,6 +223,7 @@ export interface RouterRecord {
   omada_channel_2g?: number;
   omada_channel_5g?: number;
   omada_clients_count?: number;
+  omada_site_id?: string;
   is_custom_model?: boolean;
   cpe_mode?: 'HOTSPOT_AP' | 'PTP_BRIDGE_MASTER' | 'PTP_BRIDGE_CLIENT' | 'REPEATER' | 'WISP_ROUTER';
   pharos_maxtream_disabled?: boolean;

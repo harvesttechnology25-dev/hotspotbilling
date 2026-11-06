@@ -42,6 +42,9 @@ export default function App() {
           search.includes('target=portal') ||
           search.includes('link-login') ||
           search.includes('clientmac') ||
+          search.includes('apmac') ||
+          search.includes('ssidname') ||
+          search.includes('routerid=') ||
           search.includes('mac=')
         ) {
           return 'portal';
@@ -125,6 +128,9 @@ export default function App() {
         window.location.search.toLowerCase().includes('target=portal') ||
         window.location.search.toLowerCase().includes('link-login') ||
         window.location.search.toLowerCase().includes('clientmac') ||
+        window.location.search.toLowerCase().includes('apmac') ||
+        window.location.search.toLowerCase().includes('ssidname') ||
+        window.location.search.toLowerCase().includes('routerid=') ||
         window.location.search.toLowerCase().includes('mac='));
 
     if (isDirectPortal) {
@@ -248,10 +254,29 @@ export default function App() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
-  const isCustomerPortalGuest = viewMode === 'portal' && !currentUser;
+  const isDirectHotspotPortal =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.toLowerCase().startsWith('/portal') ||
+      window.location.search.toLowerCase().includes('portal=true') ||
+      window.location.search.toLowerCase().includes('target=portal') ||
+      window.location.search.toLowerCase().includes('link-login') ||
+      window.location.search.toLowerCase().includes('clientmac') ||
+      window.location.search.toLowerCase().includes('apmac') ||
+      window.location.search.toLowerCase().includes('ssidname') ||
+      window.location.search.toLowerCase().includes('routerid=') ||
+      window.location.search.toLowerCase().includes('mac='));
+
+  const isCustomerPortalGuest = viewMode === 'portal' && (!currentUser || isDirectHotspotPortal);
+  const isAdminDashboardActive = viewMode === 'admin' && Boolean(currentUser) && !isOwnerExpired;
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/70 text-slate-900 flex flex-col font-sans selection:bg-[#f8a30a] selection:text-slate-950">
+    <div
+      className={`w-full max-w-full bg-slate-100/70 text-slate-900 flex flex-col font-sans selection:bg-[#f8a30a] selection:text-slate-950 ${
+        isAdminDashboardActive
+          ? 'h-screen overflow-hidden'
+          : 'min-h-screen overflow-x-hidden'
+      }`}
+    >
       {/* Top Header (Hufichwa mteja wa Wi-Fi anapoingia kwenye Captive Portal) */}
       {!isCustomerPortalGuest && (
         <Navbar
@@ -267,7 +292,7 @@ export default function App() {
       )}
 
       {/* Main View Area */}
-      <main className="flex-1 w-full max-w-full min-w-0">
+      <main className={`w-full max-w-full min-w-0 ${isAdminDashboardActive ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : 'flex-1'}`}>
         {viewMode === 'welcome' ? (
           <WelcomePage
             onNavigateLogin={() => handleSetViewMode('admin')}
@@ -279,8 +304,8 @@ export default function App() {
         ) : viewMode === 'portal' ? (
           <CaptivePortal
             lang={lang}
-            currentOwnerId={currentUser?.id}
-            selectedRouterId={currentUser?.role === 'VENDOR_ADMIN' ? 'ALL' : selectedSiteRouterId}
+            currentOwnerId={isDirectHotspotPortal ? undefined : currentUser?.id}
+            selectedRouterId={isDirectHotspotPortal ? undefined : (currentUser?.role === 'VENDOR_ADMIN' ? 'ALL' : selectedSiteRouterId)}
             onNavigateAddRouter={() => {
               setAdminInitialTab('routers');
               handleSetViewMode('admin');
@@ -326,8 +351,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Footer (shown on portal and admin) */}
-      {viewMode !== 'welcome' && (
+      {/* Bottom Footer (Hufichwa kwenye welcome page na pia ndani ya AdminDashboard inayojitegemea footer yake) */}
+      {viewMode !== 'welcome' && !isAdminDashboardActive && (
         <footer className="bg-white border-t border-slate-200 py-6 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex items-center gap-2 font-medium">

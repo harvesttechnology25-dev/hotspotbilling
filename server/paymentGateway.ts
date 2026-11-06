@@ -10,6 +10,7 @@ import {
 } from './types.js';
 import { detectCarrier } from './carrierDetector.js';
 import { MikrotikService } from './mikrotikService.js';
+import { OmadaAutomationService } from './services/omadaAutomationService.js';
 import { db } from './db.js';
 
 export interface PaymentInitiationResult {
@@ -1155,18 +1156,37 @@ export class PaymentGatewayService {
 
     db.saveVoucher(voucher);
 
-    // Automatically provision user into MikroTik RouterOS!
+    // Automatically authorize or provision user depending on router type
     if (router && plan) {
-      await MikrotikService.provisionUser(router, {
-        username: voucherCode,
-        password: voucherPassword,
-        server: router.hotspot_server_name,
-        limitUptimeSeconds: plan.limit_uptime,
-        limitBytesTotal: plan.limit_bytes_total,
-        rateLimit: plan.rate_limit,
-        macAddress: transaction.mac_address,
-        comment: `TZ-WiFi Paid via ${transaction.network_provider} (${transaction.phone_number}) Ref:${transaction.external_reference}`,
-      });
+      // 1. Authorize on TP-Link Omada Controller if AP or Omada router
+      if (router.device_type === 'TPLINK_OMADA' || transaction.mac_address) {
+        try {
+          const automation = new OmadaAutomationService();
+          const durationMinutes = Math.max(15, Math.ceil((plan.limit_uptime || plan.validity_period || 3600) / 60));
+          await automation.authorizeClient({
+            clientMac: transaction.mac_address || '00:00:00:00:00:00',
+            durationMinutes,
+            siteId: router.location,
+            apMac: router.mac_address,
+          });
+        } catch (err: any) {
+          console.warn(`[Omada Payment Auth] Warning: ${err.message}`);
+        }
+      }
+
+      // 2. Automatically provision user into MikroTik RouterOS!
+      if (router.device_type !== 'TPLINK_OMADA') {
+        await MikrotikService.provisionUser(router, {
+          username: voucherCode,
+          password: voucherPassword,
+          server: router.hotspot_server_name,
+          limitUptimeSeconds: plan.limit_uptime,
+          limitBytesTotal: plan.limit_bytes_total,
+          rateLimit: plan.rate_limit,
+          macAddress: transaction.mac_address,
+          comment: `TZ-WiFi Paid via ${transaction.network_provider} (${transaction.phone_number}) Ref:${transaction.external_reference}`,
+        });
+      }
     }
 
     db.saveAuditLog({

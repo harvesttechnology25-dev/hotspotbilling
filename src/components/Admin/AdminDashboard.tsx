@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AdminOverview } from './AdminOverview.tsx';
 import { ActiveHotspotUsers } from './ActiveHotspotUsers.tsx';
 import { PlanManagement } from './PlanManagement.tsx';
@@ -185,6 +185,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isVendorAccountModalOpen, setIsVendorAccountModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll main viewport to top on tab change
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab]);
+
+  // Lock body scroll on mobile screens when mobile sidebar drawer is open
+  useEffect(() => {
+    if (isMobileSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileSidebarOpen]);
 
   // Fetch registered owners
   const fetchOwners = async () => {
@@ -661,18 +679,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] bg-slate-100/70">
+    <div className="flex-1 flex min-h-0 h-full w-full bg-slate-100/70 overflow-hidden relative">
       {/* Mobile Sidebar Overlay Backdrop */}
       {isMobileSidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs lg:hidden"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation - Fixed drawer on mobile, solid static pinned sidebar on desktop */}
       <aside
-        className={`fixed lg:sticky top-16 z-50 lg:z-10 h-[calc(100vh-4rem)] bg-slate-900 text-white flex flex-col justify-between transition-all duration-300 shadow-xl lg:shadow-none ${
+        className={`fixed lg:relative inset-y-0 left-0 z-50 lg:z-10 h-full bg-slate-900 text-white flex flex-col justify-between shrink-0 border-r border-slate-800 transition-all duration-300 ease-in-out shadow-2xl lg:shadow-none ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${isCollapsed ? 'lg:w-20' : 'w-72 lg:w-72'}`}
       >
@@ -1098,7 +1116,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </aside>
 
       {/* Main Content Pane */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        ref={mainScrollRef}
+        className="flex-1 h-full overflow-y-auto overflow-x-hidden flex flex-col min-w-0 bg-slate-100/70 scroll-smooth"
+      >
         {/* If viewing as Hotspot Owner, show noticeable top banner (without switch to vendor button) */}
         {!isVendor && (
           <div className="bg-emerald-700 text-white px-4 sm:px-6 py-2.5 flex items-center justify-between text-xs font-medium shadow-md">
@@ -1195,7 +1216,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {/* Top Breadcrumb & Mobile Menu Toggle Bar */}
-        <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 sticky top-16 z-20 shadow-2xs">
+        <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20 shadow-2xs shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Hamburger button on mobile */}
             <button
@@ -1595,6 +1616,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
         </main>
         )}
+
+        {/* Integrated Clean Dashboard Footer */}
+        <footer className="mt-auto bg-white border-t border-slate-200 py-6 text-xs text-slate-500">
+          <div className="max-w-[1720px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+            <div className="flex items-center gap-2 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>TZ-WiFi Billing System v2.6 • MikroTik RouterOS v6/v7 Compatible</span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-600">
+              <span>Vodacom M-Pesa</span>
+              <span>•</span>
+              <span>Tigo Pesa</span>
+              <span>•</span>
+              <span>Airtel Money</span>
+              <span>•</span>
+              <span>Halopesa</span>
+              <span>•</span>
+              <span>AzamPay Unified Gateway</span>
+            </div>
+
+            <div className="text-[11px] text-slate-600">
+              {onNavigatePortal && (
+                <button
+                  type="button"
+                  onClick={() => onNavigatePortal?.()}
+                  className="underline hover:text-slate-800 font-medium cursor-pointer"
+                >
+                  {lang === 'sw' ? 'Tazama Captive Portal Yangu' : 'Switch to Customer Portal'}
+                </button>
+              )}
+            </div>
+          </div>
+        </footer>
       </div>
 
       {/* Fixed Mobile & Tablet Bottom Navigation Bar */}

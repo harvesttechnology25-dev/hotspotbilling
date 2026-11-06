@@ -750,12 +750,13 @@ export class OmadaAdoptionService {
     if (router.device_type === 'TPLINK_OMADA' && router.mac_address) {
       try {
         const automation = new OmadaAutomationService();
-        const live = await automation.getDeviceLiveStatus(router.location || 'Default', router.mac_address);
+        const live = await automation.getDeviceLiveStatus(router.omada_site_id || router.location || 'Default', router.mac_address);
         
         if (live.connected) {
           router.status = 'ONLINE';
           router.adoption_status = 'ADOPTED';
           router.last_seen_at = new Date().toISOString();
+          if (live.actualSiteId) router.omada_site_id = live.actualSiteId;
           if (live.device?.ip) router.ip_address = live.device.ip;
           if (live.device?.model) router.model_name = live.device.model;
           if (live.device?.firmware) router.omada_firmware = live.device.firmware;
@@ -766,24 +767,27 @@ export class OmadaAdoptionService {
             isOnline: true,
             status: 'ONLINE',
             lastSeenAgoSeconds: 0,
-            reason: `AP ipo ONLINE na imeunganishwa (Connected & Adopted) kikamilifu kwenye Omada Controller (Site: ${live.actualSiteId || 'Default'}).`,
+            reason: live.reason || `AP ipo ONLINE na imeunganishwa (Connected & Adopted) kikamilifu kwenye Omada Controller (Site: ${live.actualSiteId || 'Default'}).`,
             reachable: true,
           };
-        } else if (live.failed || live.status === 'ADOPT_FAILED') {
+        } else if (live.controllerReachable !== false && live.device) {
+          // Kifaa kimezimwa, kimechomolewa kebo au kimeripotiwa disconnected kwenye Controller
           router.status = 'OFFLINE';
-          router.adoption_status = 'ADOPTION_FAILED';
+          if (live.failed || live.status === 'ADOPT_FAILED') {
+            router.adoption_status = 'ADOPTION_FAILED';
+          }
           db.saveRouter(router);
 
           return {
             isOnline: false,
             status: 'OFFLINE',
             lastSeenAgoSeconds: 999999,
-            reason: live.reason || 'Adoption imeshindikana kwenye Omada Controller.',
+            reason: live.reason || 'Kifaa kimezimwa au kipo OFFLINE kwenye Omada Controller.',
             reachable: false,
           };
         }
-      } catch (err: any) {
-        console.warn(`[Omada Live Status Probe] Non-fatal: ${err.message}`);
+      } catch {
+        // Controller haikufikiwa au credentials bado hazijawekwa; endelea na uchunguzi wa inform packets hapo chini
       }
     }
 
@@ -821,10 +825,8 @@ export class OmadaAdoptionService {
       }
     }
 
-    // Iwapo router ni ya TP-Link Omada na imesha-adoptiwa, iache ONLINE isipokuwa Controller inasema disconnected
-    const isOnline = router.device_type === 'TPLINK_OMADA' && router.adoption_status === 'ADOPTED'
-      ? true
-      : (router.adoption_status === 'ADOPTED' || router.status === 'ONLINE') && (hasRecentHeartbeat || socketReachable);
+    // Tathmini ya mwisho kulingana na mawasiliano ya hivi karibuni
+    const isOnline = (router.status === 'ONLINE' || router.adoption_status === 'ADOPTED') && (hasRecentHeartbeat || socketReachable);
 
     const finalStatus: 'ONLINE' | 'OFFLINE' = isOnline ? 'ONLINE' : 'OFFLINE';
 
@@ -836,9 +838,9 @@ export class OmadaAdoptionService {
 
     let reason = '';
     if (isOnline) {
-      reason = `AP ipo ONLINE na imeunganishwa (Connected & Adopted).`;
+      reason = `Kifaa kipo ONLINE na kinawasiliana kikamilifu.`;
     } else {
-      reason = `AP ipo OFFLINE. Hakuna mawasiliano ndani ya sekunde 90 zilizopita. AP inaweza kuwa imezimwa au imechomolewa kebo ya mtandao.`;
+      reason = `Kifaa kipo OFFLINE. Hakuna mawasiliano ndani ya sekunde 90 zilizopita. Kifaa kinaweza kuwa kimezimwa au kimechomolewa kebo ya mtandao.`;
     }
 
     return {
@@ -853,7 +855,7 @@ export class OmadaAdoptionService {
   /**
    * Check live adoption status of an Omada AP
    */
-  static checkAdoptionStatus(routerId: number): OmadaAdoptResult {
+  static async checkAdoptionStatus(routerId: number): Promise<OmadaAdoptResult> {
     const router = db.getRouterById(routerId);
     if (!router) {
       return {
@@ -864,36 +866,19 @@ export class OmadaAdoptionService {
     }
 
     const informInfo = this.getInformInfo();
+
+    // Pata taarifa halisi kutoka Omada Controller kwa kutumia evaluateRealRouterStatus
+    const realStatus = await this.evaluateRealRouterStatus(router);
+    const isOnline = realStatus.isOnline;
     const isAdopted = router.adoption_status === 'ADOPTED';
 
-    if (!isAdopted) {
+    if (!isAdopted && !isOnline) {
       return {
         success: false,
-        message: `AP (${router.name}) bado haija-adoptiwa. Hakikisha umeweka Controller Inform URL: ${informInfo.informUrl} kwenye ukurasa wa AP kisha ubofye kitufe cha Check Adoption.`,
+        message: `AP (${router.name}) bado haija-adoptiwa au haijawashwa. Hakikisha umeweka Controller Inform URL: ${informInfo.informUrl} kwenye ukurasa wa AP kisha uhakikishe kifaa kipo ON.`,
         router,
         error: 'Adoption pending.',
       };
-    }
-
-    // Determine genuine real-time online status based on real inform packets
-    const now = Date.now();
-    let lastSeenTime = router.last_seen_at ? new Date(router.last_seen_at).getTime() : 0;
-    const rawMac = router.mac_address || '';
-    const normalizedMac = this.normalizeMac(rawMac);
-    const discovered = normalizedMac ? this.discoveredAps.get(normalizedMac) : null;
-    if (discovered?.lastSeenAt) {
-      const discTime = new Date(discovered.lastSeenAt).getTime();
-      if (discTime > lastSeenTime) lastSeenTime = discTime;
-    }
-    const lastSeenAgoSeconds = lastSeenTime > 0 ? Math.floor((now - lastSeenTime) / 1000) : 999999;
-    const isOnline = lastSeenTime > 0 && lastSeenAgoSeconds <= 90;
-
-    if (!isOnline && router.status !== 'OFFLINE') {
-      router.status = 'OFFLINE';
-      db.saveRouter(router);
-    } else if (isOnline && router.status !== 'ONLINE') {
-      router.status = 'ONLINE';
-      db.saveRouter(router);
     }
 
     const domainBase = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '');

@@ -65,6 +65,20 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
 
   // MikroTik Hotspot runtime parameters
+  // Hotspot Client & AP Runtime Parameters (TP-Link Omada & MikroTik RouterOS)
+  const [hotspotClientParams, setHotspotClientParams] = useState({
+    clientMac: '',
+    apMac: '',
+    ssidName: '',
+    site: '',
+    target: '',
+    ip: '',
+    linkLogin: 'http://192.168.88.1/login',
+    linkOrig: 'http://www.google.com',
+    error: '',
+    isRealRedirect: false,
+  });
+
   const [mikrotikParams, setMikrotikParams] = useState({
     mac: 'BC:D0:74:11:2E:8A',
     ip: '192.168.88.24',
@@ -77,20 +91,47 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      const mac = p.get('mac');
-      const ip = p.get('ip');
-      const linkLogin = p.get('link-login') || p.get('link_login');
-      const linkOrig = p.get('link-orig') || p.get('link_orig');
-      const error = p.get('error');
+      const clientMac = p.get('clientMac') || p.get('clientmac') || p.get('mac') || p.get('client_mac') || '';
+      const apMac = p.get('apMac') || p.get('apmac') || p.get('ap_mac') || p.get('ap') || p.get('gatewayMac') || '';
+      const ssidName = p.get('ssidName') || p.get('ssid') || p.get('ssid_name') || '';
+      const site = p.get('site') || p.get('siteId') || p.get('site_id') || '';
+      const target = p.get('target') || p.get('redirectUrl') || p.get('targetUrl') || '';
+      const ip = p.get('ip') || '';
+      const linkLogin = p.get('link-login') || p.get('link_login') || target || 'http://192.168.88.1/login';
+      const linkOrig = p.get('link-orig') || p.get('link_orig') || 'http://www.google.com';
+      const error = p.get('error') || '';
 
-      if (mac || ip || linkLogin) {
+      const isReal = Boolean(
+        clientMac ||
+        apMac ||
+        ssidName ||
+        p.get('link-login') ||
+        ip ||
+        p.get('routerId') ||
+        p.get('router_id')
+      );
+
+      setHotspotClientParams({
+        clientMac,
+        apMac,
+        ssidName,
+        site,
+        target,
+        ip,
+        linkLogin,
+        linkOrig,
+        error,
+        isRealRedirect: isReal,
+      });
+
+      if (clientMac || ip || linkLogin) {
         setMikrotikParams({
-          mac: mac || 'BC:D0:74:11:2E:8A',
+          mac: clientMac || 'BC:D0:74:11:2E:8A',
           ip: ip || '192.168.88.24',
-          linkLogin: linkLogin || 'http://192.168.88.1/login',
-          linkOrig: linkOrig || 'http://www.google.com',
-          error: error || '',
-          isRealHotspotRedirect: true,
+          linkLogin,
+          linkOrig,
+          error,
+          isRealHotspotRedirect: isReal,
         });
       }
     }
@@ -134,11 +175,16 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     const p = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     let rId = p?.get('routerId') || p?.get('router_id');
     let oId = p?.get('ownerId') || p?.get('owner_id');
+    const apMac = p?.get('apMac') || p?.get('apmac') || p?.get('ap_mac') || p?.get('ap') || p?.get('gatewayMac') || hotspotClientParams.apMac;
+    const clientMac = p?.get('clientMac') || p?.get('clientmac') || p?.get('mac') || p?.get('client_mac') || hotspotClientParams.clientMac;
+    const ssidName = p?.get('ssidName') || p?.get('ssid') || p?.get('ssid_name') || hotspotClientParams.ssidName;
+    const site = p?.get('site') || p?.get('siteId') || p?.get('site_id') || hotspotClientParams.site;
     const ip = p?.get('ip') || mikrotikParams.ip;
 
-    // Check if the currently viewing user is a Vendor Admin
+    // In guest hotspot mode, DO NOT read localStorage user to prevent overriding with admin session!
+    // Only in explicit admin previewMode do we inspect the active logged-in user
     let isVendorUser = false;
-    if (typeof window !== 'undefined') {
+    if (previewMode && typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('tzwifi_user');
         if (saved) {
@@ -160,16 +206,6 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       rId = String(selectedRouterId);
     }
 
-    // Check localStorage saved active site if not provided (and not vendor admin)
-    if (!rId && typeof window !== 'undefined' && !isVendorUser) {
-      try {
-        const savedRouter = localStorage.getItem('tzwifi_active_site_id');
-        if (savedRouter && savedRouter !== 'ALL' && !isNaN(Number(savedRouter))) {
-          rId = savedRouter;
-        }
-      } catch {}
-    }
-
     if (!oId && currentOwnerId) {
       oId = String(currentOwnerId);
     }
@@ -177,6 +213,10 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     const query = new URLSearchParams();
     if (rId) query.set('routerId', rId);
     if (oId) query.set('ownerId', oId);
+    if (apMac) query.set('apMac', apMac);
+    if (clientMac) query.set('clientMac', clientMac);
+    if (ssidName) query.set('ssidName', ssidName);
+    if (site) query.set('site', site);
     if (ip) query.set('ip', ip);
 
     setLoadingPortalInfo(true);
@@ -206,7 +246,16 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       })
       .catch((e) => console.error('Failed to load portal info:', e))
       .finally(() => setLoadingPortalInfo(false));
-  }, [mikrotikParams.ip, currentOwnerId, selectedRouterId, refreshKey]);
+  }, [
+    mikrotikParams.ip,
+    hotspotClientParams.apMac,
+    hotspotClientParams.clientMac,
+    hotspotClientParams.ssidName,
+    currentOwnerId,
+    selectedRouterId,
+    previewMode,
+    refreshKey,
+  ]);
   
   // Payment initiation state
   const [initiatingPayment, setInitiatingPayment] = useState(false);
@@ -236,7 +285,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        let ownerFilter = currentOwnerId;
+        let ownerFilter = portalInfo.ownerId || currentOwnerId;
         if (!ownerFilter && typeof window !== 'undefined') {
           const p = new URLSearchParams(window.location.search);
           const qOwner = p.get('owner_id') || p.get('ownerId');
@@ -266,7 +315,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       }
     };
     fetchPlans();
-  }, [currentOwnerId, portalInfo.routerId, selectedRouterId]);
+  }, [currentOwnerId, portalInfo.ownerId, portalInfo.routerId, selectedRouterId]);
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
@@ -330,8 +379,9 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
           planId: selectedPlanId,
           routerId: portalInfo.routerId,
           ownerId: portalInfo.ownerId,
-          macAddress: mikrotikParams.mac,
-          userIp: mikrotikParams.ip,
+          macAddress: hotspotClientParams.clientMac || mikrotikParams.mac,
+          apMac: hotspotClientParams.apMac,
+          userIp: hotspotClientParams.ip || mikrotikParams.ip,
         }),
       });
 
@@ -774,9 +824,9 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       {activeTab === 'voucher' && (
         <VoucherLogin
           onSuccess={handlePaymentSuccess}
-          linkLogin={mikrotikParams.linkLogin}
-          linkOrig={mikrotikParams.linkOrig}
-          macAddress={mikrotikParams.mac}
+          linkLogin={hotspotClientParams.linkLogin || mikrotikParams.linkLogin}
+          linkOrig={hotspotClientParams.linkOrig || mikrotikParams.linkOrig}
+          macAddress={hotspotClientParams.clientMac || mikrotikParams.mac}
           lang={lang}
           selectedPlan={selectedPlan}
           plans={plans}
@@ -1083,9 +1133,9 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
           carrier={paymentSession.carrier}
           plan={paymentSession.plan}
           instructions={paymentSession.instructions}
-          linkLogin={mikrotikParams.linkLogin}
-          linkOrig={mikrotikParams.linkOrig}
-          clientMac={mikrotikParams.mac}
+          linkLogin={hotspotClientParams.linkLogin || mikrotikParams.linkLogin}
+          linkOrig={hotspotClientParams.linkOrig || mikrotikParams.linkOrig}
+          clientMac={hotspotClientParams.clientMac || mikrotikParams.mac}
           onPaymentSuccess={handlePaymentSuccess}
           lang={lang}
         />

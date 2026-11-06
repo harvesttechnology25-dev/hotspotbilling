@@ -469,6 +469,22 @@ export const RouterManagement: React.FC<{
 
   useEffect(() => {
     fetchRouters();
+    // Auto-refresh router statuses every 25 seconds so turn-on/turn-off changes reflect automatically
+    const pollInterval = setInterval(() => {
+      const url = ownerId ? `/api/v1/routers?ownerId=${ownerId}` : '/api/v1/routers';
+      fetch(url)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setRouters(
+              data.filter((r: RouterItem) => r.id !== 3 && !r.name?.toLowerCase().includes('mwenge'))
+            );
+          }
+        })
+        .catch(() => {});
+    }, 25000);
+
+    return () => clearInterval(pollInterval);
   }, [ownerId]);
 
   const handleOpenScript = async (router: RouterItem) => {
@@ -1501,82 +1517,50 @@ export const RouterManagement: React.FC<{
                         </button>
                       </div>
 
-                      <a
-                        href={`/api/v1/routers/${router.id}/mikrotik-login-file`}
-                        download="login.html"
-                        className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5"
-                        title="Download captive portal login.html"
-                      >
-                        <Download className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Pakua login.html</span>
-                      </a>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-1">
+                        <a
+                          href={`/api/v1/routers/${router.id}/mikrotik-login-file`}
+                          download="login.html"
+                          className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5"
+                          title="Download captive portal login.html"
+                        >
+                          <Download className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="truncate">Pakua login.html</span>
+                        </a>
 
-                      <button
-                        type="button"
-                        onClick={() => setPerformanceModalRouter(router)}
-                        className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center justify-center gap-1.5 border border-slate-300 cursor-pointer"
-                        title="Tazama Utendaji wa RAM, CPU, na Taarifa za Kifaa"
-                      >
-                        <Activity className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>📊 Maelezo & Performance (RAM, CPU)</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setPerformanceModalRouter(router)}
+                          className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center justify-center gap-1.5 border border-slate-300 cursor-pointer"
+                          title="Tazama Utendaji wa RAM, CPU, na Taarifa za Kifaa"
+                        >
+                          <Activity className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="truncate">📊 Maelezo & Performance</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenScript(router)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                      >
-                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>MikroTik Cloud VPN & Setup Scripts</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {/* Copy External Captive Portal URL for Access Points */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const pUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=${(router.device_type || 'generic').toLowerCase()}`;
-                          navigator.clipboard.writeText(pUrl);
-                          setPortalUrlCopiedId(router.id);
-                          setTimeout(() => setPortalUrlCopiedId(null), 2500);
-                        }}
-                        className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                        title="Nakili External Captive Portal URL ya kuweka kwenye AP yako"
-                      >
-                        {portalUrlCopiedId === router.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span className="text-emerald-700 font-bold">Imenakiliwa!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Nakili Portal URL</span>
-                          </>
-                        )}
-                      </button>
-
-                      {router.device_type === 'RUIJIE' ? (
                         <button
                           type="button"
                           onClick={() => handleOpenScript(router)}
-                          className="flex-1 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                          className="col-span-1 sm:col-span-2 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                         >
-                          <Radio className="w-3.5 h-3.5 text-white" />
-                          <span>Mwongozo wa Ruijie Cloud Portal & RADIUS</span>
+                          <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>MikroTik Cloud VPN & Setup Scripts</span>
                         </button>
-                      ) : router.device_type === 'TPLINK_OMADA' ? (
-                        <div className="flex flex-wrap items-center gap-2 w-full">
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {router.device_type === 'TPLINK_OMADA' ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-1">
                           {/* 0. Primary Details & Performance Modal Button */}
                           <button
                             type="button"
                             onClick={() => setPerformanceModalRouter(router)}
-                            className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 hover:from-teal-600 hover:to-slate-800 text-white font-black text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer border border-teal-500/40"
+                            className="col-span-1 sm:col-span-2 py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-teal-700 via-teal-800 to-slate-900 hover:from-teal-600 hover:to-slate-800 text-white font-black text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer border border-teal-500/40"
                             title="Fungua Maelezo Kamili ya Utendaji wa RAM, CPU, Signal ya Wi-Fi na Model ya Kifaa"
                           >
-                            <Activity className="w-4 h-4 text-emerald-300 animate-pulse" />
-                            <span>📊 Details & Performance (RAM, CPU & Signal)</span>
+                            <Activity className="w-4 h-4 text-emerald-300 animate-pulse shrink-0" />
+                            <span>📊 Details & Performance (RAM & CPU)</span>
                           </button>
 
                           {/* 1. Direct Check Adoption Button */}
@@ -1584,17 +1568,17 @@ export const RouterManagement: React.FC<{
                             type="button"
                             disabled={checkingAdoptionId === router.id}
                             onClick={() => handleCheckAdoptionDirect(router)}
-                            className="flex-1 py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer min-w-[140px]"
+                            className="py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                             title="Kagua kama AP imeunganishwa (Check Adoption Status)"
                           >
                             {checkingAdoptionId === router.id ? (
                               <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
                                 <span>Inakagua...</span>
                               </>
                             ) : (
                               <>
-                                <RefreshCw className="w-3.5 h-3.5 text-teal-200" />
+                                <RefreshCw className="w-3.5 h-3.5 text-teal-200 shrink-0" />
                                 <span>🔄 Check Adoption</span>
                               </>
                             )}
@@ -1604,10 +1588,10 @@ export const RouterManagement: React.FC<{
                           <button
                             type="button"
                             onClick={() => handleOpenOmadaModal(router, 0)}
-                            className="py-2 px-3 rounded-xl border border-teal-500 bg-teal-50 hover:bg-teal-100 text-teal-900 font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                            className="py-2 px-3 rounded-xl border border-teal-500 bg-teal-50 hover:bg-teal-100 text-teal-900 font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                             title="Pima kifaa hiki moja kwa moja: Ping, Socket Reachability, na Inform Status"
                           >
-                            <Activity className="w-3.5 h-3.5 text-teal-700" />
+                            <Activity className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                             <span>⚡ Pima Kifaa</span>
                           </button>
 
@@ -1615,10 +1599,10 @@ export const RouterManagement: React.FC<{
                           <button
                             type="button"
                             onClick={() => handleOpenOmadaModal(router, 1)}
-                            className="py-2 px-3 rounded-xl border border-teal-400 bg-teal-50/50 hover:bg-teal-100 text-teal-900 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                            className="py-2 px-3 rounded-xl border border-teal-400 bg-teal-50/50 hover:bg-teal-100 text-teal-900 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                             title="Fungua Wizard ya Kuunganisha Omada, Weka MAC, SSID na Password"
                           >
-                            <Wifi className="w-3.5 h-3.5 text-teal-700" />
+                            <Wifi className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                             <span>Omada Wizard</span>
                           </button>
 
@@ -1627,61 +1611,135 @@ export const RouterManagement: React.FC<{
                             href={`https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-                            title="Jaribu ukurasa wa wateja wa Hotspot & malipo ya simu (Live Captive Portal)"
+                            className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            title="Jaribu ukurasa wa wateja wa Hotspot & malipo ya simu"
                           >
-                            <Zap className="w-3.5 h-3.5 text-amber-300" />
+                            <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                             <span>⚡ Jaribu Portal</span>
-                            <ExternalLink className="w-3 h-3 text-indigo-200" />
+                            <ExternalLink className="w-3 h-3 text-indigo-200 shrink-0" />
                           </a>
 
-                          {/* 5. Soft Reboot Omada AP */}
+                          {/* Copy Portal URL */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const pUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`;
+                              navigator.clipboard.writeText(pUrl);
+                              setPortalUrlCopiedId(router.id);
+                              setTimeout(() => setPortalUrlCopiedId(null), 2500);
+                            }}
+                            className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            title="Nakili External Captive Portal URL"
+                          >
+                            {portalUrlCopiedId === router.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="text-emerald-700 font-bold">Imenakiliwa!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <span>Nakili URL</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Soft Reboot Omada AP */}
                           <button
                             type="button"
                             onClick={() => setRebootOmadaTarget(router)}
-                            className="p-2 rounded-xl border border-slate-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 text-xs transition cursor-pointer"
+                            className="py-2 px-3 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                             title="Washa upya AP (Reboot Omada AP)"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                            <span>Reboot AP</span>
                           </button>
 
                           {/* 4. Configuration & RADIUS Guide */}
                           <button
                             type="button"
                             onClick={() => handleOpenScript(router)}
-                            className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            className="col-span-1 sm:col-span-2 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                           >
-                            <FileCode className="w-3.5 h-3.5 text-teal-300" />
+                            <FileCode className="w-3.5 h-3.5 text-teal-300 shrink-0" />
                             <span>Mwongozo wa Inform URL & RADIUS Profile</span>
                           </button>
                         </div>
-                      ) : router.device_type === 'OPENWRT_CUDY' ? (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenScript(router)}
-                          className="flex-1 py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                        >
-                          <Terminal className="w-3.5 h-3.5 text-white" />
-                          <span>Script ya CoovaChilli (Cudy / OpenWrt)</span>
-                        </button>
-                      ) : router.device_type === 'UBIQUITI_UNIFI' ? (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenScript(router)}
-                          className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                        >
-                          <Layers className="w-3.5 h-3.5 text-white" />
-                          <span>Mwongozo wa UniFi Hotspot & RADIUS</span>
-                        </button>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenScript(router)}
-                          className="flex-1 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                        >
-                          <Server className="w-3.5 h-3.5 text-white" />
-                          <span>Mwongozo wa D-Link / Generic Cloud RADIUS</span>
-                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-1">
+                          {/* Copy Portal URL */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const pUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=${(router.device_type || 'generic').toLowerCase()}`;
+                              navigator.clipboard.writeText(pUrl);
+                              setPortalUrlCopiedId(router.id);
+                              setTimeout(() => setPortalUrlCopiedId(null), 2500);
+                            }}
+                            className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            title="Nakili External Captive Portal URL ya kuweka kwenye AP yako"
+                          >
+                            {portalUrlCopiedId === router.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="text-emerald-700 font-bold">Imenakiliwa!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <span>Nakili URL</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPerformanceModalRouter(router)}
+                            className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition flex items-center justify-center gap-1.5 border border-slate-300 cursor-pointer"
+                            title="Tazama Utendaji wa RAM, CPU, na Taarifa za Kifaa"
+                          >
+                            <Activity className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <span>📊 Performance</span>
+                          </button>
+
+                          {router.device_type === 'RUIJIE' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenScript(router)}
+                              className="col-span-1 sm:col-span-2 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                            >
+                              <Radio className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span>Mwongozo wa Ruijie Cloud Portal & RADIUS</span>
+                            </button>
+                          ) : router.device_type === 'OPENWRT_CUDY' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenScript(router)}
+                              className="col-span-1 sm:col-span-2 py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                            >
+                              <Terminal className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span>Script ya CoovaChilli (Cudy / OpenWrt)</span>
+                            </button>
+                          ) : router.device_type === 'UBIQUITI_UNIFI' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenScript(router)}
+                              className="col-span-1 sm:col-span-2 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                            >
+                              <Layers className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span>Mwongozo wa UniFi Hotspot & RADIUS</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenScript(router)}
+                              className="col-span-1 sm:col-span-2 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                            >
+                              <Server className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span>Mwongozo wa D-Link / Generic RADIUS</span>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </>
                   )}

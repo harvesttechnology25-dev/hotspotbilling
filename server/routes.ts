@@ -917,7 +917,7 @@ apiRouter.get("/vouchers", (req: Request, res: Response) => {
 });
 
 apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
-  const { code, macAddress, planId, selectedPlanId, routerId } = req.body;
+  const { code, macAddress, clientMac, apMac, planId, selectedPlanId, routerId } = req.body;
   if (!code) {
     return res.status(400).json({ error: 'Tafadhali weka nambari ya vocha (Voucher code is required).' });
   }
@@ -998,29 +998,53 @@ apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
     }
   }
 
-  if (macAddress) {
-    voucher.mac_address = macAddress;
+  const effectiveMac = clientMac || macAddress;
+  if (effectiveMac) {
+    voucher.mac_address = effectiveMac;
   }
   voucher.updated_at = new Date().toISOString();
   db.saveVoucher(voucher);
 
+  let omadaAuthResult: any = null;
   if (router && plan) {
-    await MikrotikService.provisionUser(router, {
-      username: voucher.code,
-      password: voucher.password,
-      limitUptimeSeconds: plan.limit_uptime,
-      limitBytesTotal: plan.limit_bytes_total,
-      rateLimit: plan.rate_limit,
-      macAddress,
-      comment: `Redeemed Voucher ${voucher.code}`,
-    });
+    // 1. Authorize on TP-Link Omada Controller if AP or Omada router
+    if (router.device_type === 'TPLINK_OMADA' || apMac) {
+      const durationMinutes = Math.max(15, Math.ceil((plan.limit_uptime || plan.validity_period || 3600) / 60));
+      try {
+        const automation = new OmadaAutomationService();
+        omadaAuthResult = await automation.authorizeClient({
+          clientMac: effectiveMac || '00:00:00:00:00:00',
+          durationMinutes,
+          siteId: router.location,
+          apMac: router.mac_address || apMac,
+        });
+      } catch (err: any) {
+        console.warn(`[Omada Voucher Auth] Warning: ${err.message}`);
+      }
+    }
+
+    // 2. Provision on MikroTik RouterOS
+    if (router.device_type !== 'TPLINK_OMADA') {
+      await MikrotikService.provisionUser(router, {
+        username: voucher.code,
+        password: voucher.password,
+        limitUptimeSeconds: plan.limit_uptime,
+        limitBytesTotal: plan.limit_bytes_total,
+        rateLimit: plan.rate_limit,
+        macAddress: effectiveMac,
+        comment: `Redeemed Voucher ${voucher.code}`,
+      });
+    }
   }
 
   res.json({
     success: true,
-    message: 'Vocha imekubaliwa. Unaunganishwa kwenye intaneti...',
+    message: omadaAuthResult?.success
+      ? 'Vocha imekubaliwa na intaneti imewashwa kwenye simu yako kupitia Omada AP!'
+      : 'Vocha imekubaliwa. Unaunganishwa kwenye intaneti...',
     voucher,
     plan,
+    omadaAuthorized: Boolean(omadaAuthResult?.success),
     hotspotLoginUrl: router ? `http://${router.ip_address}/login` : 'http://192.168.88.1/login',
   });
 });
@@ -1720,6 +1744,22 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
+
+// Background periodic sync for TP-Link Omada AP live status (Every 30 seconds)
+setInterval(async () => {
+  try {
+    const omadaRouters = db.getRouters().filter(
+      (r) => r.device_type === 'TPLINK_OMADA' && r.mac_address && r.id !== 3
+    );
+    if (omadaRouters.length > 0) {
+      for (const r of omadaRouters) {
+        await OmadaAdoptionService.evaluateRealRouterStatus(r).catch(() => {});
+      }
+    }
+  } catch {
+    // Non-fatal background sync error
+  }
+}, 30 * 1000);
 
 // 1. Initiate User Registration with Email OTP
 apiRouter.post('/auth/register-initiate', async (req: Request, res: Response) => {
@@ -2828,18 +2868,15 @@ apiRouter.get('/routers', (req: Request, res: Response) => {
   const now = Date.now();
   for (const r of routers) {
     if (r.device_type === 'TPLINK_OMADA') {
-      // Iwapo AP ime-adoptiwa, iache ONLINE (isigeuzwe OFFLINE kiholela baada ya sekunde 90)
-      if (r.adoption_status === 'ADOPTED') {
-        r.status = 'ONLINE';
-      } else {
-        const lastSeenMs = r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0;
-        const secondsAgo = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : 999999;
-        const shouldBeOnline = lastSeenMs > 0 && secondsAgo <= 180;
-        const targetStatus: 'ONLINE' | 'OFFLINE' = shouldBeOnline ? 'ONLINE' : 'OFFLINE';
-        if (r.status !== targetStatus) {
-          r.status = targetStatus;
-          db.saveRouter(r);
-        }
+      const lastSeenMs = r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0;
+      const secondsAgo = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : 999999;
+      // Kama kifaa kimezimwa au hakina mawasiliano kwa zaidi ya sekunde 180 (dakika 3), kiwekwe OFFLINE
+      // Kifaa kinachowasiliana na Controller kikiwa ndani ya sekunde 180 na status ni ONLINE, kinabaki ONLINE
+      const shouldBeOnline = r.status === 'ONLINE' && lastSeenMs > 0 && secondsAgo <= 180;
+      const targetStatus: 'ONLINE' | 'OFFLINE' = shouldBeOnline ? 'ONLINE' : 'OFFLINE';
+      if (r.status !== targetStatus) {
+        r.status = targetStatus;
+        db.saveRouter(r);
       }
     }
   }
@@ -2900,45 +2937,77 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
   const ownerId = (req.query.ownerId || req.query.owner_id) ? Number(req.query.ownerId || req.query.owner_id) : undefined;
   const ip = req.query.ip ? String(req.query.ip) : undefined;
 
+  // Omada Controller & Multi-Vendor redirect query parameters
+  const rawApMac = req.query.apMac || req.query.ap_mac || req.query.ap || req.query.gatewayMac;
+  const rawClientMac = req.query.clientMac || req.query.clientmac || req.query.mac || req.query.client_mac;
+  const rawSsidName = req.query.ssidName || req.query.ssid || req.query.ssid_name;
+  const rawSite = req.query.site || req.query.siteId || req.query.site_id;
+
+  const cleanApMac = rawApMac ? String(rawApMac).replace(/[^a-fA-F0-9]/g, '').toUpperCase() : '';
+  const cleanClientMac = rawClientMac ? String(rawClientMac).replace(/[^a-fA-F0-9]/g, '').toUpperCase() : '';
+  const ssidName = rawSsidName ? String(rawSsidName).trim() : '';
+  const querySiteName = rawSite ? String(rawSite).trim() : '';
+
   const routers = db.getRouters();
   const owners = db.getOwners();
 
-  // If ownerId is provided, resolve the owner directly
-  const owner = ownerId ? db.getOwnerById(ownerId) : undefined;
   let matched: RouterRecord | undefined = undefined;
 
-  if (owner) {
-    const isVendor = owner.role === 'VENDOR_ADMIN';
-    const assigned = owner.assigned_router_ids || [];
+  // 1. Direct routerId lookup
+  if (routerId) {
+    matched = routers.find((r) => r.id === routerId);
+  }
 
-    // Strict tenant router isolation:
-    // Vendor Admin can ONLY see routers specifically registered to Vendor HQ (r.owner_id === owner.id)
-    // Hotspot Owner can ONLY see routers specifically owned by or assigned to them
-    const allowedRouters = routers.filter((r) => Number(r.owner_id) === Number(owner.id) || assigned.includes(r.id));
+  // 2. AP MAC Address lookup (Direct Omada Controller redirect to External Portal)
+  if (!matched && cleanApMac) {
+    matched = routers.find(
+      (r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac
+    );
+  }
 
-    if (routerId) {
-      matched = allowedRouters.find((r) => r.id === routerId);
-    } else if (ip) {
-      matched = allowedRouters.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
-    }
+  // 3. SSID Name lookup (Dedicated SSID for this Hotspot Owner / AP)
+  if (!matched && ssidName) {
+    matched = routers.find(
+      (r) => r.ssid && r.ssid.trim().toLowerCase() === ssidName.toLowerCase()
+    );
+  }
 
-    if (!matched && allowedRouters.length > 0) {
-      matched = allowedRouters[0];
-    }
-  } else {
-    // Unauthenticated client connecting via Hotspot IP or direct routerId
-    if (routerId) {
-      matched = routers.find((r) => r.id === routerId);
-    } else if (ip) {
-      matched = routers.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
+  // 4. Omada Site lookup
+  if (!matched && querySiteName) {
+    matched = routers.find(
+      (r) =>
+        (r.location && r.location.trim().toLowerCase() === querySiteName.toLowerCase()) ||
+        (r.omada_site_id && r.omada_site_id === querySiteName)
+    );
+  }
+
+  // 5. Client IP lookup (MikroTik Hotspot client subnet)
+  if (!matched && ip) {
+    matched = routers.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
+  }
+
+  // 6. Direct Owner ID lookup if passed explicitly
+  if (!matched && ownerId) {
+    const owner = db.getOwnerById(ownerId);
+    if (owner) {
+      const assigned = owner.assigned_router_ids || [];
+      const allowedRouters = routers.filter((r) => Number(r.owner_id) === Number(owner.id) || assigned.includes(r.id));
+      if (allowedRouters.length > 0) {
+        matched = allowedRouters[0];
+      }
     }
   }
+
+  // Resolve the effective owner from the matched router or explicit ownerId
+  const owner = matched?.owner_id
+    ? db.getOwnerById(matched.owner_id)
+    : (ownerId ? db.getOwnerById(ownerId) : undefined);
 
   // If no router belongs to this owner or found, NEVER fall back to another owner's router!
   if (!matched) {
     const isVendor = owner?.role === 'VENDOR_ADMIN';
     const brandName = isVendor
-      ? (owner.business_name || 'INFOTECH WiFi (Vendor HQ)')
+      ? (owner?.business_name || 'INFOTECH WiFi (Vendor HQ)')
       : (owner?.business_name || owner?.name || 'Hotspot Yako');
 
     const activeTheme: PortalThemeConfig = {
@@ -4484,15 +4553,15 @@ apiRouter.post('/omada/adopt', async (req: Request, res: Response) => {
 });
 
 // 3. Check Adoption Status of an Omada AP (Verification Endpoint)
-apiRouter.post('/omada/check-adoption/:id', (req: Request, res: Response) => {
+apiRouter.post('/omada/check-adoption/:id', async (req: Request, res: Response) => {
   const routerId = Number(req.params.id);
-  const result = OmadaAdoptionService.checkAdoptionStatus(routerId);
+  const result = await OmadaAdoptionService.checkAdoptionStatus(routerId);
   res.json(result);
 });
 
-apiRouter.get('/omada/status/:id', (req: Request, res: Response) => {
+apiRouter.get('/omada/status/:id', async (req: Request, res: Response) => {
   const routerId = Number(req.params.id);
-  const result = OmadaAdoptionService.checkAdoptionStatus(routerId);
+  const result = await OmadaAdoptionService.checkAdoptionStatus(routerId);
   res.json(result);
 });
 
@@ -4543,6 +4612,39 @@ apiRouter.post('/omada/sync-activate', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kusawazisha na kurusha Wi-Fi.' });
+  }
+});
+
+// 4b. Explicit Omada Client Authorization (Allows Wi-Fi guest to be unblocked instantly on AP)
+apiRouter.post('/omada/authorize-client', async (req: Request, res: Response) => {
+  try {
+    const { clientMac, routerId, apMac, durationMinutes = 60, siteId } = req.body;
+    if (!clientMac) {
+      return res.status(400).json({ error: 'MAC address ya mteja (clientMac) inahitajika.' });
+    }
+
+    let targetSiteId = siteId;
+    let targetApMac = apMac;
+
+    if (routerId) {
+      const router = db.getRouterById(Number(routerId));
+      if (router) {
+        if (!targetSiteId && router.location) targetSiteId = router.location;
+        if (!targetApMac && router.mac_address) targetApMac = router.mac_address;
+      }
+    }
+
+    const automation = new OmadaAutomationService();
+    const result = await automation.authorizeClient({
+      clientMac,
+      durationMinutes: Number(durationMinutes) || 60,
+      siteId: targetSiteId,
+      apMac: targetApMac,
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kuidhinisha mteja kwenye Omada.' });
   }
 });
 
@@ -4725,7 +4827,7 @@ apiRouter.get('/omada/automation/config', (req: Request, res: Response) => {
     radiusServerIp: informInfo.radiusIp,
     radiusAuthPort: 1812,
     radiusAcctPort: 1813,
-    captivePortalUrl: `${process.env.APP_URL || 'https://wifi.infotechwifi.com'}/portal`,
+    captivePortalUrl: `${(process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')}`,
     capabilities: [
       'Site Creation (POST /api/v2/sites)',
       'RADIUS NAS Configuration (POST /api/v2/sites/{id}/setting/radius/profiles)',
@@ -5267,15 +5369,24 @@ apiRouter.post('/routers/:id/test-connection', async (req: Request, res: Respons
   if (router.device_type === 'TPLINK_OMADA') {
     try {
       const omadaResult = await OmadaAdoptionService.evaluateRealRouterStatus(router);
+      router.status = omadaResult.isOnline ? 'ONLINE' : 'OFFLINE';
+      if (omadaResult.isOnline) {
+        router.last_seen_at = new Date().toISOString();
+      }
+      db.saveRouter(router);
       return res.json({
         success: true,
         reachable: omadaResult.reachable,
+        isOnline: omadaResult.isOnline,
+        status: router.status,
         latencyMs: omadaResult.reachable ? 12 : 0,
         message: omadaResult.reason,
         lastSeenAgoSeconds: omadaResult.lastSeenAgoSeconds,
       });
     } catch (omadaErr: any) {
-      return res.status(500).json({ reachable: false, message: omadaErr.message, latencyMs: 0 });
+      router.status = 'OFFLINE';
+      db.saveRouter(router);
+      return res.status(500).json({ reachable: false, isOnline: false, status: 'OFFLINE', message: omadaErr.message, latencyMs: 0 });
     }
   }
 

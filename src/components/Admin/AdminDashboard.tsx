@@ -331,7 +331,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
       const oid = Number(currentOwner.id);
       const assigned = currentOwner.assigned_router_ids || [];
-      return routers.filter((r) => r.owner_id === oid || assigned.includes(r.id) || !r.owner_id);
+      return routers.filter((r) => r.owner_id === oid || assigned.includes(r.id));
     }
     return routers;
   }, [routers, isStaff, currentOwner, parentOwner]);
@@ -340,8 +340,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     if (availableRouters.length > 0) {
       if (selectedSiteRouterId !== 'ALL' && !availableRouters.some((r) => r.id === selectedSiteRouterId)) {
-        // Keep or select first available router
-        const fallbackId = availableRouters[0].id;
+        // Keep or select first available router (prioritizing adapted AP)
+        const fallbackRouter =
+          availableRouters.find((r) => r.adoption_status === 'ADOPTED' && r.status === 'ONLINE') ||
+          availableRouters.find((r) => r.adoption_status === 'ADOPTED') ||
+          availableRouters[0];
+        const fallbackId = fallbackRouter.id;
         setSelectedSiteRouterId(fallbackId);
         onSiteChange?.(fallbackId);
       }
@@ -1280,7 +1284,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {onNavigatePortal && (
               <button
                 type="button"
-                onClick={() => onNavigatePortal?.()}
+                onClick={() => {
+                  const targetPortalRouterId =
+                    activeSite?.id ||
+                    availableRouters.find((r) => r.adoption_status === 'ADOPTED' && r.status === 'ONLINE')?.id ||
+                    availableRouters.find((r) => r.adoption_status === 'ADOPTED')?.id ||
+                    availableRouters[0]?.id;
+                  onNavigatePortal?.(targetPortalRouterId);
+                }}
                 className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#1b62b6] font-bold text-xs shadow-2xs transition cursor-pointer shrink-0 min-h-[36px]"
                 title={lang === 'sw' ? 'Fungua Captive Portal ya Wateja' : 'Open Captive Portal'}
               >
@@ -1641,7 +1652,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {onNavigatePortal && (
                 <button
                   type="button"
-                  onClick={() => onNavigatePortal?.()}
+                  onClick={() => {
+                    const targetPortalRouterId =
+                      activeSite?.id ||
+                      availableRouters.find((r) => r.adoption_status === 'ADOPTED' && r.status === 'ONLINE')?.id ||
+                      availableRouters.find((r) => r.adoption_status === 'ADOPTED')?.id ||
+                      availableRouters[0]?.id;
+                    onNavigatePortal?.(targetPortalRouterId);
+                  }}
                   className="underline hover:text-slate-800 font-medium cursor-pointer"
                 >
                   {lang === 'sw' ? 'Tazama Captive Portal Yangu' : 'Switch to Customer Portal'}

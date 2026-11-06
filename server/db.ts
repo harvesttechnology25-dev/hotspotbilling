@@ -505,6 +505,7 @@ class PersistentDatabase {
           if (updated) {
             this.saveToDisk();
           }
+          this.sanitizeOrphanedData();
         }
       } else {
         this.seedDefaults();
@@ -841,13 +842,95 @@ const mergedEmail: EmailGatewayConfig = {
   }
 
   deleteOwner(id: number): boolean {
-    const initialLen = this.owners.length;
-    this.owners = this.owners.filter((o) => o.id !== id);
-    if (this.owners.length !== initialLen) {
-      this.saveToDisk();
-      return true;
+    const targetOwner = this.owners.find((o) => o.id === id);
+    if (!targetOwner) return false;
+
+    // 1. Delete owner and any sub-users created under this owner
+    this.owners = this.owners.filter((o) => o.id !== id && o.parent_owner_id !== id);
+
+    // 2. Cascade delete all routers belonging to this owner
+    const deletedRouterIds = new Set(this.routers.filter((r) => r.owner_id === id).map((r) => r.id));
+    this.routers = this.routers.filter((r) => r.owner_id !== id);
+
+    // 3. Cascade delete all plans, vouchers, voucher batches, and sites belonging to this owner
+    this.plans = this.plans.filter((p) => p.owner_id !== id);
+    this.vouchers = this.vouchers.filter((v) => Number(v.owner_id) !== id);
+    this.voucherBatches = this.voucherBatches.filter((b) => Number(b.owner_id) !== id);
+    this.omadaSites = this.omadaSites.filter((s) => s.owner_id !== id);
+    this.transactions = this.transactions.filter((t) => t.owner_id !== id);
+    this.manualSubRequests = this.manualSubRequests.filter((m) => m.owner_id !== id);
+
+    // 4. Remove deleted router IDs from assigned_router_ids of any remaining owners
+    for (const owner of this.owners) {
+      if (Array.isArray(owner.assigned_router_ids)) {
+        owner.assigned_router_ids = owner.assigned_router_ids.filter((rid) => !deletedRouterIds.has(rid));
+      }
     }
-    return false;
+
+    // 5. Clean up RADIUS credentials and NAS for deleted routers
+    for (const rId of deletedRouterIds) {
+      this.nasList = this.nasList.filter((n) => n.id !== rId);
+    }
+
+    this.saveToDisk();
+    return true;
+  }
+
+  /**
+   * Cleans up orphaned data where owner was deleted in the past.
+   * Ensures no ghost routers appear on other users' captive portals!
+   */
+  sanitizeOrphanedData() {
+    const validOwnerIds = new Set(this.owners.map((o) => o.id));
+    const initialRoutersCount = this.routers.length;
+    const initialPlansCount = this.plans.length;
+    const initialSitesCount = this.omadaSites.length;
+
+    // Remove routers belonging to deleted or non-existent owners (except Vendor HQ owner_id === 1)
+    this.routers = this.routers.filter((r) => {
+      if (r.owner_id === 1) return true;
+      return Boolean(r.owner_id && validOwnerIds.has(r.owner_id));
+    });
+
+    // Remove plans belonging to deleted owners
+    this.plans = this.plans.filter((p) => {
+      if (!p.owner_id || p.owner_id === 1) return true;
+      return validOwnerIds.has(p.owner_id);
+    });
+
+    // Remove vouchers belonging to deleted owners
+    this.vouchers = this.vouchers.filter((v) => {
+      if (!v.owner_id || Number(v.owner_id) === 1) return true;
+      return validOwnerIds.has(Number(v.owner_id));
+    });
+
+    // Remove voucherBatches belonging to deleted owners
+    this.voucherBatches = this.voucherBatches.filter((b) => {
+      if (!b.owner_id || Number(b.owner_id) === 1) return true;
+      return validOwnerIds.has(Number(b.owner_id));
+    });
+
+    // Remove omadaSites belonging to deleted owners
+    this.omadaSites = this.omadaSites.filter((s) => {
+      if (!s.owner_id || s.owner_id === 1) return true;
+      return validOwnerIds.has(s.owner_id);
+    });
+
+    // Clean assigned_router_ids in all remaining owners to only point to existing routers
+    const validRouterIds = new Set(this.routers.map((r) => r.id));
+    for (const owner of this.owners) {
+      if (Array.isArray(owner.assigned_router_ids)) {
+        owner.assigned_router_ids = owner.assigned_router_ids.filter((rid) => validRouterIds.has(rid));
+      }
+    }
+
+    if (
+      this.routers.length !== initialRoutersCount ||
+      this.plans.length !== initialPlansCount ||
+      this.omadaSites.length !== initialSitesCount
+    ) {
+      this.saveToDisk();
+    }
   }
 
   // --- Routers ---

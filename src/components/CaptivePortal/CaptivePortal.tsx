@@ -181,18 +181,23 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     const site = p?.get('site') || p?.get('siteId') || p?.get('site_id') || hotspotClientParams.site;
     const ip = p?.get('ip') || mikrotikParams.ip;
 
-    // In guest hotspot mode, DO NOT read localStorage user to prevent overriding with admin session!
-    // Only in explicit admin previewMode do we inspect the active logged-in user
+    if (currentOwnerId) {
+      oId = String(currentOwnerId);
+    }
+
+    // In preview mode or when viewing portal while logged in as hotspot owner:
     let isVendorUser = false;
-    if (previewMode && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('tzwifi_user');
         if (saved) {
           const u = JSON.parse(saved);
           if (u && u.id) {
-            if (!oId) oId = String(u.id);
             if (u.role === 'VENDOR_ADMIN') {
               isVendorUser = true;
+            } else if (u.role === 'HOTSPOT_OWNER' && !oId && !apMac && !clientMac) {
+              // Logged-in Hotspot Owner viewing portal directly
+              oId = String(u.id);
             }
           }
         }
@@ -204,10 +209,6 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     // Use passed selectedRouterId prop if routerId is not in URL (unless vendor admin viewing default)
     if (!rId && selectedRouterId && selectedRouterId !== 'ALL' && !isVendorUser) {
       rId = String(selectedRouterId);
-    }
-
-    if (!oId && currentOwnerId) {
-      oId = String(currentOwnerId);
     }
 
     const query = new URLSearchParams();

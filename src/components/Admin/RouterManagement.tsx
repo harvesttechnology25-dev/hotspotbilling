@@ -209,6 +209,8 @@ export const RouterManagement: React.FC<{
   const [rebootOmadaTarget, setRebootOmadaTarget] = useState<RouterItem | null>(null);
   const [rebootingOmada, setRebootingOmada] = useState(false);
   const [routerNotice, setRouterNotice] = useState<string | null>(null);
+  const [systemOwners, setSystemOwners] = useState<any[]>([]);
+  const [purgingOrphaned, setPurgingOrphaned] = useState(false);
 
   // Testing connection state
   const [testingId, setTestingId] = useState<number | null>(null);
@@ -467,8 +469,40 @@ export const RouterManagement: React.FC<{
     }
   };
 
+  const fetchOwners = async () => {
+    try {
+      const res = await fetch('/api/v1/owners');
+      if (res.ok) {
+        const data = await res.json();
+        setSystemOwners(Array.isArray(data) ? data : []);
+      }
+    } catch {}
+  };
+
+  const handlePurgeOrphaned = async () => {
+    setPurgingOrphaned(true);
+    try {
+      const res = await fetch('/api/v1/routers/purge-orphaned', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setRouterNotice(data.message || 'Vifaa vilivyotelekezwa vimeondolewa kikamilifu!');
+        setTimeout(() => setRouterNotice(null), 5000);
+        await fetchRouters();
+        await fetchOwners();
+        onRoutersUpdated?.();
+      } else {
+        setRouterNotice(data.error || 'Imeshindikana kuondoa vifaa.');
+      }
+    } catch (err: any) {
+      setRouterNotice(err.message || 'Hitilafu ya kusafisha vifaa.');
+    } finally {
+      setPurgingOrphaned(false);
+    }
+  };
+
   useEffect(() => {
     fetchRouters();
+    fetchOwners();
     // Auto-refresh router statuses every 25 seconds so turn-on/turn-off changes reflect automatically
     const pollInterval = setInterval(() => {
       const url = ownerId ? `/api/v1/routers?ownerId=${ownerId}` : '/api/v1/routers';
@@ -840,9 +874,15 @@ export const RouterManagement: React.FC<{
     }
   };
 
+  const validOwnerIdSet = React.useMemo(() => new Set(systemOwners.map((o) => o.id)), [systemOwners]);
+  const orphanedRouters = React.useMemo(() => {
+    if (systemOwners.length === 0) return [];
+    return routers.filter((r) => r.owner_id !== 1 && (!r.owner_id || !validOwnerIdSet.has(r.owner_id)));
+  }, [routers, validOwnerIdSet, systemOwners]);
+
   // Filtered & Paginated Routers (10, 20, 30, 40, ALL)
   const filteredRouters = routers.filter((r) => {
-    if (ownerId && r.owner_id && r.owner_id !== ownerId) {
+    if (ownerId && r.owner_id !== ownerId) {
       return false;
     }
     if (deviceFilter === 'PHAROS_CPE') {
@@ -1032,6 +1072,49 @@ export const RouterManagement: React.FC<{
           </div>
         </div>
       </div>
+
+      {routerNotice && (
+        <div className="p-4 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl flex items-center justify-between text-xs font-bold shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{routerNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRouterNotice(null)}
+            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {orphanedRouters.length > 0 && !ownerId && (
+        <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-black text-rose-950">
+                Kuna router/AP {orphanedRouters.length > 1 ? `${orphanedRouters.length} zilizotelekezwa` : '1 iliyotelekezwa'} (Mmiliki wake alishafutwa kwenye mfumo)
+              </p>
+              <p className="text-[11px] text-rose-700 mt-0.5">
+                Vifaa: {orphanedRouters.map((r) => `${r.name} (${r.ssid || r.mac_address || 'AP'})`).join(', ')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handlePurgeOrphaned}
+            disabled={purgingOrphaned}
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            {purgingOrphaned ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            <span>Futa Vifaa Hivi Vilivyotelekezwa</span>
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-12 flex justify-center items-center text-slate-400">
@@ -1245,6 +1328,13 @@ export const RouterManagement: React.FC<{
                           }`}
                         />
                         <span>{router.adoption_status === 'ADOPTED' ? 'ADOPTED' : router.adoption_status === 'CLAIMED' ? 'CLAIMED' : 'PENDING ADOPT'}</span>
+                      </span>
+                    )}
+
+                    {router.owner_id !== 1 && (!router.owner_id || (systemOwners.length > 0 && !validOwnerIdSet.has(router.owner_id))) && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase border border-rose-300 bg-rose-100 text-rose-800 flex items-center gap-1 shadow-2xs">
+                        <AlertCircle className="w-3 h-3 text-rose-600" />
+                        <span>Mmiliki Alifutwa</span>
                       </span>
                     )}
 

@@ -509,6 +509,9 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       setAdoptionSuccess(true);
       setAdoptionFailedDetails(null);
       setAdoptedRouter(data.router);
+      if (data.router?.id) {
+        setPortalUrl(`https://infotechwifi.com/?routerId=${data.router.id}&ap_vendor=omada`);
+      }
       if (data.router) {
         onSuccess(data.router);
       }

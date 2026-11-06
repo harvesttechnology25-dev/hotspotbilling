@@ -219,8 +219,11 @@ export default function App() {
     lastActivityRef.current = Date.now();
     setSessionExpiredNotice(false);
     setCurrentUser(user);
+    setSelectedSiteRouterId('ALL');
     try {
       localStorage.setItem('tzwifi_user', JSON.stringify(user));
+      localStorage.removeItem('tzwifi_active_site_id');
+      localStorage.removeItem('tzwifi_active_site_name');
     } catch {}
     handleSetViewMode('admin');
   };
@@ -228,9 +231,12 @@ export default function App() {
   const handleLogout = () => {
     setSessionExpiredNotice(false);
     setCurrentUser(null);
+    setSelectedSiteRouterId('ALL');
     try {
       localStorage.removeItem('tzwifi_user');
       localStorage.removeItem('tzwifi_token');
+      localStorage.removeItem('tzwifi_active_site_id');
+      localStorage.removeItem('tzwifi_active_site_name');
     } catch {}
     handleSetViewMode('welcome');
   };
@@ -238,8 +244,11 @@ export default function App() {
   const handleSwitchUser = (user: HotspotOwner) => {
     lastActivityRef.current = Date.now();
     setCurrentUser(user);
+    setSelectedSiteRouterId('ALL');
     try {
       localStorage.setItem('tzwifi_user', JSON.stringify(user));
+      localStorage.removeItem('tzwifi_active_site_id');
+      localStorage.removeItem('tzwifi_active_site_name');
     } catch {}
   };
 
@@ -304,8 +313,8 @@ export default function App() {
         ) : viewMode === 'portal' ? (
           <CaptivePortal
             lang={lang}
-            currentOwnerId={isDirectHotspotPortal ? undefined : currentUser?.id}
-            selectedRouterId={isDirectHotspotPortal ? undefined : (currentUser?.role === 'VENDOR_ADMIN' ? 'ALL' : selectedSiteRouterId)}
+            currentOwnerId={currentUser?.role === 'HOTSPOT_OWNER' ? currentUser.id : undefined}
+            selectedRouterId={currentUser?.role === 'VENDOR_ADMIN' ? 'ALL' : (selectedSiteRouterId !== 'ALL' ? selectedSiteRouterId : undefined)}
             onNavigateAddRouter={() => {
               setAdminInitialTab('routers');
               handleSetViewMode('admin');

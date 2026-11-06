@@ -506,9 +506,17 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
 // =============================================================================
 apiRouter.get('/plans', (req: Request, res: Response) => {
   const caller = getRequestUser(req);
-  const ownerIdQuery = req.query.ownerId ? Number(req.query.ownerId) : undefined;
+  let ownerIdQuery = req.query.ownerId ? Number(req.query.ownerId) : undefined;
   const routerIdQuery = req.query.routerId ? String(req.query.routerId).trim() : undefined;
   const strictRouter = req.query.strictRouter === 'true';
+
+  // Auto-resolve owner from routerId if ownerId is not explicitly in query
+  if (!ownerIdQuery && routerIdQuery && routerIdQuery !== 'ALL') {
+    const targetRouter = db.getRouterById(Number(routerIdQuery));
+    if (targetRouter?.owner_id) {
+      ownerIdQuery = targetRouter.owner_id;
+    }
+  }
 
   // Exclude unowned sample plans
   const allPlans = db.getPlans().filter((p) => !(p.owner_name === 'Japhet Hotspot' && (!p.owner_id || p.owner_id === 2)));
@@ -2894,10 +2902,16 @@ apiRouter.get('/routers', (req: Request, res: Response) => {
       }
       const assigned = owner.assigned_router_ids || [];
       return res.json(
-        routers.filter((r) => r.owner_id === ownerIdQuery || assigned.includes(r.id) || !r.owner_id)
+        routers.filter((r) => r.owner_id === ownerIdQuery || assigned.includes(r.id))
       );
     }
-    return res.json(routers.filter((r) => r.owner_id === ownerIdQuery || !r.owner_id));
+    return res.json(routers.filter((r) => r.owner_id === ownerIdQuery));
+  }
+
+  if (caller && caller.role === 'HOTSPOT_OWNER') {
+    const callerId = Number(caller.id);
+    const assigned = caller.assigned_router_ids || [];
+    return res.json(routers.filter((r) => r.owner_id === callerId || assigned.includes(r.id)));
   }
 
   res.json(routers);
@@ -2948,53 +2962,89 @@ apiRouter.get('/portal/info', (req: Request, res: Response) => {
   const ssidName = rawSsidName ? String(rawSsidName).trim() : '';
   const querySiteName = rawSite ? String(rawSite).trim() : '';
 
-  const routers = db.getRouters();
+  const rawRouters = db.getRouters();
   const owners = db.getOwners();
+  const validOwnerIds = new Set(owners.map((o) => o.id));
+
+  // Purge any router whose owner does not exist in the system (e.g. deleted owner like Zuberi)
+  const routers = rawRouters.filter((r) => r.owner_id === 1 || (r.owner_id && validOwnerIds.has(r.owner_id)));
 
   let matched: RouterRecord | undefined = undefined;
 
-  // 1. Direct routerId lookup
-  if (routerId) {
-    matched = routers.find((r) => r.id === routerId);
-  }
-
-  // 2. AP MAC Address lookup (Direct Omada Controller redirect to External Portal)
-  if (!matched && cleanApMac) {
-    matched = routers.find(
-      (r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac
-    );
-  }
-
-  // 3. SSID Name lookup (Dedicated SSID for this Hotspot Owner / AP)
-  if (!matched && ssidName) {
-    matched = routers.find(
-      (r) => r.ssid && r.ssid.trim().toLowerCase() === ssidName.toLowerCase()
-    );
-  }
-
-  // 4. Omada Site lookup
-  if (!matched && querySiteName) {
-    matched = routers.find(
-      (r) =>
-        (r.location && r.location.trim().toLowerCase() === querySiteName.toLowerCase()) ||
-        (r.omada_site_id && r.omada_site_id === querySiteName)
-    );
-  }
-
-  // 5. Client IP lookup (MikroTik Hotspot client subnet)
-  if (!matched && ip) {
-    matched = routers.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
-  }
-
-  // 6. Direct Owner ID lookup if passed explicitly
-  if (!matched && ownerId) {
+  // PRIORITY 1: When an explicit ownerId is provided (e.g. Hotspot Owner Omary or tenant portal)
+  if (ownerId) {
     const owner = db.getOwnerById(ownerId);
     if (owner) {
       const assigned = owner.assigned_router_ids || [];
-      const allowedRouters = routers.filter((r) => Number(r.owner_id) === Number(owner.id) || assigned.includes(r.id));
-      if (allowedRouters.length > 0) {
-        matched = allowedRouters[0];
+      const ownerRouters = routers.filter(
+        (r) => Number(r.owner_id) === Number(owner.id) || assigned.includes(r.id)
+      );
+
+      // If a specific routerId was passed, verify it genuinely belongs to this owner
+      if (routerId && ownerRouters.some((r) => r.id === routerId)) {
+        matched = ownerRouters.find((r) => r.id === routerId);
+      } else if (cleanApMac && ownerRouters.some((r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac)) {
+        matched = ownerRouters.find((r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac);
+      } else if (ssidName && ownerRouters.some((r) => r.ssid && r.ssid.trim().toLowerCase() === ssidName.toLowerCase())) {
+        matched = ownerRouters.find((r) => r.ssid && r.ssid.trim().toLowerCase() === ssidName.toLowerCase());
+      } else if (ownerRouters.length > 0) {
+        // PRIORITIZE THE ADAPTED AP (Strict user requirement: Omary must see his adapted AP!)
+        matched =
+          ownerRouters.find((r) => r.adoption_status === 'ADOPTED' && r.status === 'ONLINE') ||
+          ownerRouters.find((r) => r.adoption_status === 'ADOPTED') ||
+          ownerRouters.find((r) => r.status === 'ONLINE') ||
+          ownerRouters[0];
       }
+    }
+  }
+
+  // PRIORITY 2: When no ownerId is provided (anonymous guest client connecting directly to AP)
+  if (!matched && !ownerId) {
+    // 1. AP MAC Address lookup (Direct Omada Controller / MikroTik redirect)
+    if (cleanApMac) {
+      matched = routers.find(
+        (r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac
+      );
+    }
+
+    // 2. SSID Name lookup (Dedicated SSID for this Hotspot Owner / AP)
+    if (!matched && ssidName) {
+      const ssidMatches = routers.filter(
+        (r) => r.ssid && r.ssid.trim().toLowerCase() === ssidName.toLowerCase()
+      );
+      if (ssidMatches.length > 0) {
+        matched =
+          ssidMatches.find((r) => r.adoption_status === 'ADOPTED' && r.status === 'ONLINE') ||
+          ssidMatches.find((r) => r.adoption_status === 'ADOPTED') ||
+          ssidMatches[0];
+      }
+    }
+
+    // 3. Omada Site lookup
+    if (!matched && querySiteName) {
+      const siteMatches = routers.filter(
+        (r) =>
+          (r.location && r.location.trim().toLowerCase() === querySiteName.toLowerCase()) ||
+          (r.omada_site_id && r.omada_site_id === querySiteName)
+      );
+      if (siteMatches.length > 0) {
+        matched =
+          siteMatches.find((r) => r.adoption_status === 'ADOPTED') ||
+          siteMatches[0];
+      }
+    }
+
+    // 4. Direct routerId lookup (only if router belongs to a valid owner!)
+    if (!matched && routerId) {
+      const candidate = routers.find((r) => r.id === routerId);
+      if (candidate && (candidate.owner_id === 1 || (candidate.owner_id && validOwnerIds.has(candidate.owner_id)))) {
+        matched = candidate;
+      }
+    }
+
+    // 5. Client IP lookup (MikroTik Hotspot client subnet)
+    if (!matched && ip) {
+      matched = routers.find((r) => r.ip_address === ip || ip.startsWith(r.ip_address.slice(0, 7)));
     }
   }
 
@@ -4480,7 +4530,32 @@ apiRouter.delete('/routers/:id', (req: Request, res: Response) => {
     OmadaAdoptionService.forgetDiscoveredAp(router.mac_address);
   }
   const ok = db.deleteRouter(id);
-  res.json({ success: ok });
+  res.json({ success: ok, message: 'Router/AP imeondolewa kikamilifu kwenye mfumo.' });
+});
+
+// Purge all orphaned routers (routers belonging to deleted/non-existent owners)
+apiRouter.post('/routers/purge-orphaned', (req: Request, res: Response) => {
+  const owners = db.getOwners();
+  const validOwnerIds = new Set(owners.map((o) => o.id));
+  const allRouters = db.getRouters();
+  const orphaned = allRouters.filter((r) => r.owner_id !== 1 && (!r.owner_id || !validOwnerIds.has(r.owner_id)));
+
+  for (const r of orphaned) {
+    if (r.mac_address) {
+      OmadaAdoptionService.forgetDiscoveredAp(r.mac_address);
+    }
+    db.deleteRouter(r.id);
+  }
+
+  res.json({
+    success: true,
+    deletedCount: orphaned.length,
+    deletedRouters: orphaned.map((r) => ({ id: r.id, name: r.name, mac_address: r.mac_address })),
+    message:
+      orphaned.length > 0
+        ? `Router ${orphaned.length} za wamiliki waliofutwa zimeondolewa kikamilifu kwenye mfumo!`
+        : 'Hakuna router iliyotelekezwa kwenye mfumo, vifaa vyote viko safi!',
+  });
 });
 
 // =============================================================================
@@ -5290,7 +5365,12 @@ apiRouter.post('/omada/sites/enable-hotspot', async (req: Request, res: Response
       : `${appBase}/portal`;
 
     const effectiveSsid = ssid || router?.ssid || 'TZWIFI-HOTSPOT';
-    const effectivePortalUrl = portalUrl || defaultPortalUrl;
+    let effectivePortalUrl = defaultPortalUrl;
+    if (router?.id) {
+      effectivePortalUrl = `${appBase}/?routerId=${router.id}&ap_vendor=omada`;
+    } else if (portalUrl) {
+      effectivePortalUrl = portalUrl;
+    }
     
     let effectiveSiteId = siteId;
     if (!effectiveSiteId && router) {

@@ -114,6 +114,28 @@ export class OmadaAutomationService {
   private sessionCookie: string | null = null;
   private isOpenApi: boolean = false;
   private isConfigured: boolean = false;
+  private defaultSiteMeta: {
+    region: string;
+    timeZone: string;
+    scenario: string;
+    type?: number;
+  } | null = null;
+
+  /**
+   * Huweka password ya kifaa inayozingatia vigezo vikali vya Omada Controller
+   * (Alama maalum, herufi kubwa, ndogo, na tarakimu, herufi 8-32)
+   */
+  private getCompliantDevicePassword(candidate?: string): string {
+    const raw = (candidate || '').trim();
+    const hasUpper = /[A-Z]/.test(raw);
+    const hasLower = /[a-z]/.test(raw);
+    const hasDigit = /[0-9]/.test(raw);
+    const hasSpecial = /[^A-Za-z0-9]/.test(raw);
+    if (raw.length >= 8 && raw.length <= 32 && hasUpper && hasLower && hasDigit && hasSpecial) {
+      return raw;
+    }
+    return 'Omada@1234!Tz';
+  }
 
   constructor(customConfig?: Partial<OmadaConfig>) {
     const dbOmada = typeof db !== 'undefined' ? (db as any).getOmadaControllerSettings?.() : undefined;
@@ -235,6 +257,21 @@ export class OmadaAutomationService {
       } catch (err: any) {
         console.warn(`[Omada Open API] Hitilafu ya Open API token: ${err.message}. Inajaribu admin login.`);
       }
+    }
+
+    // Query /api/info to discover real omadacId if available
+    try {
+      const infoResp = await this.safeFetch(`${this.config.controllerUrl}/api/info`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      const infoData = await infoResp.json().catch(() => ({}));
+      if (infoData?.result?.omadacId) {
+        this.omadacId = String(infoData.result.omadacId);
+        console.log(`[Omada API] Imegundua controller omadacId kutoka /api/info: ${this.omadacId}`);
+      }
+    } catch {
+      // Ignore
     }
 
     // NJIA 2: Standard Controller Admin Login (/api/v2/login)
@@ -404,6 +441,15 @@ export class OmadaAutomationService {
         if (sid && !sites.some((ex) => ex.id === sid)) {
           sites.push({ id: String(sid), name: String(sname) });
         }
+        if (!this.defaultSiteMeta && (s.region || s.timeZone || s.scenario)) {
+          this.defaultSiteMeta = {
+            region: s.region || 'Tanzania',
+            timeZone: s.timeZone || 'Africa/Dar_es_Salaam',
+            scenario: s.scenario || 'Office',
+            type: typeof s.type === 'number' ? s.type : 0,
+          };
+          console.log(`[Omada API] Imegundua default site settings za Controller: region="${this.defaultSiteMeta.region}", timeZone="${this.defaultSiteMeta.timeZone}", scenario="${this.defaultSiteMeta.scenario}"`);
+        }
       }
     } catch {
       // Fallback
@@ -425,6 +471,14 @@ export class OmadaAutomationService {
           if (sid && !sites.some((ex) => ex.id === sid)) {
             sites.push({ id: String(sid), name: String(sname) });
           }
+          if (!this.defaultSiteMeta && (s.region || s.timeZone || s.scenario)) {
+            this.defaultSiteMeta = {
+              region: s.region || 'Tanzania',
+              timeZone: s.timeZone || 'Africa/Dar_es_Salaam',
+              scenario: s.scenario || 'Office',
+              type: typeof s.type === 'number' ? s.type : 0,
+            };
+          }
         }
       } catch {
         // Fallback
@@ -443,11 +497,17 @@ export class OmadaAutomationService {
    * =========================================================================
    * HATUA YA 1 (A): UUNDAJI WA SITE MPYA KWENYE OMADA CONTROLLER
    * =========================================================================
-   * Inatuma ombi la POST kwenye `/{omadacId}/api/v2/sites` kutengeneza Site.
-   * Muhimu: Inajumuisha `deviceAccountSetting` ili kuzuia kosa la
-   * "create site parameter [deviceAccountSetting] should not be null".
+   * Inatuma ombi la POST kwenye `/{omadacId}/api/v2/sites` au Open API kutengeneza Site.
+   * Kila ombi linabeba vigezo vyote vya lazima: `name`, `scenario`, `timeZone`, na `region`,
+   * pamoja na `deviceAccountSetting` inayokidhi vigezo vya usalama vya Omada ili
+   * kuzuia kosa la "Parameter [scenario/timeZone/region] is null".
    */
-  async createSite(siteName: string, region = 'Tanzania', timeZone = 'Africa/Dar_es_Salaam'): Promise<string> {
+  async createSite(
+    siteName: string,
+    region?: string,
+    timeZone?: string,
+    scenario?: string
+  ): Promise<string> {
     if (!this.sessionToken) {
       await this.login();
     }
@@ -464,63 +524,126 @@ export class OmadaAutomationService {
       return existing.id;
     }
 
-    const deviceUser = this.config.username || 'admin';
-    const devicePass = this.config.password || 'Omada@1234!Tz';
+    // Dynamic resolution ya Region, TimeZone, na Scenario kutoka kwenye Controller au parameters
+    const effectiveRegion = (
+      region ||
+      this.defaultSiteMeta?.region ||
+      'Tanzania'
+    ).trim();
 
-    // Candidate payloads (TP-Link Omada v5.x / v6.x & Open API)
+    const effectiveTimeZone = (
+      timeZone ||
+      this.defaultSiteMeta?.timeZone ||
+      'Africa/Dar_es_Salaam'
+    ).trim();
+
+    // TP-Link Omada scenario lazima iwe na herufi kubwa mwanzoni ('Office', 'Outdoor', 'Hotel', n.k.)
+    const rawScenario = (scenario || this.defaultSiteMeta?.scenario || 'Office').trim();
+    const effectiveScenario = rawScenario.charAt(0).toUpperCase() + rawScenario.slice(1);
+
+    const deviceUser = (this.config.username || 'admin').trim();
+    const devicePass = this.getCompliantDevicePassword(this.config.password || 'Omada@1234!Tz');
+    const siteType = typeof this.defaultSiteMeta?.type === 'number' ? this.defaultSiteMeta.type : 0;
+
+    // Candidate payloads: KILA payload LAZIMA iwe na `name`, `region`, `timeZone`, na `scenario` zisizo null!
     const candidatePayloads = [
+      // 1. Standard Omada SDN Controller v5.x / v6.x (Primary: with deviceAccountSetting & enable)
       {
         name: cleanSiteName,
-        region,
-        timeZone,
-        scenario: 'outdoor',
-        type: 0,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: effectiveScenario,
+        type: siteType,
         deviceAccountSetting: {
           username: deviceUser,
           password: devicePass,
           enable: true,
         },
       },
+      // 2. Standard Omada with deviceAccountSetting without enable flag
       {
         name: cleanSiteName,
-        region,
-        timeZone,
-        type: 0,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: effectiveScenario,
+        type: siteType,
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+        },
+      },
+      // 3. Fallback to 'Office' scenario (Omada universally supports 'Office')
+      {
+        name: cleanSiteName,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: 'Office',
+        type: siteType,
         deviceAccountSetting: {
           username: deviceUser,
           password: devicePass,
           enable: true,
         },
       },
+      // 4. Outdoor scenario explicitly capitalized
       {
         name: cleanSiteName,
-        region,
-        timeZone,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: 'Outdoor',
+        type: siteType,
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+          enable: true,
+        },
       },
+      // 5. Open API format with deviceAccount
       {
         name: cleanSiteName,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: effectiveScenario,
+        type: siteType,
         deviceAccount: {
           username: deviceUser,
           password: devicePass,
         },
       },
+      // 6. Minimal Open API format without deviceAccount
+      {
+        name: cleanSiteName,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: effectiveScenario,
+        type: siteType,
+      },
+      // 7. Minimal OpenAPI format (Office)
+      {
+        name: cleanSiteName,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: 'Office',
+      },
     ];
 
-    // Candidate endpoints (Global Controller v2, Omada CID v2, na Open API)
-    const candidateUrls: string[] = [
-      `${this.config.controllerUrl}/api/v2/sites`,
-      `${this.getApiBasePath()}/sites`,
-    ];
-    if (this.omadacId) {
+    // Candidate endpoints: URL zenye omadacId ziwe za kwanza kwa Controller v5+
+    const candidateUrls: string[] = [];
+    if (this.isOpenApi) {
+      candidateUrls.push(`${this.config.controllerUrl}/openapi/v1/${this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f'}/sites`);
+    }
+    if (this.omadacId && this.omadacId !== 'current') {
       candidateUrls.push(`${this.config.controllerUrl}/${this.omadacId}/api/v2/sites`);
     }
-    if (this.isOpenApi) {
-      candidateUrls.unshift(`${this.config.controllerUrl}/openapi/v1/${this.omadacId || this.config.omadacId}/sites`);
-    }
+    candidateUrls.push(`${this.getApiBasePath()}/sites`);
+    candidateUrls.push(`${this.config.controllerUrl}/api/v2/sites`);
+
+    // Ondoa duplicate URLs
+    const uniqueUrls = Array.from(new Set(candidateUrls));
 
     let lastError = '';
 
-    for (const url of candidateUrls) {
+    for (const url of uniqueUrls) {
       for (const payload of candidatePayloads) {
         try {
           const response = await this.safeFetch(url, {
@@ -533,15 +656,34 @@ export class OmadaAutomationService {
           console.log(`[Omada Create Site] POST ${url} -> HTTP ${response.status}:`, data);
 
           if (response.ok && (data?.errorCode === 0 || data?.code === 0)) {
-            const siteId = data?.result?.siteId || data?.result?.id || (typeof data?.result === 'string' ? data.result : null);
+            const siteId =
+              data?.result?.siteId ||
+              data?.result?.id ||
+              data?.result?.key ||
+              data?.result?.site?.id ||
+              data?.result?.site?.siteId ||
+              (typeof data?.result === 'string' && data.result.length > 0 ? data.result : null);
+
             if (siteId) {
               console.log(`[Omada API] Site "${cleanSiteName}" imetengenezwa kikamilifu kwenye Controller ikiwa na ID: ${siteId}`);
               return String(siteId);
             }
+
+            // Kama errorCode ilikuwa 0 lakini ID haikurudi moja kwa moja, chukua kutoka getControllerSites
+            const refreshed = await this.getControllerSites();
+            const found = refreshed.find((s) => s.name?.toLowerCase() === cleanSiteName.toLowerCase());
+            if (found) {
+              console.log(`[Omada API] Site "${cleanSiteName}" imethibitishwa kutoka Controller ikiwa na ID: ${found.id}`);
+              return found.id;
+            }
           }
 
           // Kama jina la Site tayari lipo au duplicate (-44101)
-          if (data?.errorCode === -44101 || data?.msg?.includes('already exists') || data?.msg?.includes('duplicate')) {
+          if (
+            data?.errorCode === -44101 ||
+            data?.msg?.toLowerCase().includes('already exists') ||
+            data?.msg?.toLowerCase().includes('duplicate')
+          ) {
             const refreshed = await this.getControllerSites();
             const found = refreshed.find((s) => s.name?.toLowerCase() === cleanSiteName.toLowerCase());
             if (found) return found.id;

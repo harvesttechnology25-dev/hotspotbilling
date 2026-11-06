@@ -22,6 +22,7 @@ import {
   Layers,
   Zap,
   PlusCircle,
+  Edit3,
 } from 'lucide-react';
 import { RouterItem, OmadaSiteItem } from '../../types/index.ts';
 
@@ -83,6 +84,9 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
   const [nasIp, setNasIp] = useState('13.140.173.98');
   const [creatingSite, setCreatingSite] = useState(false);
   const [siteCreatedSuccess, setSiteCreatedSuccess] = useState(false);
+  const [siteCreationMode, setSiteCreationMode] = useState<'AUTOMATIC' | 'MANUAL'>('AUTOMATIC');
+  const [manualSiteId, setManualSiteId] = useState('');
+  const [canUseManualFallback, setCanUseManualFallback] = useState(false);
 
   // AP Claim State
   const [macAddress, setMacAddress] = useState('');
@@ -270,6 +274,9 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
     setEnablingHotspot(false);
     setHotspotEnabledSuccess(false);
     setSiteCreatedSuccess(false);
+    setSiteCreationMode('AUTOMATIC');
+    setManualSiteId('');
+    setCanUseManualFallback(false);
     setAdoptionFailedDetails(null);
     setPortalRedirectCountdown(null);
     setCountdownPaused(false);
@@ -400,6 +407,7 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       }, 900);
     } catch (err: any) {
       setErrorMessage(err.message || 'Hitilafu ya uundaji wa Site.');
+      setCanUseManualFallback(true);
       if (
         err.message &&
         (err.message.includes('-30109') ||
@@ -408,6 +416,52 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       ) {
         setShowControllerCreds(true);
       }
+    } finally {
+      setCreatingSite(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // STEP 1 (MANUAL): SAVE SITE MANUALLY & PROCEED TO STEP 2 DIRECTLY
+  // ---------------------------------------------------------------------------
+  const handleManualCreateSite = async () => {
+    if (!siteName.trim()) {
+      setErrorMessage('Tafadhali weka jina la Site (Site Name).');
+      return;
+    }
+
+    setCreatingSite(true);
+    setErrorMessage('');
+    try {
+      const res = await fetch('/api/v1/omada/sites/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: siteName.trim(),
+          nasIp: nasIp || '13.140.173.98',
+          ownerId,
+          isManual: true,
+          siteId: manualSiteId.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Imeshindwa kuhifadhi Site manually.');
+      }
+
+      setSiteCreatedSuccess(true);
+      setSelectedSiteId(data.site.id);
+      setSelectedSite(data.site);
+      if (data.site.nas_ip) setNasIp(data.site.nas_ip);
+      await fetchSites();
+
+      // Smooth transition to step 2
+      setTimeout(() => {
+        setActiveStep(2);
+      }, 700);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Hitilafu ya kuhifadhi Site manually.');
     } finally {
       setCreatingSite(false);
     }
@@ -709,9 +763,28 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {errorMessage && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-semibold">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorMessage}</span>
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl space-y-2 text-xs text-rose-800 font-semibold">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="flex-1">{errorMessage}</span>
+              </div>
+              {activeStep === 1 && (
+                <div className="pt-2 border-t border-rose-200/80 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[11px] text-rose-700">
+                    💡 Je, unataka kuweka Site hii manually ili uendelee moja kwa moja Hatua ya 2 bila kukwama?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteCreationMode('MANUAL');
+                      setErrorMessage('');
+                    }}
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl transition cursor-pointer flex items-center gap-1 shadow-xs"
+                  >
+                    <span>Tumia Njia ya Manual &rarr;</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -980,62 +1053,178 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
                 </div>
               )}
 
-              {/* Create New Site Form */}
+              {/* Create New Site Form (With Automatic vs Manual Tabs) */}
               <div className="border border-slate-200 p-5 rounded-2xl bg-white space-y-4 shadow-2xs">
-                <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-teal-600" />
-                  <span>Unda Omada Site Mpya:</span>
-                </h4>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Jina la Site (Site Name):
-                  </label>
-                  <input
-                    type="text"
-                    value={siteName}
-                    onChange={(e) => setSiteName(e.target.value)}
-                    placeholder="mfano: Kariakoo-Hub au Mwenge-Hotspot"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500 focus:bg-white"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Jina la kituo chako litakalotambulika kwenye Controller na ripoti za wateja.
-                  </p>
+                {/* Mode Switcher Tabs */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteCreationMode('AUTOMATIC');
+                      setErrorMessage('');
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-black rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      siteCreationMode === 'AUTOMATIC'
+                        ? 'bg-white text-teal-800 shadow-xs border border-slate-200/60'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-teal-600" />
+                    <span>⚡ Kiotomatiki (Omada API)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSiteCreationMode('MANUAL');
+                      setErrorMessage('');
+                    }}
+                    className={`flex-1 py-2 px-3 text-xs font-black rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      siteCreationMode === 'MANUAL'
+                        ? 'bg-teal-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>✍️ Weka Manually (Manual Site)</span>
+                  </button>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-600 font-medium">RADIUS NAS IP (Inazalishwa Kiotomatiki):</span>
-                    <strong className="text-teal-700 font-mono font-bold">{nasIp}</strong>
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    Anwani hii ya RADIUS NAS inatumika kuwasiliana na Omada Controller kwa ajili ya ukaguzi wa vifurushi na vocha.
-                  </p>
-                </div>
+                {siteCreationMode === 'AUTOMATIC' ? (
+                  <>
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-teal-600" />
+                      <span>Unda Omada Site Kiotomatiki:</span>
+                    </h4>
 
-                <button
-                  type="button"
-                  onClick={handleCreateSite}
-                  disabled={creatingSite || !siteName.trim()}
-                  className="w-full py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {creatingSite ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Inatengeneza Site na Kuunganisha RADIUS NAS IP...</span>
-                    </>
-                  ) : siteCreatedSuccess ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                      <span>Site Imetengenezwa Kikamilifu! Inahamia Hatua ya 2...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Tengeneza Site & Unganisha RADIUS NAS (Create & Link Site)</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Jina la Site (Site Name):
+                      </label>
+                      <input
+                        type="text"
+                        value={siteName}
+                        onChange={(e) => setSiteName(e.target.value)}
+                        placeholder="mfano: Mwatulole au Kariakoo-Hub"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500 focus:bg-white"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Jina la kituo chako litakalotengenezwa kiotomatiki kwenye Omada Controller.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600 font-medium">RADIUS NAS IP (Inazalishwa Kiotomatiki):</span>
+                        <strong className="text-teal-700 font-mono font-bold">{nasIp}</strong>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Anwani hii ya RADIUS NAS inatumika kuwasiliana na Omada Controller kwa ajili ya ukaguzi wa vifurushi na vocha.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCreateSite}
+                      disabled={creatingSite || !siteName.trim()}
+                      className="w-full py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {creatingSite ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Inatengeneza Site na Kuunganisha RADIUS NAS IP...</span>
+                        </>
+                      ) : siteCreatedSuccess ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                          <span>Site Imetengenezwa Kikamilifu! Inahamia Hatua ya 2...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Tengeneza Site Kiotomatiki & Unganisha (Create & Link Site)</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl space-y-1 text-emerald-950">
+                      <div className="flex items-center gap-2 font-bold text-xs text-emerald-900">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Njia ya Manual: Endelea Moja kwa Moja Hatua ya 2</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-800 leading-relaxed">
+                        Kama tayari umetengeneza Site ndani ya <strong>Omada Controller GUI</strong> (au unataka kusajili jina la Site manually bila kupitia API), ingiza jina hapa kisha bofya kitufe cha chini kuendelea na <strong>Hatua ya 2 (Claim Access Point)</strong> mara moja.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Jina la Site (Site Name): <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={siteName}
+                        onChange={(e) => setSiteName(e.target.value)}
+                        placeholder="mfano: Mwatulole"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Omada Site ID (Hiari / Optional):
+                      </label>
+                      <input
+                        type="text"
+                        value={manualSiteId}
+                        onChange={(e) => setManualSiteId(e.target.value)}
+                        placeholder="mfano: Default au acha wazi ili izalishe yenyewe"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-teal-500 focus:bg-white"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Kama unajua Site ID kutoka kwenye kivinjari chako cha Omada Controller (k.m. Default), unaweza kuiweka hapa, au iache wazi mfumo utaiweka yenyewe.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        RADIUS NAS IP:
+                      </label>
+                      <input
+                        type="text"
+                        value={nasIp}
+                        onChange={(e) => setNasIp(e.target.value)}
+                        placeholder="13.140.173.98"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-teal-800 focus:outline-none focus:border-teal-500 focus:bg-white"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleManualCreateSite}
+                      disabled={creatingSite || !siteName.trim()}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {creatingSite ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Inahifadhi Site na Kuandaa Hatua ya 2...</span>
+                        </>
+                      ) : siteCreatedSuccess ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                          <span>Imehifadhiwa! Inahamia Hatua ya 2...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Hifadhi Site Hii & Endelea Hatua ya 2 (Claim AP)</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}

@@ -5052,6 +5052,35 @@ apiRouter.post('/omada/sites/create', async (req: Request, res: Response) => {
       ? Number(ownerId)
       : (caller ? Number(caller.parent_owner_id || caller.id) : (db.getOwners()[0]?.id || 1));
 
+    // Njia ya Manual (Manual Site Creation & Linking)
+    if (req.body.isManual || req.body.manual) {
+      const explicitSiteId = req.body.siteId ? String(req.body.siteId).trim() : '';
+      const resolvedSiteId =
+        explicitSiteId || `site_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now().toString(36)}`;
+      const assignedNasIp = String(nasIp || '13.140.173.98').trim();
+      const nowIso = new Date().toISOString();
+      const newSite = {
+        id: resolvedSiteId,
+        name: cleanName,
+        nas_ip: assignedNasIp,
+        radius_profile_id: `radius_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+        status: 'CONNECTED' as const,
+        owner_id: effectiveOwnerId,
+        hotspot_enabled: false,
+        ap_count: 0,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+
+      db.saveOmadaSite(newSite);
+
+      return res.json({
+        success: true,
+        site: newSite,
+        message: `Site "${cleanName}" imehifadhiwa manually na kuunganishwa kikamilifu! Sasa unaweza kuendelea Hatua ya 2 kusajili AP.`,
+      });
+    }
+
     let customConfig: any = undefined;
     if (controllerUsername && controllerPassword) {
       customConfig = {
@@ -5095,7 +5124,11 @@ apiRouter.post('/omada/sites/create', async (req: Request, res: Response) => {
       message: `Site "${cleanName}" imetengenezwa na kuunganishwa (Connected) kikamilifu ikiwa na RADIUS NAS IP (${radiusResult.nasIp})!`,
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kutengeneza Site kwenye Omada.' });
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Hitilafu ya kutengeneza Site kwenye Omada Controller.',
+      canUseManual: true,
+    });
   }
 });
 

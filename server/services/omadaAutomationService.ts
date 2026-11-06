@@ -545,7 +545,7 @@ export class OmadaAutomationService {
     const devicePass = this.getCompliantDevicePassword(this.config.password || 'Omada@1234!Tz');
     const siteType = typeof this.defaultSiteMeta?.type === 'number' ? this.defaultSiteMeta.type : 0;
 
-    // Candidate payloads: KILA payload LAZIMA iwe na `name`, `region`, `timeZone`, na `scenario` zisizo null!
+    // Candidate payloads: TP-Link Omada inaweza kukubali payload fupi { name } au yenye scenario/region/timeZone
     const candidatePayloads = [
       // 1. Standard Omada SDN Controller v5.x / v6.x (Primary: with deviceAccountSetting & enable)
       {
@@ -560,7 +560,18 @@ export class OmadaAutomationService {
           enable: true,
         },
       },
-      // 2. Standard Omada with deviceAccountSetting without enable flag
+      // 2. Minimal Open API format { name } pekee (Kama inavyopendekezwa na TP-Link Open API)
+      {
+        name: cleanSiteName,
+      },
+      // 3. Simple payload yenye name na scenario pekee
+      {
+        name: cleanSiteName,
+        scenario: 'Office',
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+      },
+      // 4. Standard Omada with deviceAccountSetting without enable flag
       {
         name: cleanSiteName,
         region: effectiveRegion,
@@ -572,7 +583,7 @@ export class OmadaAutomationService {
           password: devicePass,
         },
       },
-      // 3. Fallback to 'Office' scenario (Omada universally supports 'Office')
+      // 5. Fallback to 'Office' scenario
       {
         name: cleanSiteName,
         region: effectiveRegion,
@@ -585,7 +596,7 @@ export class OmadaAutomationService {
           enable: true,
         },
       },
-      // 4. Outdoor scenario explicitly capitalized
+      // 6. Outdoor scenario explicitly capitalized
       {
         name: cleanSiteName,
         region: effectiveRegion,
@@ -598,7 +609,7 @@ export class OmadaAutomationService {
           enable: true,
         },
       },
-      // 5. Open API format with deviceAccount
+      // 7. Open API format with deviceAccount
       {
         name: cleanSiteName,
         region: effectiveRegion,
@@ -610,30 +621,21 @@ export class OmadaAutomationService {
           password: devicePass,
         },
       },
-      // 6. Minimal Open API format without deviceAccount
-      {
-        name: cleanSiteName,
-        region: effectiveRegion,
-        timeZone: effectiveTimeZone,
-        scenario: effectiveScenario,
-        type: siteType,
-      },
-      // 7. Minimal OpenAPI format (Office)
-      {
-        name: cleanSiteName,
-        region: effectiveRegion,
-        timeZone: effectiveTimeZone,
-        scenario: 'Office',
-      },
     ];
 
-    // Candidate endpoints: URL zenye omadacId ziwe za kwanza kwa Controller v5+
+    // Candidate endpoints: URL zenye token query parameter na omadacId
     const candidateUrls: string[] = [];
     if (this.isOpenApi) {
       candidateUrls.push(`${this.config.controllerUrl}/openapi/v1/${this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f'}/sites`);
     }
     if (this.omadacId && this.omadacId !== 'current') {
+      if (this.sessionToken) {
+        candidateUrls.push(`${this.config.controllerUrl}/${this.omadacId}/api/v2/sites?token=${encodeURIComponent(this.sessionToken)}`);
+      }
       candidateUrls.push(`${this.config.controllerUrl}/${this.omadacId}/api/v2/sites`);
+    }
+    if (this.sessionToken) {
+      candidateUrls.push(`${this.getApiBasePath()}/sites?token=${encodeURIComponent(this.sessionToken)}`);
     }
     candidateUrls.push(`${this.getApiBasePath()}/sites`);
     candidateUrls.push(`${this.config.controllerUrl}/api/v2/sites`);

@@ -40,6 +40,7 @@ import { ApSetupGuideModal, ApGuideTab } from './ApSetupGuideModal.tsx';
 import { OmadaAdoptionModal } from './OmadaAdoptionModal.tsx';
 import { DevicePerformanceModal } from './DevicePerformanceModal.tsx';
 import { TablePagination, PageSizeOption } from '../Common/TablePagination.tsx';
+import { getUniqueApPortalUrl } from '../../utils/portalUrlHelper.ts';
 
 export const DEVICE_PROFILES: Record<DeviceType, {
   name: string;
@@ -607,10 +608,29 @@ export const RouterManagement: React.FC<{
   };
 
   const getActiveScriptContent = (): string => {
+    const fallbackRuijieUrl = selectedScriptRouter?.unique_portal_url || (selectedScriptRouter ? getUniqueApPortalUrl({
+      routerId: selectedScriptRouter.id,
+      macAddress: selectedScriptRouter.mac_address,
+      siteId: selectedScriptRouter.omada_site_id,
+      vendor: 'ruijie',
+    }) : 'https://infotechwifi.com');
+    const fallbackOmadaUrl = selectedScriptRouter?.unique_portal_url || (selectedScriptRouter ? getUniqueApPortalUrl({
+      routerId: selectedScriptRouter.id,
+      macAddress: selectedScriptRouter.mac_address,
+      siteId: selectedScriptRouter.omada_site_id,
+      vendor: 'omada',
+    }) : 'https://infotechwifi.com');
+    const fallbackCpeUrl = selectedScriptRouter?.unique_portal_url || (selectedScriptRouter ? getUniqueApPortalUrl({
+      routerId: selectedScriptRouter.id,
+      macAddress: selectedScriptRouter.mac_address,
+      siteId: selectedScriptRouter.omada_site_id,
+      vendor: 'cpe',
+    }) : 'https://infotechwifi.com');
+
     if (activeScriptTab === 'ruijie') {
       return (
         `# Ruijie Reyee Cloud Captive Portal Settings\n` +
-        `Portal URL: ${deviceConfigData?.ruijie?.portalUrl || 'https://infotechwifi.com/?routerId=' + selectedScriptRouter?.id}\n` +
+        `Portal URL: ${deviceConfigData?.ruijie?.portalUrl || fallbackRuijieUrl}\n` +
         `RADIUS Server IP: ${deviceConfigData?.ruijie?.radiusIp || '13.140.173.98'}\n` +
         `RADIUS Auth Port: 1812\n` +
         `RADIUS Acct Port: 1813\n` +
@@ -623,7 +643,7 @@ export const RouterManagement: React.FC<{
     if (activeScriptTab === 'omada') {
       return (
         `# TP-Link Omada Controller Hotspot Settings\n` +
-        `External Web Portal URL: ${deviceConfigData?.omada?.portalUrl || 'https://infotechwifi.com/?routerId=' + selectedScriptRouter?.id}\n` +
+        `External Web Portal URL: ${deviceConfigData?.omada?.portalUrl || fallbackOmadaUrl}\n` +
         `RADIUS Server IP: ${deviceConfigData?.omada?.radiusIp || '13.140.173.98'}\n` +
         `RADIUS Auth Port: 1812\n` +
         `RADIUS Acct Port: 1813\n` +
@@ -635,7 +655,7 @@ export const RouterManagement: React.FC<{
       return (
         `# TP-Link Pharos CPE Configuration (PharOS Web: 192.168.0.254)\n` +
         `Model: ${selectedScriptRouter?.model_name || 'TP-Link Pharos CPE'}\n` +
-        `External Portal URL: ${deviceConfigData?.cpe?.portalUrl || 'https://infotechwifi.com/?routerId=' + selectedScriptRouter?.id}\n` +
+        `External Portal URL: ${deviceConfigData?.cpe?.portalUrl || fallbackCpeUrl}\n` +
         `RADIUS Server IP: ${deviceConfigData?.cpe?.radiusIp || '13.140.173.98'}\n` +
         `RADIUS Secret: ${selectedScriptRouter?.radius_secret || 'radius_secret_2026'}\n\n` +
         `# Mwongozo Muhimu wa PharOS (Kwenye Web GUI 192.168.0.254):\n` +
@@ -1696,13 +1716,49 @@ export const RouterManagement: React.FC<{
                             <span>Omada Wizard</span>
                           </button>
 
+                          {/* Unique AP Portal URL Preview Banner */}
+                          {(() => {
+                            const apPortalUrl = router.unique_portal_url || getUniqueApPortalUrl({
+                              routerId: router.id,
+                              macAddress: router.mac_address,
+                              siteId: router.omada_site_id,
+                              vendor: 'omada',
+                            });
+                            return (
+                              <div className="col-span-1 sm:col-span-2 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-between text-[11px] gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                  <span className="text-teal-900 font-bold truncate">
+                                    Unique AP Portal: <span className="font-mono">{router.mac_address ? router.mac_address.toUpperCase() : `AP #${router.id}`}</span>
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(apPortalUrl);
+                                    setPortalUrlCopiedId(router.id);
+                                    setTimeout(() => setPortalUrlCopiedId(null), 2500);
+                                  }}
+                                  className="text-teal-700 hover:text-teal-900 font-extrabold text-[10px] shrink-0 uppercase tracking-wider cursor-pointer"
+                                >
+                                  {portalUrlCopiedId === router.id ? '✓ Imenakiliwa' : 'Nakili'}
+                                </button>
+                              </div>
+                            );
+                          })()}
+
                           {/* 4. Live Captive Portal Test Link */}
                           <a
-                            href={`https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`}
+                            href={router.unique_portal_url || getUniqueApPortalUrl({
+                              routerId: router.id,
+                              macAddress: router.mac_address,
+                              siteId: router.omada_site_id,
+                              vendor: 'omada',
+                            })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                            title="Jaribu ukurasa wa wateja wa Hotspot & malipo ya simu"
+                            title="Jaribu ukurasa wa wateja wa Hotspot & malipo ya simu kwa AP hii mahususi"
                           >
                             <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                             <span>⚡ Jaribu Portal</span>
@@ -1713,13 +1769,18 @@ export const RouterManagement: React.FC<{
                           <button
                             type="button"
                             onClick={() => {
-                              const pUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=omada`;
+                              const pUrl = router.unique_portal_url || getUniqueApPortalUrl({
+                                routerId: router.id,
+                                macAddress: router.mac_address,
+                                siteId: router.omada_site_id,
+                                vendor: 'omada',
+                              });
                               navigator.clipboard.writeText(pUrl);
                               setPortalUrlCopiedId(router.id);
                               setTimeout(() => setPortalUrlCopiedId(null), 2500);
                             }}
                             className="py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                            title="Nakili External Captive Portal URL"
+                            title="Nakili External Captive Portal URL ya kipekee ya AP hii"
                           >
                             {portalUrlCopiedId === router.id ? (
                               <>
@@ -1757,11 +1818,47 @@ export const RouterManagement: React.FC<{
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-1">
+                          {/* Unique AP Portal URL Preview Banner for other APs */}
+                          {(() => {
+                            const apPortalUrl = router.unique_portal_url || getUniqueApPortalUrl({
+                              routerId: router.id,
+                              macAddress: router.mac_address,
+                              siteId: router.omada_site_id,
+                              vendor: (router.device_type || 'generic').toLowerCase(),
+                            });
+                            return (
+                              <div className="col-span-1 sm:col-span-2 px-2.5 py-1.5 rounded-lg bg-indigo-50/80 border border-indigo-200 flex items-center justify-between text-[11px] gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+                                  <span className="text-indigo-950 font-bold truncate">
+                                    Portal URL: <span className="font-mono">{router.mac_address ? router.mac_address.toUpperCase() : `ID #${router.id}`}</span>
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(apPortalUrl);
+                                    setPortalUrlCopiedId(router.id);
+                                    setTimeout(() => setPortalUrlCopiedId(null), 2500);
+                                  }}
+                                  className="text-indigo-700 hover:text-indigo-900 font-extrabold text-[10px] shrink-0 uppercase tracking-wider cursor-pointer"
+                                >
+                                  {portalUrlCopiedId === router.id ? '✓ Imenakiliwa' : 'Nakili'}
+                                </button>
+                              </div>
+                            );
+                          })()}
+
                           {/* Copy Portal URL */}
                           <button
                             type="button"
                             onClick={() => {
-                              const pUrl = `https://infotechwifi.com/?routerId=${router.id}&ap_vendor=${(router.device_type || 'generic').toLowerCase()}`;
+                              const pUrl = router.unique_portal_url || getUniqueApPortalUrl({
+                                routerId: router.id,
+                                macAddress: router.mac_address,
+                                siteId: router.omada_site_id,
+                                vendor: (router.device_type || 'generic').toLowerCase(),
+                              });
                               navigator.clipboard.writeText(pUrl);
                               setPortalUrlCopiedId(router.id);
                               setTimeout(() => setPortalUrlCopiedId(null), 2500);
@@ -2201,12 +2298,23 @@ export const RouterManagement: React.FC<{
                       <span className="text-[10px] text-slate-400 block uppercase">1. External Web Portal URL</span>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-emerald-400 truncate">
-                          {deviceConfigData?.ruijie?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter.id}`}
+                          {deviceConfigData?.ruijie?.portalUrl || selectedScriptRouter.unique_portal_url || getUniqueApPortalUrl({
+                            routerId: selectedScriptRouter.id,
+                            macAddress: selectedScriptRouter.mac_address,
+                            siteId: selectedScriptRouter.omada_site_id,
+                            vendor: 'ruijie',
+                          })}
                         </span>
                         <button
                           type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(deviceConfigData?.ruijie?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter.id}`);
+                            const u = deviceConfigData?.ruijie?.portalUrl || selectedScriptRouter.unique_portal_url || getUniqueApPortalUrl({
+                              routerId: selectedScriptRouter.id,
+                              macAddress: selectedScriptRouter.mac_address,
+                              siteId: selectedScriptRouter.omada_site_id,
+                              vendor: 'ruijie',
+                            });
+                            navigator.clipboard.writeText(u);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
@@ -2290,9 +2398,33 @@ export const RouterManagement: React.FC<{
 
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                       <span className="text-[10px] text-slate-400 block uppercase">External Portal URL</span>
-                      <span className="font-bold text-emerald-400 truncate block">
-                        {deviceConfigData?.omada?.portalUrl || `https://infotechwifi.com/?routerId=${selectedScriptRouter.id}`}
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-emerald-400 truncate block text-[11px]">
+                          {deviceConfigData?.omada?.portalUrl || selectedScriptRouter.unique_portal_url || getUniqueApPortalUrl({
+                            routerId: selectedScriptRouter.id,
+                            macAddress: selectedScriptRouter.mac_address,
+                            siteId: selectedScriptRouter.omada_site_id,
+                            vendor: 'omada',
+                          })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const u = deviceConfigData?.omada?.portalUrl || selectedScriptRouter.unique_portal_url || getUniqueApPortalUrl({
+                              routerId: selectedScriptRouter.id,
+                              macAddress: selectedScriptRouter.mac_address,
+                              siteId: selectedScriptRouter.omada_site_id,
+                              vendor: 'omada',
+                            });
+                            navigator.clipboard.writeText(u);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[10px] shrink-0 font-sans cursor-pointer"
+                        >
+                          {copied ? '✓ Nakili' : 'Nakili URL'}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
@@ -2313,7 +2445,7 @@ export const RouterManagement: React.FC<{
                     <ol className="list-decimal list-inside space-y-1.5 text-slate-300 leading-relaxed pl-1">
                       <li>Kwenye Omada Controller (OC200 au Software), nenda <strong>Settings</strong> → <strong>Authentication</strong> → <strong>Hotspot</strong>.</li>
                       <li>Washa Hotspot kwenye SSID ya wateja (mfano <strong>{selectedScriptRouter.ssid || 'HOTSPOT-WIFI'}</strong>).</li>
-                      <li>Chagua <strong>External Portal Server</strong> na ubandike Portal URL: <code>https://infotechwifi.com/?routerId={selectedScriptRouter.id}</code>.</li>
+                      <li>Chagua <strong>External Portal Server</strong> na ubandike ile <strong>External Portal URL ya kipekee ya AP</strong> hapo juu.</li>
                       <li>Unda <strong>RADIUS Profile</strong> yenye IP <code>13.140.173.98</code> na Secret <code>{selectedScriptRouter.radius_secret || 'radius_secret_2026'}</code>.</li>
                       <li>Kwenye Standalone AP (kama EAP110), nenda <strong>Management</strong> → <strong>Controller Settings</strong> na weka Inform URL: <code>http://13.140.173.98:29810/inform</code>.</li>
                     </ol>

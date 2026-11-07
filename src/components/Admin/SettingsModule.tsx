@@ -11,6 +11,7 @@ import {
   User,
   Download,
   UploadCloud,
+  Radio,
 } from 'lucide-react';
 import { HotspotOwner } from '../../types/index.ts';
 import { VpsDevopsManager } from './VpsDevopsManager.tsx';
@@ -22,12 +23,14 @@ import { CompanyInfoSettings } from './CompanyInfoSettings.tsx';
 import { OwnerAllInOneScript } from './OwnerAllInOneScript.tsx';
 import { PaymentConfig } from './PaymentConfig.tsx';
 import { VendorAccountSettingsTab } from './VendorAccountSettingsTab.tsx';
+import { OmadaSettingsTab } from './OmadaSettingsTab.tsx';
 
 export type SettingsSubTab =
   | 'account_profile'
   | 'company_info'
   | 'vps_devops'
   | 'all_in_one_script'
+  | 'omada_controller'
   | 'payment_gateway'
   | 'email_gateway'
   | 'database_schema'
@@ -160,6 +163,19 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
       vendorOnly: false,
       ownerOnly: true,
       badge: '1-Click Setup',
+      badgeColor: 'bg-emerald-100 text-emerald-800 font-bold',
+    },
+    // 3.5. TP-Link Omada Controller Open API (Both Vendor & Owner)
+    {
+      id: 'omada_controller' as const,
+      labelSw: 'TP-Link Omada Open API',
+      labelEn: 'TP-Link Omada Open API',
+      descSw: 'Unganisha Client ID & Secret, tengeneza site automatik, fanya adoption & washa hotspot',
+      descEn: 'Configure Omada Open API Client ID & Secret for auto-site creation, AP adoption & hotspot',
+      icon: Radio,
+      vendorOnly: false,
+      ownerOnly: false,
+      badge: 'Open API',
       badgeColor: 'bg-emerald-100 text-emerald-800 font-bold',
     },
     // 4. Payment Gateway (Both Vendor & Owner)
@@ -358,6 +374,11 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
         {/* 2. All-in-One MikroTik Script (Hotspot Owner Only) */}
         {activeSubTab === 'all_in_one_script' && !isVendor && (
           <OwnerAllInOneScript currentUser={currentUser} lang={lang} initialRouterId={selectedRouterId} />
+        )}
+
+        {/* TP-Link Omada Controller Open API (Both Vendor & Owner) */}
+        {activeSubTab === 'omada_controller' && (
+          <OmadaSettingsTab currentUser={currentUser} lang={lang} />
         )}
 
         {/* 3. Payment Gateway (Both: PaymentConfig for Vendor, OwnerMerchantSettings for Owner) */}

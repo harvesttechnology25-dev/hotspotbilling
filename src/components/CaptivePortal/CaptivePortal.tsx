@@ -91,8 +91,16 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      let pathApMac = '';
+      if (pathParts[0] === 'portal' && pathParts[1] === 'ap' && pathParts[2]) {
+        pathApMac = pathParts[2];
+      } else if (pathParts[0] === 'ap' && pathParts[1]) {
+        pathApMac = pathParts[1];
+      }
+
       const clientMac = p.get('clientMac') || p.get('clientmac') || p.get('mac') || p.get('client_mac') || '';
-      const apMac = p.get('apMac') || p.get('apmac') || p.get('ap_mac') || p.get('ap') || p.get('gatewayMac') || '';
+      const apMac = p.get('apMac') || p.get('apmac') || p.get('ap_mac') || p.get('ap') || p.get('gatewayMac') || pathApMac || '';
       const ssidName = p.get('ssidName') || p.get('ssid') || p.get('ssid_name') || '';
       const site = p.get('site') || p.get('siteId') || p.get('site_id') || '';
       const target = p.get('target') || p.get('redirectUrl') || p.get('targetUrl') || '';

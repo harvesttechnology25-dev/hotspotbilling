@@ -221,45 +221,7 @@ export class OmadaAutomationService {
       };
     }
 
-    // NJIA 1: Official Omada Open API (Client Credentials Mode)
-    if (this.config.clientId && this.config.clientSecret) {
-      try {
-        const tokenUrl = `${this.config.controllerUrl}/openapi/authorize/token?grant_type=client_credentials`;
-        const payload = {
-          omadacId: this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f',
-          client_id: this.config.clientId,
-          client_secret: this.config.clientSecret,
-        };
-
-        const response = await this.safeFetch(tokenUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await response.json().catch(() => ({}));
-        if (response.ok && data?.errorCode === 0 && data?.result?.accessToken) {
-          const token = String(data.result.accessToken);
-          this.sessionToken = token;
-          this.isOpenApi = true;
-          this.omadacId = this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f';
-          console.log('[Omada Open API] Login kwa Client Credentials imefanikiwa kikamilifu!');
-          return {
-            token,
-            omadacId: this.omadacId,
-            isOpenApi: true,
-          };
-        }
-        console.warn(`[Omada Open API] Client credentials zimejibu ${data?.errorCode}: ${data?.msg}. Inajaribu admin login.`);
-      } catch (err: any) {
-        console.warn(`[Omada Open API] Hitilafu ya Open API token: ${err.message}. Inajaribu admin login.`);
-      }
-    }
-
-    // Query /api/info to discover real omadacId if available
+    // Gundua omadacId na maelezo ya Controller kwanza kutoka /api/info
     try {
       const infoResp = await this.safeFetch(`${this.config.controllerUrl}/api/info`, {
         method: 'GET',
@@ -272,6 +234,70 @@ export class OmadaAutomationService {
       }
     } catch {
       // Ignore
+    }
+
+    // NJIA 1: Official Omada Open API (Client Credentials Mode)
+    if (this.config.clientId && this.config.clientSecret) {
+      try {
+        const effectiveOmadacId = this.omadacId || this.config.omadacId || '5015eb6741252b75a3633605c471738f';
+        const tokenEndpoints = [
+          `${this.config.controllerUrl}/openapi/authorize/token?grant_type=client_credentials`,
+          `${this.config.controllerUrl}/openapi/v1/authorize/token?grant_type=client_credentials`,
+          `${this.config.controllerUrl}/api/v2/openapi/authorize/token?grant_type=client_credentials`,
+        ];
+
+        const candidatePayloads = [
+          {
+            omadacId: effectiveOmadacId,
+            client_id: this.config.clientId,
+            client_secret: this.config.clientSecret,
+          },
+          {
+            omadacId: effectiveOmadacId,
+            clientId: this.config.clientId,
+            clientSecret: this.config.clientSecret,
+          },
+          {
+            client_id: this.config.clientId,
+            client_secret: this.config.clientSecret,
+          },
+        ];
+
+        for (const tokenUrl of tokenEndpoints) {
+          for (const payload of candidatePayloads) {
+            try {
+              const response = await this.safeFetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json',
+                },
+                body: JSON.stringify(payload),
+              });
+
+              const data = await response.json().catch(() => ({}));
+              const tokenCandidate = data?.result?.accessToken || data?.result?.token || data?.result?.access_token;
+              if (response.ok && (data?.errorCode === 0 || data?.code === 0) && tokenCandidate) {
+                const token = String(tokenCandidate);
+                this.sessionToken = token;
+                this.isOpenApi = true;
+                this.omadacId = effectiveOmadacId;
+                console.log('[Omada Open API] Login kwa Client Credentials imefanikiwa kikamilifu!');
+                return {
+                  token,
+                  omadacId: this.omadacId,
+                  isOpenApi: true,
+                };
+              }
+            } catch {
+              // Try next candidate
+            }
+          }
+        }
+        console.warn('[Omada Open API] Client credentials zimeshindwa, inajaribu web login fallback...');
+      } catch (err: any) {
+        console.warn(`[Omada Open API] Hitilafu ya Open API token: ${err.message}. Inajaribu admin login.`);
+      }
     }
 
     // NJIA 2: Standard Controller Admin Login (/api/v2/login)

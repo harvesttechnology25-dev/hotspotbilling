@@ -38,6 +38,7 @@ export default function App() {
         const search = window.location.search.toLowerCase();
         if (
           path.startsWith('/portal') ||
+          path.startsWith('/ap/') ||
           search.includes('portal=true') ||
           search.includes('target=portal') ||
           search.includes('link-login') ||
@@ -124,6 +125,7 @@ export default function App() {
     const isDirectPortal =
       typeof window !== 'undefined' &&
       (window.location.pathname.toLowerCase().startsWith('/portal') ||
+        window.location.pathname.toLowerCase().startsWith('/ap/') ||
         window.location.search.toLowerCase().includes('portal=true') ||
         window.location.search.toLowerCase().includes('target=portal') ||
         window.location.search.toLowerCase().includes('link-login') ||

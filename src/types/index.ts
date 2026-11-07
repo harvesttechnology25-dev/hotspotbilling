@@ -301,7 +301,8 @@ export interface RouterItem {
   omada_clients_count?: number;
   is_custom_model?: boolean;
   cpe_mode?: 'HOTSPOT_AP' | 'PTP_BRIDGE_MASTER' | 'PTP_BRIDGE_CLIENT' | 'REPEATER' | 'WISP_ROUTER';
-  pharos_maxtream_disabled?: boolean;
+  omada_site_id?: string;
+  unique_portal_url?: string;
   last_adopted_at?: string;
   last_seen_at?: string;
 }
@@ -445,6 +446,16 @@ export interface SmsGatewayConfig {
   customApiKey?: string;
 }
 
+export interface OmadaControllerSettings {
+  controllerUrl?: string;
+  username?: string;
+  password?: string;
+  clientId?: string;
+  clientSecret?: string;
+  omadacId?: string;
+  isConfigured?: boolean;
+}
+
 export interface GatewaySettings {
   activeGateway: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'SELCOM' | 'TEST_SANDBOX' | 'LIVE_SANDBOX';
   subscriptionGateway?: 'PALMPESA' | 'DALIPAY' | 'AZAMPAY' | 'VODACOM_OPENAPI' | 'ACTIVE_DEFAULT';
@@ -457,6 +468,7 @@ export interface GatewaySettings {
   vodacom: VodacomConfig;
   smsGateway?: SmsGatewayConfig;
   emailGateway?: EmailGatewayConfig;
+  omadaController?: OmadaControllerSettings;
   hotspotName: string;
   supportPhone: string;
   autoLoginEnabled: boolean;

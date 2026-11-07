@@ -227,8 +227,9 @@ export interface RouterRecord {
   is_custom_model?: boolean;
   cpe_mode?: 'HOTSPOT_AP' | 'PTP_BRIDGE_MASTER' | 'PTP_BRIDGE_CLIENT' | 'REPEATER' | 'WISP_ROUTER';
   pharos_maxtream_disabled?: boolean;
-  last_adopted_at?: string;
   last_seen_at?: string;
+  last_adopted_at?: string;
+  unique_portal_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -521,6 +522,8 @@ export interface OmadaControllerSettings {
   controllerUrl?: string;
   username?: string;
   password?: string;
+  clientId?: string;
+  clientSecret?: string;
   omadacId?: string;
   isConfigured?: boolean;
 }

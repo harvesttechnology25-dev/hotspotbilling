@@ -585,109 +585,106 @@ export class OmadaAdoptionService {
     const nowIso = new Date().toISOString();
     const effectiveOwnerId = params.ownerId ? Number(params.ownerId) : (router?.owner_id || 1);
 
-    if (!router) {
-      // Create new router record for this Omada AP
-      router = {
-        id: db.getNextRouterId(),
-        name: params.name || `Omada-${model.replace(/[^a-zA-Z0-9]/g, '')}-${formattedMac.slice(-5).replace(':', '')}`,
-        device_type: 'TPLINK_OMADA',
-        model_name: model,
-        mac_address: formattedMac,
-        ip_address: deviceIp,
-        api_port: 29810,
-        api_username: apUsername,
-        api_password_hash: apPassword,
-        ap_username: apUsername,
-        ap_password: apPassword,
-        inform_url: params.informUrl || informInfo.informUrl,
-        brand_name: defaultBrand,
-        ssid: cleanSsid,
-        hotspot_server_name: 'omada-portal',
-        dns_name: 'wifi.hotspot.lan',
-        status: 'ONLINE',
-        adoption_status: 'ADOPTED',
-        last_adopted_at: nowIso,
-        last_seen_at: nowIso,
-        omada_firmware: 'v5.0.12 Build 20260410',
-        omada_channel_2g: 6,
-        omada_channel_5g: 44,
-        omada_clients_count: 0,
-        radius_secret: 'radius_secret_2026',
-        location,
-        owner_id: effectiveOwnerId,
-        is_custom_model: Boolean(model && (model.startsWith('Custom') || model.includes('✍️') || model.toLowerCase().includes('custom'))),
-        cpe_mode: (model && (model.includes('CPE') || model.includes('Pharos') || model.includes('WBS'))) ? 'HOTSPOT_AP' : undefined,
-        pharos_maxtream_disabled: (model && (model.includes('CPE') || model.includes('Pharos') || model.includes('WBS'))) ? true : undefined,
-        created_at: nowIso,
-        updated_at: nowIso,
-      };
+    const effectiveRouter: RouterRecord = router
+      ? {
+          ...router,
+          mac_address: formattedMac,
+          device_type: 'TPLINK_OMADA',
+          model_name: params.modelName || router.model_name,
+          name: params.name || router.name,
+          brand_name: params.brandName || router.brand_name,
+          ssid: cleanSsid,
+          ip_address: params.ipAddress?.trim() || router.ip_address,
+          location: params.location || router.location,
+          owner_id: effectiveOwnerId,
+          owner_name: db.getOwnerById(effectiveOwnerId)?.name || router.owner_name,
+          ap_username: apUsername,
+          ap_password: apPassword,
+          inform_url: params.informUrl || informInfo.informUrl,
+          status: 'ONLINE',
+          adoption_status: 'ADOPTED',
+          last_adopted_at: nowIso,
+          last_seen_at: nowIso,
+          omada_firmware: router.omada_firmware || 'v5.0.12 Build 20260410',
+          omada_channel_2g: 6,
+          omada_channel_5g: 44,
+          omada_clients_count: router.omada_clients_count ?? 0,
+          updated_at: nowIso,
+        }
+      : {
+          id: db.getNextRouterId(),
+          name: params.name || `Omada-${model.replace(/[^a-zA-Z0-9]/g, '')}-${formattedMac.slice(-5).replace(':', '')}`,
+          device_type: 'TPLINK_OMADA',
+          model_name: model,
+          mac_address: formattedMac,
+          ip_address: deviceIp,
+          api_port: 29810,
+          api_username: apUsername,
+          api_password_hash: apPassword,
+          ap_username: apUsername,
+          ap_password: apPassword,
+          inform_url: params.informUrl || informInfo.informUrl,
+          brand_name: defaultBrand,
+          ssid: cleanSsid,
+          hotspot_server_name: 'omada-portal',
+          dns_name: 'wifi.hotspot.lan',
+          status: 'ONLINE',
+          adoption_status: 'ADOPTED',
+          last_adopted_at: nowIso,
+          last_seen_at: nowIso,
+          omada_firmware: 'v5.0.12 Build 20260410',
+          omada_channel_2g: 6,
+          omada_channel_5g: 44,
+          omada_clients_count: 0,
+          radius_secret: 'radius_secret_2026',
+          location,
+          owner_id: effectiveOwnerId,
+          owner_name: db.getOwnerById(effectiveOwnerId)?.name || 'Hotspot Owner',
+          is_custom_model: Boolean(model && (model.startsWith('Custom') || model.includes('✍️') || model.toLowerCase().includes('custom'))),
+          cpe_mode: (model && (model.includes('CPE') || model.includes('Pharos') || model.includes('WBS'))) ? 'HOTSPOT_AP' : undefined,
+          pharos_maxtream_disabled: (model && (model.includes('CPE') || model.includes('Pharos') || model.includes('WBS'))) ? true : undefined,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
 
-      const owner = db.getOwnerById(effectiveOwnerId);
-      if (owner) {
-        router.owner_name = `${owner.name} (${owner.business_name || 'Hotspot'})`;
-      }
-    } else {
-      // Update existing router
-      router.mac_address = formattedMac;
-      router.device_type = 'TPLINK_OMADA';
-      if (params.modelName) router.model_name = params.modelName;
-      if (params.name) router.name = params.name;
-      if (params.brandName) router.brand_name = params.brandName;
-      if (params.ssid) router.ssid = cleanSsid;
-      if (params.ipAddress?.trim()) router.ip_address = params.ipAddress.trim();
-      if (params.location) router.location = params.location;
-      router.owner_id = effectiveOwnerId;
-      const owner = db.getOwnerById(effectiveOwnerId);
-      if (owner) {
-        router.owner_name = `${owner.name} (${owner.business_name || 'Hotspot'})`;
-      }
-      router.ap_username = apUsername;
-      router.ap_password = apPassword;
-      router.inform_url = params.informUrl || informInfo.informUrl;
-      router.status = 'ONLINE';
-      router.adoption_status = 'ADOPTED';
-      router.last_adopted_at = nowIso;
-      router.last_seen_at = nowIso;
-      router.omada_firmware = router.omada_firmware || 'v5.0.12 Build 20260410';
-      router.omada_channel_2g = 6;
-      router.omada_channel_5g = 44;
-      router.omada_clients_count = router.omada_clients_count ?? 0;
-      router.updated_at = nowIso;
+    const owner = db.getOwnerById(effectiveOwnerId);
+    if (owner) {
+      effectiveRouter.owner_name = `${owner.name} (${owner.business_name || 'Hotspot'})`;
     }
 
-    db.saveRouter(router);
+    db.saveRouter(effectiveRouter);
 
     // Update discovered record
     const disc = this.discoveredAps.get(formattedMac);
     if (disc) {
       disc.status = 'ADOPTED';
-      disc.matchedRouterId = router.id;
-      disc.matchedRouterName = router.name;
+      disc.matchedRouterId = effectiveRouter.id;
+      disc.matchedRouterName = effectiveRouter.name;
       disc.lastSeenAt = nowIso;
     } else {
       this.discoveredAps.set(formattedMac, {
         macAddress: formattedMac,
         ipAddress: deviceIp,
         modelName: model,
-        firmware: router.omada_firmware || 'v5.0.12',
+        firmware: effectiveRouter.omada_firmware || 'v5.0.12',
         lastSeenAt: nowIso,
         firstSeenAt: nowIso,
         status: 'ADOPTED',
-        matchedRouterId: router.id,
-        matchedRouterName: router.name,
+        matchedRouterId: effectiveRouter.id,
+        matchedRouterName: effectiveRouter.name,
       });
     }
 
     // If owner exists, ensure router ID is assigned
-    if (router.owner_id) {
-      const owner = db.getOwnerById(router.owner_id);
-      if (owner) {
-        if (!Array.isArray(owner.assigned_router_ids)) {
-          owner.assigned_router_ids = [];
+    if (effectiveRouter.owner_id) {
+      const currentOwner = db.getOwnerById(effectiveRouter.owner_id);
+      if (currentOwner) {
+        if (!Array.isArray(currentOwner.assigned_router_ids)) {
+          currentOwner.assigned_router_ids = [];
         }
-        if (!owner.assigned_router_ids.includes(router.id)) {
-          owner.assigned_router_ids.push(router.id);
-          db.saveOwner(owner);
+        if (!currentOwner.assigned_router_ids.includes(effectiveRouter.id)) {
+          currentOwner.assigned_router_ids.push(effectiveRouter.id);
+          db.saveOwner(currentOwner);
         }
       }
     }
@@ -695,15 +692,15 @@ export class OmadaAdoptionService {
     // Record audit log
     db.saveAuditLog({
       id: Date.now(),
-      external_reference: `OMADA-ADOPT-${router.id}-${Date.now()}`,
+      external_reference: `OMADA-ADOPT-${effectiveRouter.id}-${Date.now()}`,
       event_type: 'OMADA_AP_ADOPTED_SUCCESS',
       payload_json: {
-        routerId: router.id,
-        routerName: router.name,
+        routerId: effectiveRouter.id,
+        routerName: effectiveRouter.name,
         macAddress: formattedMac,
-        modelName: router.model_name,
-        ssid: router.ssid,
-        informUrl: router.inform_url,
+        modelName: effectiveRouter.model_name,
+        ssid: effectiveRouter.ssid,
+        informUrl: effectiveRouter.inform_url,
         apUsername,
         adoptedAt: nowIso,
       },
@@ -711,19 +708,19 @@ export class OmadaAdoptionService {
     });
 
     const domainBase = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '');
-    const portalUrl = `${domainBase}/?routerId=${router.id}&ap_vendor=omada`;
+    const portalUrl = `${domainBase}/?apMac=${encodeURIComponent(formattedMac)}&routerId=${effectiveRouter.id}&ap_vendor=omada`;
 
     return {
       success: true,
-      message: `Access Point ya TP-Link Omada (${router.name} • MAC: ${formattedMac}) imeunganishwa (Adopted) kikamilifu! Wi-Fi SSID "${router.ssid}" na Captive Portal ya malipo ya simu vimewashwa.`,
-      router,
+      message: `Access Point ya TP-Link Omada (${effectiveRouter.name} • MAC: ${formattedMac}) imeunganishwa (Adopted) kikamilifu! Wi-Fi SSID "${effectiveRouter.ssid}" na Captive Portal ya malipo ya simu vimewashwa.`,
+      router: effectiveRouter,
       adoptionDetails: {
         macAddress: formattedMac,
-        modelName: router.model_name || 'TP-Link Omada EAP',
-        firmware: router.omada_firmware || 'v5.0.12',
+        modelName: effectiveRouter.model_name || 'TP-Link Omada EAP',
+        firmware: effectiveRouter.omada_firmware || 'v5.0.12',
         adoptedAt: nowIso,
-        controllerInformUrl: router.inform_url || informInfo.informUrl,
-        provisionedSsid: router.ssid || cleanSsid,
+        controllerInformUrl: effectiveRouter.inform_url || informInfo.informUrl,
+        provisionedSsid: effectiveRouter.ssid || cleanSsid,
         channel2g: 6,
         channel5g: 44,
         signalStrengthDbm: -56,

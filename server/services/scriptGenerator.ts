@@ -442,10 +442,25 @@ ${pppoe}
   }
 
   /**
+   * Helper ya kuunda Unique Captive Portal URL kwa AP maalum
+   */
+  static getUniqueApPortalUrl(router: RouterRecord, baseUrl: string, vendor: string): string {
+    const cleanMac = router.mac_address ? router.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() : '';
+    const formattedMac = cleanMac.match(/.{1,2}/g)?.join(':') || router.mac_address;
+    const q = new URLSearchParams();
+    if (formattedMac) q.set('apMac', formattedMac);
+    q.set('routerId', String(router.id));
+    if (router.omada_site_id) q.set('siteId', String(router.omada_site_id));
+    if (router.owner_id) q.set('ownerId', String(router.owner_id));
+    q.set('ap_vendor', vendor);
+    return `${baseUrl}/?${q.toString()}`;
+  }
+
+  /**
    * 5. Ruijie Reyee Cloud AP & Gateway Configuration Guide and Parameters
    */
   static generateRuijieConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
-    const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=ruijie`;
+    const portalUrl = ScriptGeneratorService.getUniqueApPortalUrl(router, baseUrl, 'ruijie');
     const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const radiusSecret = router.radius_secret || 'radius_secret_2026';
 
@@ -500,7 +515,7 @@ ${pppoe}
    * 6. TP-Link Omada Controller / Standalone EAP Configuration
    */
   static generateOmadaConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
-    const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=omada`;
+    const portalUrl = ScriptGeneratorService.getUniqueApPortalUrl(router, baseUrl, 'omada');
     const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const radiusSecret = router.radius_secret || 'radius_secret_2026';
 
@@ -548,7 +563,7 @@ ${pppoe}
    * 7. Cudy & OpenWrt (CoovaChilli) Configuration File & Shell Script
    */
   static generateOpenWrtChilliConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
-    const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=coovachilli`;
+    const portalUrl = ScriptGeneratorService.getUniqueApPortalUrl(router, baseUrl, 'coovachilli');
     const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const radiusSecret = router.radius_secret || 'radius_secret_2026';
 
@@ -635,7 +650,7 @@ echo ">>> Hotspot is ACTIVE! Test by connecting a client to WiFi."
    * Supports CPE210, CPE220 (2.4GHz Hotspot AP), CPE510, CPE610, CPE710 (5GHz PtP/PtMP Bridge)
    */
   static generatePharosCpeConfig(router: RouterRecord, baseUrl = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '')) {
-    const portalUrl = `${baseUrl}/?routerId=${router.id}&ap_vendor=tplink_cpe`;
+    const portalUrl = ScriptGeneratorService.getUniqueApPortalUrl(router, baseUrl, 'tplink_cpe');
     const radiusIp = process.env.VPS_IP || '13.140.173.98';
     const cpeModel = router.model_name || 'TP-Link Pharos CPE210 (2.4GHz 9dBi Outdoor AP)';
     const ssid = router.ssid || `${(router.brand_name || 'HOTSPOT').replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}-WIFI`;

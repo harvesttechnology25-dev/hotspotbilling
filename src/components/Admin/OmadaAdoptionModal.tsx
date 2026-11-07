@@ -25,6 +25,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { RouterItem, OmadaSiteItem } from '../../types/index.ts';
+import { getUniqueApPortalUrl } from '../../utils/portalUrlHelper.ts';
 
 interface OmadaAdoptionModalProps {
   isOpen: boolean;
@@ -332,7 +333,13 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
         setApUsername(existingRouter.ap_username || 'admin');
         setApPassword(existingRouter.ap_password || generateNewApPassword());
         setClaimedRouter(existingRouter);
-        setPortalUrl(`https://infotechwifi.com/?routerId=${existingRouter.id}&ap_vendor=omada`);
+        const resolvedPortalUrl = existingRouter.unique_portal_url || getUniqueApPortalUrl({
+          routerId: existingRouter.id,
+          macAddress: existingRouter.mac_address,
+          siteId: existingRouter.omada_site_id || selectedSiteId,
+          vendor: 'omada',
+        });
+        setPortalUrl(resolvedPortalUrl);
         setErrorMessage('');
         setAdoptionFailedDetails(null);
 
@@ -506,7 +513,15 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       setApClaimedSuccess(true);
       setClaimedRouter(data.router);
       if (data.router?.id) {
-        setPortalUrl(`https://infotechwifi.com/?routerId=${data.router.id}&ap_vendor=omada`);
+        setPortalUrl(
+          data.router.unique_portal_url ||
+          getUniqueApPortalUrl({
+            routerId: data.router.id,
+            macAddress: data.router.mac_address || macAddress,
+            siteId: data.router.omada_site_id || selectedSiteId,
+            vendor: 'omada',
+          })
+        );
       }
       if (data.router?.ssid) {
         setSsid(data.router.ssid);
@@ -567,7 +582,15 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
       setAdoptionFailedDetails(null);
       setAdoptedRouter(data.router);
       if (data.router?.id) {
-        setPortalUrl(`https://infotechwifi.com/?routerId=${data.router.id}&ap_vendor=omada`);
+        setPortalUrl(
+          data.router.unique_portal_url ||
+          getUniqueApPortalUrl({
+            routerId: data.router.id,
+            macAddress: data.router.mac_address || macAddress,
+            siteId: data.router.omada_site_id || selectedSiteId,
+            vendor: 'omada',
+          })
+        );
       }
       if (data.router) {
         onSuccess(data.router);

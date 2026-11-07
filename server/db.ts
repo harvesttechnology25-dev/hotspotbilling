@@ -188,7 +188,10 @@ const DEFAULT_SETTINGS: GatewaySettings = {
     controllerUrl: process.env.OMADA_CONTROLLER_URL || 'https://omada.infotechwifi.com:8043',
     username: process.env.OMADA_USERNAME || 'admin',
     password: process.env.OMADA_PASSWORD || '',
-    isConfigured: Boolean(process.env.OMADA_PASSWORD),
+    clientId: process.env.OMADA_CLIENT_ID || '',
+    clientSecret: process.env.OMADA_CLIENT_SECRET || '',
+    omadacId: process.env.OMADA_CONTROLLER_ID || '5015eb6741252b75a3633605c471738f',
+    isConfigured: Boolean(process.env.OMADA_PASSWORD || (process.env.OMADA_CLIENT_ID && process.env.OMADA_CLIENT_SECRET)),
   },
 };
 
@@ -765,9 +768,12 @@ const mergedEmail: EmailGatewayConfig = {
         controllerUrl: newSettings.omadaController?.controllerUrl || this.settings.omadaController?.controllerUrl || process.env.OMADA_CONTROLLER_URL || 'https://omada.infotechwifi.com:8043',
         username: newSettings.omadaController?.username || this.settings.omadaController?.username || process.env.OMADA_USERNAME || 'admin',
         password: newSettings.omadaController?.password !== undefined ? newSettings.omadaController.password : (this.settings.omadaController?.password || ''),
+        clientId: newSettings.omadaController?.clientId !== undefined ? newSettings.omadaController.clientId : (this.settings.omadaController?.clientId || ''),
+        clientSecret: newSettings.omadaController?.clientSecret !== undefined ? newSettings.omadaController.clientSecret : (this.settings.omadaController?.clientSecret || ''),
         omadacId: newSettings.omadaController?.omadacId || this.settings.omadaController?.omadacId,
         isConfigured: Boolean(
-          (newSettings.omadaController?.password !== undefined ? newSettings.omadaController.password : this.settings.omadaController?.password)
+          (newSettings.omadaController?.password !== undefined ? newSettings.omadaController.password : this.settings.omadaController?.password) ||
+          (newSettings.omadaController?.clientSecret !== undefined ? newSettings.omadaController.clientSecret : this.settings.omadaController?.clientSecret)
         ),
       },
     };

@@ -2889,32 +2889,38 @@ apiRouter.get('/routers', (req: Request, res: Response) => {
     }
   }
 
+  const appBase = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '');
+  const enrichRouter = (r: RouterRecord) => ({
+    ...r,
+    unique_portal_url: ScriptGeneratorService.getUniqueApPortalUrl(r, appBase, (r.device_type || 'generic').toLowerCase()),
+  });
+
   // If caller or query owner is VENDOR_ADMIN, return all system routers
   if (caller && (caller.role === 'VENDOR_ADMIN' || (caller.role as string) === 'admin') && !ownerIdQuery) {
-    return res.json(routers);
+    return res.json(routers.map(enrichRouter));
   }
 
   if (ownerIdQuery) {
     const owner = db.getOwnerById(ownerIdQuery);
     if (owner) {
       if (owner.role === 'VENDOR_ADMIN') {
-        return res.json(routers);
+        return res.json(routers.map(enrichRouter));
       }
       const assigned = owner.assigned_router_ids || [];
       return res.json(
-        routers.filter((r) => r.owner_id === ownerIdQuery || assigned.includes(r.id))
+        routers.filter((r) => r.owner_id === ownerIdQuery || assigned.includes(r.id)).map(enrichRouter)
       );
     }
-    return res.json(routers.filter((r) => r.owner_id === ownerIdQuery));
+    return res.json(routers.filter((r) => r.owner_id === ownerIdQuery).map(enrichRouter));
   }
 
   if (caller && caller.role === 'HOTSPOT_OWNER') {
     const callerId = Number(caller.id);
     const assigned = caller.assigned_router_ids || [];
-    return res.json(routers.filter((r) => r.owner_id === callerId || assigned.includes(r.id)));
+    return res.json(routers.filter((r) => r.owner_id === callerId || assigned.includes(r.id)).map(enrichRouter));
   }
 
-  res.json(routers);
+  res.json(routers.map(enrichRouter));
 });
 
 const DEFAULT_SERVER_PORTAL_THEME: PortalThemeConfig = {
@@ -4928,18 +4934,129 @@ apiRouter.get('/omada/controller-credentials', (_req: Request, res: Response) =>
     isConfigured: Boolean(settings.password || (settings.clientId && settings.clientSecret)),
     hasPassword: Boolean(settings.password),
     hasOpenApi: Boolean(settings.clientId && settings.clientSecret),
+    clientSecretMasked: settings.clientSecret ? '••••••••••••••••' : '',
+    hasClientSecret: Boolean(settings.clientSecret),
   });
+});
+
+// Auto-discover Controller ID and reachability from /api/info
+apiRouter.post('/omada/discover-controller-info', async (req: Request, res: Response) => {
+  try {
+    const { controllerUrl } = req.body || {};
+    const existing = db.getOmadaControllerSettings();
+    const cleanUrl = controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : (existing.controllerUrl || 'https://omada.infotechwifi.com:8043');
+
+    const startTime = Date.now();
+    let infoData: any = null;
+    let reachable = false;
+
+    try {
+      const prevEnv = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      try {
+        const resp = await fetch(`${cleanUrl}/api/info`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(8000),
+        });
+        infoData = await resp.json().catch(() => ({}));
+        reachable = resp.ok || infoData?.errorCode === 0;
+      } finally {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = prevEnv;
+      }
+    } catch (fetchErr: any) {
+      return res.status(400).json({
+        success: false,
+        reachable: false,
+        error: `Haikuweza kuungana na Seva ya Omada Controller (${cleanUrl}): ${fetchErr.message}`,
+      });
+    }
+
+    const latencyMs = Date.now() - startTime;
+    const omadacId = infoData?.result?.omadacId || infoData?.omadacId || existing.omadacId || '5015eb6741252b75a3633605c471738f';
+    const controllerVersion = infoData?.result?.controllerVersion || infoData?.result?.version || 'v5.x';
+
+    res.json({
+      success: true,
+      reachable: true,
+      latencyMs,
+      omadacId,
+      controllerVersion,
+      controllerUrl: cleanUrl,
+      rawResult: infoData?.result || null,
+      message: `Mawasiliano na Omada Controller yamefanikiwa! Omadac ID imegunduliwa: ${omadacId} (Version: ${controllerVersion})`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Test Connection with supplied or stored credentials
+apiRouter.post('/omada/test-connection', async (req: Request, res: Response) => {
+  try {
+    const existing = db.getOmadaControllerSettings();
+    const { controllerUrl, username, password, clientId, clientSecret, omadacId } = req.body || {};
+
+    const cleanUrl = controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : existing.controllerUrl;
+    const cleanUser = username !== undefined && username !== '' ? String(username).trim() : existing.username;
+    const cleanPass = password !== undefined && password !== '' ? String(password).trim() : existing.password;
+    const cleanClientId = clientId !== undefined && clientId !== '' ? String(clientId).trim() : existing.clientId;
+    const cleanClientSecret = clientSecret !== undefined && clientSecret !== '' ? String(clientSecret).trim() : existing.clientSecret;
+    const cleanOmadacId = omadacId !== undefined && omadacId !== '' ? String(omadacId).trim() : existing.omadacId;
+
+    if (!cleanPass && (!cleanClientId || !cleanClientSecret)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tafadhali weka Client ID & Client Secret za Open API au Username & Password za Controller.',
+      });
+    }
+
+    const testService = new OmadaAutomationService({
+      controllerUrl: cleanUrl,
+      username: cleanUser,
+      password: cleanPass,
+      clientId: cleanClientId,
+      clientSecret: cleanClientSecret,
+      omadacId: cleanOmadacId,
+    });
+
+    const startTime = Date.now();
+    const loginRes = await testService.login();
+    const sites = await testService.getControllerSites().catch(() => []);
+    const latencyMs = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      connected: true,
+      mode: loginRes.isOpenApi ? 'OPENAPI' : 'CREDENTIALS',
+      omadacId: loginRes.omadacId,
+      sitesCount: sites.length,
+      sites: sites.slice(0, 5),
+      latencyMs,
+      tokenPreview: loginRes.token ? `${loginRes.token.slice(0, 10)}...` : '',
+      message: loginRes.isOpenApi
+        ? `Muunganisho wa Omada Open API (Client ID & Secret) umefanikiwa kikamilifu! Controller ID: ${loginRes.omadacId}. Sites ${sites.length} zimepatikana.`
+        : `Muunganisho wa Web Admin Session umefanikiwa! Controller ID: ${loginRes.omadacId}. Sites ${sites.length} zimepatikana.`,
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      connected: false,
+      error: `Hitilafu ya Muunganisho wa Omada Controller: ${err.message}`,
+    });
+  }
 });
 
 apiRouter.post('/omada/controller-credentials', async (req: Request, res: Response) => {
   try {
+    const existing = db.getOmadaControllerSettings();
     const { controllerUrl, username, password, clientId, clientSecret, omadacId } = req.body || {};
-    const cleanUrl = controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : 'https://omada.infotechwifi.com:8043';
-    const cleanUser = username ? String(username).trim() : 'admin';
-    const cleanPass = password ? String(password).trim() : '';
-    const cleanClientId = clientId ? String(clientId).trim() : undefined;
-    const cleanClientSecret = clientSecret ? String(clientSecret).trim() : undefined;
-    const cleanOmadacId = omadacId ? String(omadacId).trim() : undefined;
+    const cleanUrl = controllerUrl ? String(controllerUrl).trim().replace(/\/+$/, '') : (existing.controllerUrl || 'https://omada.infotechwifi.com:8043');
+    const cleanUser = username !== undefined && username !== '' ? String(username).trim() : (existing.username || 'admin');
+    const cleanPass = password !== undefined && password !== '' ? String(password).trim() : existing.password;
+    const cleanClientId = clientId !== undefined && clientId !== '' ? String(clientId).trim() : existing.clientId;
+    const cleanClientSecret = clientSecret !== undefined && clientSecret !== '' ? String(clientSecret).trim() : existing.clientSecret;
+    const cleanOmadacId = omadacId !== undefined && omadacId !== '' ? String(omadacId).trim() : existing.omadacId;
 
     if (!cleanPass && (!cleanClientId || !cleanClientSecret)) {
       return res.status(400).json({ error: 'Tafadhali weka Password ya Omada Controller au Client ID & Client Secret za Open API.' });
@@ -4955,6 +5072,7 @@ apiRouter.post('/omada/controller-credentials', async (req: Request, res: Respon
     });
 
     const loginRes = await testService.login();
+    const liveSites = await testService.getControllerSites().catch(() => []);
 
     // Persist working credentials
     const saved = db.saveOmadaControllerSettings({
@@ -4968,13 +5086,21 @@ apiRouter.post('/omada/controller-credentials', async (req: Request, res: Respon
 
     res.json({
       success: true,
-      message: 'Omada Controller imeunganishwa kikamilifu! Taarifa zimethibitishwa.',
+      message: loginRes.isOpenApi
+        ? 'Omada Open API imeunganishwa na kuhifadhiwa kikamilifu! Client Credentials zimethibitishwa na Token ipo tayari kwa mawasiliano.'
+        : 'Omada Controller imeunganishwa na kuhifadhiwa kikamilifu! Taarifa zimethibitishwa.',
       settings: {
         controllerUrl: saved.controllerUrl,
         username: saved.username,
+        clientId: saved.clientId,
         omadacId: saved.omadacId,
         hasOpenApi: Boolean(saved.clientId && saved.clientSecret),
         isConfigured: true,
+      },
+      diagnostic: {
+        mode: loginRes.isOpenApi ? 'OPENAPI' : 'CREDENTIALS',
+        omadacId: loginRes.omadacId,
+        sitesCount: liveSites.length,
       },
     });
   } catch (err: any) {
@@ -5402,19 +5528,18 @@ apiRouter.post('/omada/sites/enable-hotspot', async (req: Request, res: Response
       router = db.getRouterById(Number(routerId));
     }
 
+    const effectiveSsid = (ssid && String(ssid).trim()) || router?.ssid || 'INFOTECH-HOTSPOT';
     const appBase = (process.env.APP_URL || 'https://infotechwifi.com').replace(/\/+$/, '');
-    const defaultPortalUrl = router
-      ? `${appBase}/?routerId=${router.id}&ap_vendor=omada`
-      : `${appBase}/portal`;
-
-    const effectiveSsid = ssid || router?.ssid || 'TZWIFI-HOTSPOT';
-    let effectivePortalUrl = defaultPortalUrl;
-    if (router?.id) {
-      effectivePortalUrl = `${appBase}/?routerId=${router.id}&ap_vendor=omada`;
-    } else if (portalUrl) {
-      effectivePortalUrl = portalUrl;
-    }
     
+    // Resolve AP MAC address for unique AP captive portal URL
+    const rawApMac = req.body.apMac || req.body.macAddress || router?.mac_address || '';
+    const cleanApMac = rawApMac ? String(rawApMac).replace(/[^a-fA-F0-9]/g, '').toUpperCase() : '';
+    const formattedApMac = cleanApMac.match(/.{1,2}/g)?.join(':') || router?.mac_address;
+
+    if (!router && cleanApMac) {
+      router = db.getRouters().find((r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac);
+    }
+
     let effectiveSiteId = siteId;
     if (!effectiveSiteId && router) {
       const sites = db.getOmadaSites(router.owner_id);
@@ -5426,6 +5551,17 @@ apiRouter.post('/omada/sites/enable-hotspot', async (req: Request, res: Response
       }
     }
     effectiveSiteId = effectiveSiteId || 'Default';
+
+    // Unique Captive Portal URL kwa AP hii maalum
+    const q = new URLSearchParams();
+    if (formattedApMac) q.set('apMac', formattedApMac);
+    if (router?.id) q.set('routerId', String(router.id));
+    if (effectiveSiteId) q.set('siteId', String(effectiveSiteId));
+    if (router?.owner_id) q.set('ownerId', String(router.owner_id));
+    q.set('ap_vendor', 'omada');
+
+    const uniqueApPortalUrl = `${appBase}/?${q.toString()}`;
+    const effectivePortalUrl = (portalUrl && String(portalUrl).trim()) ? String(portalUrl).trim() : uniqueApPortalUrl;
 
     const automation = new OmadaAutomationService();
     

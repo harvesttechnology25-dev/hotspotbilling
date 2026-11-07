@@ -532,7 +532,9 @@ export class OmadaAutomationService {
     siteName: string,
     region?: string,
     timeZone?: string,
-    scenario?: string
+    scenario?: string,
+    customDeviceUser?: string,
+    customDevicePass?: string
   ): Promise<string> {
     if (!this.sessionToken) {
       await this.login();
@@ -567,82 +569,101 @@ export class OmadaAutomationService {
     const rawScenario = (scenario || this.defaultSiteMeta?.scenario || 'Office').trim();
     const effectiveScenario = rawScenario.charAt(0).toUpperCase() + rawScenario.slice(1);
 
-    const deviceUser = (this.config.username || 'admin').trim();
-    const devicePass = this.getCompliantDevicePassword(this.config.password || 'Omada@1234!Tz');
+    const deviceUser = (customDeviceUser || this.config.username || 'admin').trim() || 'admin';
+    const devicePass = this.getCompliantDevicePassword(customDevicePass || this.config.password || 'Omada@1234!Tz');
     const siteType = typeof this.defaultSiteMeta?.type === 'number' ? this.defaultSiteMeta.type : 0;
 
-    // Candidate payloads: TP-Link Omada inaweza kukubali payload fupi { name } au yenye scenario/region/timeZone
+    // MUHIMU: TP-Link Omada Controller inahitaji "deviceAccountSetting" kuwepo na kutokuwa null
+    // kamwe kwenye ombi la kuunda Site (Assert.notNull: Parameter [deviceAccountSetting] should not be null).
+    // Kila payload hapa chini inabeba "deviceAccountSetting" ikiwa na username na password inayokubalika.
     const candidatePayloads = [
-      // 1. Standard Omada SDN Controller v5.x / v6.x (Primary: with deviceAccountSetting & enable)
+      // 1. Standard Omada SDN Controller v5.x / v6.x (Clean format bila unsupported fields)
       {
         name: cleanSiteName,
         region: effectiveRegion,
         timeZone: effectiveTimeZone,
         scenario: effectiveScenario,
-        type: siteType,
         deviceAccountSetting: {
           username: deviceUser,
           password: devicePass,
-          enable: true,
         },
       },
-      // 2. Minimal Open API format { name } pekee (Kama inavyopendekezwa na TP-Link Open API)
+      // 2. Open API & Web API Dual-Compatibility (inabeba pia alias ya siteName na deviceAccount)
       {
         name: cleanSiteName,
-      },
-      // 3. Simple payload yenye name na scenario pekee
-      {
-        name: cleanSiteName,
-        scenario: 'Office',
-        region: effectiveRegion,
-        timeZone: effectiveTimeZone,
-      },
-      // 4. Standard Omada with deviceAccountSetting without enable flag
-      {
-        name: cleanSiteName,
+        siteName: cleanSiteName,
         region: effectiveRegion,
         timeZone: effectiveTimeZone,
         scenario: effectiveScenario,
-        type: siteType,
         deviceAccountSetting: {
           username: deviceUser,
           password: devicePass,
         },
-      },
-      // 5. Fallback to 'Office' scenario
-      {
-        name: cleanSiteName,
-        region: effectiveRegion,
-        timeZone: effectiveTimeZone,
-        scenario: 'Office',
-        type: siteType,
-        deviceAccountSetting: {
-          username: deviceUser,
-          password: devicePass,
-          enable: true,
-        },
-      },
-      // 6. Outdoor scenario explicitly capitalized
-      {
-        name: cleanSiteName,
-        region: effectiveRegion,
-        timeZone: effectiveTimeZone,
-        scenario: 'Outdoor',
-        type: siteType,
-        deviceAccountSetting: {
-          username: deviceUser,
-          password: devicePass,
-          enable: true,
-        },
-      },
-      // 7. Open API format with deviceAccount
-      {
-        name: cleanSiteName,
-        region: effectiveRegion,
-        timeZone: effectiveTimeZone,
-        scenario: effectiveScenario,
-        type: siteType,
         deviceAccount: {
+          username: deviceUser,
+          password: devicePass,
+        },
+      },
+      // 3. Omada Minimal Required: name + deviceAccountSetting (inashibisha moja kwa moja not-null check)
+      {
+        name: cleanSiteName,
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+        },
+      },
+      // 4. Default scenario ('Office') na deviceAccountSetting
+      {
+        name: cleanSiteName,
+        scenario: 'Office',
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+        },
+      },
+      // 5. Dual aliases bila region/timeZone (kama region haikutambuliwa)
+      {
+        name: cleanSiteName,
+        siteName: cleanSiteName,
+        scenario: 'Office',
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+        },
+      },
+      // 6. Toleo linalojumuisha type (kwa baadhi ya matoleo yanayohitaji type: 0)
+      {
+        name: cleanSiteName,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: effectiveScenario,
+        type: siteType,
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+        },
+      },
+      // 7. Toleo lenye enable: true ndani ya deviceAccountSetting (kwa Controller v5.1+ zenye toggle)
+      {
+        name: cleanSiteName,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        scenario: effectiveScenario,
+        deviceAccountSetting: {
+          username: deviceUser,
+          password: devicePass,
+          enable: true,
+        },
+      },
+      // 8. Toleo lenye scenario ya namba (0 = Office/Default)
+      {
+        name: cleanSiteName,
+        scenario: 0,
+        region: effectiveRegion,
+        timeZone: effectiveTimeZone,
+        deviceAccountSetting: {
           username: deviceUser,
           password: devicePass,
         },

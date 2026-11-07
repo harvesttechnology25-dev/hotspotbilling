@@ -393,6 +393,8 @@ export const OmadaAdoptionModal: React.FC<OmadaAdoptionModalProps> = ({
           controllerUsername: controllerUsername.trim() || undefined,
           controllerPassword: controllerPassword.trim() || undefined,
           controllerUrl: controllerUrl.trim() || undefined,
+          deviceUsername: 'admin',
+          devicePassword: apPassword?.trim() || 'Omada@1234!Tz',
         }),
       });
 

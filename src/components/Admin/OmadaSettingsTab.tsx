@@ -390,6 +390,11 @@ export const OmadaSettingsTab: React.FC<OmadaSettingsTabProps> = ({
           nasIp: newSiteNasIp.trim() || '13.140.173.98',
           region: 'Tanzania',
           timeZone: 'Africa/Dar_es_Salaam',
+          controllerUrl: controllerUrl.trim() || undefined,
+          controllerUsername: controllerUsername.trim() || undefined,
+          controllerPassword: controllerPassword.trim() || undefined,
+          deviceUsername: 'admin',
+          devicePassword: devicePassword.trim() || 'Omada@1234!Tz',
         }),
       });
 
@@ -409,6 +414,49 @@ export const OmadaSettingsTab: React.FC<OmadaSettingsTabProps> = ({
       setStatusMessage({
         type: 'error',
         text: `Hitilafu ya kuunda site: ${err.message}`,
+      });
+    } finally {
+      setCreatingSite(false);
+    }
+  };
+
+  // Manual Site Save fallback
+  const handleManualCreateSite = async () => {
+    if (!newSiteName.trim()) {
+      setStatusMessage({ type: 'error', text: 'Tafadhali weka jina la Site (Site Name).' });
+      return;
+    }
+
+    setCreatingSite(true);
+    setSiteCreateSuccess(null);
+    setStatusMessage(null);
+    try {
+      const res = await fetch('/api/v1/omada/sites/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newSiteName.trim(),
+          nasIp: newSiteNasIp.trim() || '13.140.173.98',
+          isManual: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSiteCreateSuccess(data.message || `Site "${newSiteName}" imehifadhiwa na kuunganishwa kikamilifu!`);
+        setStatusMessage({ type: 'success', text: data.message });
+        setNewSiteName('');
+        fetchSites(true);
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: data.error || 'Imeshindwa kuhifadhi Site.',
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: `Hitilafu ya kuhifadhi site: ${err.message}`,
       });
     } finally {
       setCreatingSite(false);
@@ -1059,15 +1107,27 @@ export const OmadaSettingsTab: React.FC<OmadaSettingsTabProps> = ({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={handleQuickCreateSite}
-            disabled={creatingSite || !newSiteName.trim()}
-            className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50 inline-flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {creatingSite ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
-            <span>{creatingSite ? 'Inaunda Site Kwenye Omada...' : '🚀 Unda Site Kwenye Omada Sasa'}</span>
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleQuickCreateSite}
+              disabled={creatingSite || !newSiteName.trim()}
+              className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50 inline-flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {creatingSite ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+              <span>{creatingSite ? 'Inaunda Site Kwenye Omada...' : '🚀 Unda Site Kwenye Omada Sasa'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleManualCreateSite}
+              disabled={creatingSite || !newSiteName.trim()}
+              className="w-full py-2 px-3 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-[11px] transition inline-flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Kama unataka kuhifadhi au kuunganisha site iliyopo mara moja"
+            >
+              <span>📁 Hifadhi Site Manually / Unganisha Moja kwa Moja</span>
+            </button>
+          </div>
         </div>
 
         {/* Card B: Quick AP Adoption */}

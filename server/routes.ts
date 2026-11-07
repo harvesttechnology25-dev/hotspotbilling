@@ -5167,6 +5167,8 @@ apiRouter.post('/omada/sites/create', async (req: Request, res: Response) => {
       region,
       timeZone,
       scenario,
+      deviceUsername,
+      devicePassword,
     } = req.body || {};
 
     if (!name || !String(name).trim()) {
@@ -5218,8 +5220,15 @@ apiRouter.post('/omada/sites/create', async (req: Request, res: Response) => {
     }
 
     const automation = new OmadaAutomationService(customConfig);
-    // 1. Create site in Omada Controller with dynamic & validated region/timeZone/scenario parameters
-    const siteId = await automation.createSite(cleanName, region, timeZone, scenario);
+    // 1. Create site in Omada Controller with dynamic & validated region/timeZone/scenario/deviceAccount parameters
+    const siteId = await automation.createSite(
+      cleanName,
+      region,
+      timeZone,
+      scenario,
+      deviceUsername,
+      devicePassword
+    );
     
     // 2. Automatically assign and configure RADIUS NAS IP
     const radiusResult = await automation.configureRadiusNas(

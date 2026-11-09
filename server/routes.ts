@@ -422,6 +422,9 @@ apiRouter.get('/payments/status/:reference', async (req: Request, res: Response)
   const plan = db.getPlanById(transaction.plan_id);
   const router = transaction.router_id ? db.getRouterById(transaction.router_id) : db.getRouters()[0];
 
+  const omadaRouters = db.getRouters().filter((r) => r.device_type === 'TPLINK_OMADA');
+  const isOmada = router?.device_type === 'TPLINK_OMADA' || omadaRouters.length > 0;
+
   const hotspotLoginUrl = router
     ? `http://${router.ip_address}/login`
     : 'http://192.168.88.1/login';
@@ -435,6 +438,7 @@ apiRouter.get('/payments/status/:reference', async (req: Request, res: Response)
     amount: transaction.amount,
     failureReason: transaction.failure_reason,
     plan,
+    isOmada,
     voucher: voucher ? {
       code: voucher.code,
       password: voucher.password,
@@ -925,7 +929,20 @@ apiRouter.get("/vouchers", (req: Request, res: Response) => {
 });
 
 apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
-  const { code, macAddress, clientMac, apMac, planId, selectedPlanId, routerId } = req.body;
+  const {
+    code,
+    macAddress,
+    clientMac,
+    apMac,
+    siteId,
+    ssidName,
+    target,
+    targetPort,
+    planId,
+    selectedPlanId,
+    routerId,
+  } = req.body;
+
   if (!code) {
     return res.status(400).json({ error: 'Tafadhali weka nambari ya vocha (Voucher code is required).' });
   }
@@ -971,7 +988,6 @@ apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
   }
 
   // Strict package mismatch validation:
-  // e.g., if a 6-hour manual voucher is entered for a 12-hour package, reject with a clear error
   const requestedPlanId = planId ? Number(planId) : selectedPlanId ? Number(selectedPlanId) : undefined;
   if (requestedPlanId && voucher.plan_id && Number(voucher.plan_id) !== requestedPlanId) {
     const requestedPlan = db.getPlanById(requestedPlanId);
@@ -988,11 +1004,18 @@ apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
   }
 
   let router = voucher.router_id ? db.getRouterById(voucher.router_id) : undefined;
+  if (!router && requestedRouterId) {
+    router = db.getRouterById(requestedRouterId);
+  }
   if (!router && voucher.owner_id) {
     router = db.getRouters().find((r) => Number(r.owner_id) === Number(voucher.owner_id));
   }
+  if (!router && apMac) {
+    const cleanAp = String(apMac).replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    router = db.getRouters().find((r) => r.mac_address && r.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanAp);
+  }
   if (!router) {
-    router = db.getRouters()[0];
+    router = db.getRouters().find((r) => r.device_type === 'TPLINK_OMADA') || db.getRouters()[0];
   }
   if (router && !voucher.router_id) {
     voucher.router_id = router.id;
@@ -1013,46 +1036,72 @@ apiRouter.post('/vouchers/redeem', async (req: Request, res: Response) => {
   voucher.updated_at = new Date().toISOString();
   db.saveVoucher(voucher);
 
+  // FreeRADIUS AAA provisioning (Both voucher user & MAC auth for Omada APs)
+  if (plan) {
+    try {
+      db.addRadiusUser(voucher.code, voucher.password || voucher.code, plan, effectiveMac);
+      if (effectiveMac) {
+        db.addRadiusMacAuthUser(effectiveMac, plan);
+      }
+    } catch (radErr: any) {
+      console.warn(`[Voucher FreeRADIUS] radcheck error: ${radErr.message}`);
+    }
+  }
+
+  const omadaRouters = db.getRouters().filter((r) => r.device_type === 'TPLINK_OMADA');
+  const isOmadaTarget = router?.device_type === 'TPLINK_OMADA' || Boolean(apMac) || omadaRouters.length > 0;
   let omadaAuthResult: any = null;
-  if (router && plan) {
-    // 1. Authorize on TP-Link Omada Controller if AP or Omada router
-    if (router.device_type === 'TPLINK_OMADA' || apMac) {
+
+  if (plan) {
+    // 1. Authorize on TP-Link Omada Controller & Access Point
+    if (isOmadaTarget && effectiveMac) {
       const durationMinutes = Math.max(15, Math.ceil((plan.limit_uptime || plan.validity_period || 3600) / 60));
+      const targetOmadaRouter = router?.device_type === 'TPLINK_OMADA' ? router : omadaRouters[0];
       try {
         const automation = new OmadaAutomationService();
         omadaAuthResult = await automation.authorizeClient({
-          clientMac: effectiveMac || '00:00:00:00:00:00',
+          clientMac: effectiveMac,
           durationMinutes,
-          siteId: router.location,
-          apMac: router.mac_address || apMac,
+          siteId: siteId || targetOmadaRouter?.omada_site_id || targetOmadaRouter?.location,
+          apMac: apMac || targetOmadaRouter?.mac_address,
+          ssidName: ssidName || targetOmadaRouter?.ssid,
+          target,
+          targetPort: targetPort ? Number(targetPort) : undefined,
         });
+        console.log(`[Omada Voucher Auth] Matokeo kwa ${effectiveMac}:`, omadaAuthResult);
       } catch (err: any) {
         console.warn(`[Omada Voucher Auth] Warning: ${err.message}`);
       }
     }
 
     // 2. Provision on MikroTik RouterOS
-    if (router.device_type !== 'TPLINK_OMADA') {
-      await MikrotikService.provisionUser(router, {
-        username: voucher.code,
-        password: voucher.password,
-        limitUptimeSeconds: plan.limit_uptime,
-        limitBytesTotal: plan.limit_bytes_total,
-        rateLimit: plan.rate_limit,
-        macAddress: effectiveMac,
-        comment: `Redeemed Voucher ${voucher.code}`,
-      });
+    if (router && router.device_type !== 'TPLINK_OMADA') {
+      try {
+        await MikrotikService.provisionUser(router, {
+          username: voucher.code,
+          password: voucher.password,
+          limitUptimeSeconds: plan.limit_uptime,
+          limitBytesTotal: plan.limit_bytes_total,
+          rateLimit: plan.rate_limit,
+          macAddress: effectiveMac,
+          comment: `Redeemed Voucher ${voucher.code}`,
+        });
+      } catch (mikErr: any) {
+        console.warn(`[MikroTik Voucher Auth] Warning: ${mikErr.message}`);
+      }
     }
   }
 
   res.json({
     success: true,
-    message: omadaAuthResult?.success
-      ? 'Vocha imekubaliwa na intaneti imewashwa kwenye simu yako kupitia Omada AP!'
+    message: omadaAuthResult?.authorized
+      ? 'Vocha imekubaliwa na kifaa chako kimeruhusiwa kwenye mtandao wa Wi-Fi wa Omada AP!'
       : 'Vocha imekubaliwa. Unaunganishwa kwenye intaneti...',
     voucher,
     plan,
-    omadaAuthorized: Boolean(omadaAuthResult?.success),
+    isOmada: isOmadaTarget,
+    omadaAuthorized: Boolean(omadaAuthResult?.authorized || omadaAuthResult?.success),
+    omadaDetails: omadaAuthResult,
     hotspotLoginUrl: router ? `http://${router.ip_address}/login` : 'http://192.168.88.1/login',
   });
 });
@@ -1114,12 +1163,40 @@ apiRouter.post('/vouchers/generate', async (req: Request, res: Response) => {
       printFormat,
     });
 
+    // Dual Sync: Ikiwa mmiliki anatumia Omada AP au Controller ipo hewani,
+    // tengeneza pia batch hii ndani ya Omada Controller (Hotspot Manager > Vouchers)
+    const omadaRouters = db.getRouters().filter((r) => r.device_type === 'TPLINK_OMADA');
+    const isOmadaTarget = (routerId && db.getRouterById(Number(routerId))?.device_type === 'TPLINK_OMADA') || omadaRouters.length > 0;
+    let omadaBatchSync: any = null;
+
+    if (isOmadaTarget) {
+      try {
+        const targetRouter = routerId ? db.getRouterById(Number(routerId)) : omadaRouters[0];
+        const plan = db.getPlanById(Number(planId));
+        const automation = new OmadaAutomationService();
+        omadaBatchSync = await automation.createOmadaVoucherBatch({
+          siteId: targetRouter?.omada_site_id || targetRouter?.location,
+          name: `${prefix || 'TZ'}-${plan?.name || 'WIFI'}-${result.batch.batch_id.slice(-6)}`,
+          amount: Number(quantity),
+          durationMinutes: Math.max(15, Math.ceil((plan?.limit_uptime || plan?.validity_period || 3600) / 60)),
+          codeLength: Number(codeLength) || 6,
+          rateLimit: plan?.rate_limit,
+          quotaMb: plan?.limit_bytes_total ? Math.round(plan.limit_bytes_total / (1024 * 1024)) : undefined,
+        });
+        console.log(`[Omada Voucher Sync] Batch ${result.batch.batch_id} imepelekwa kwenye Omada Controller:`, omadaBatchSync);
+      } catch (omadaErr: any) {
+        console.warn(`[Omada Voucher Sync] Warning: ${omadaErr.message}`);
+      }
+    }
+
     res.json({
       success: true,
       batchTag: result.batch.batch_id,
       count: result.count,
       batch: result.batch,
       vouchers: result.vouchers,
+      omadaSynced: Boolean(omadaBatchSync?.success),
+      omadaDetails: omadaBatchSync,
     });
   } catch (err: any) {
     res.status(400).json({ error: err.message || 'Batch generation failed.' });
@@ -4699,7 +4776,7 @@ apiRouter.post('/omada/sync-activate', async (req: Request, res: Response) => {
 // 4b. Explicit Omada Client Authorization (Allows Wi-Fi guest to be unblocked instantly on AP)
 apiRouter.post('/omada/authorize-client', async (req: Request, res: Response) => {
   try {
-    const { clientMac, routerId, apMac, durationMinutes = 60, siteId } = req.body;
+    const { clientMac, routerId, apMac, durationMinutes = 60, siteId, ssidName, target, targetPort } = req.body;
     if (!clientMac) {
       return res.status(400).json({ error: 'MAC address ya mteja (clientMac) inahitajika.' });
     }
@@ -4710,8 +4787,17 @@ apiRouter.post('/omada/authorize-client', async (req: Request, res: Response) =>
     if (routerId) {
       const router = db.getRouterById(Number(routerId));
       if (router) {
+        if (!targetSiteId && router.omada_site_id) targetSiteId = router.omada_site_id;
         if (!targetSiteId && router.location) targetSiteId = router.location;
         if (!targetApMac && router.mac_address) targetApMac = router.mac_address;
+      }
+    }
+
+    if (!targetApMac) {
+      const omadaRouters = db.getRouters().filter((r) => r.device_type === 'TPLINK_OMADA');
+      if (omadaRouters.length > 0) {
+        if (!targetSiteId) targetSiteId = omadaRouters[0].omada_site_id || omadaRouters[0].location;
+        targetApMac = omadaRouters[0].mac_address;
       }
     }
 
@@ -4721,11 +4807,50 @@ apiRouter.post('/omada/authorize-client', async (req: Request, res: Response) =>
       durationMinutes: Number(durationMinutes) || 60,
       siteId: targetSiteId,
       apMac: targetApMac,
+      ssidName,
+      target,
+      targetPort: targetPort ? Number(targetPort) : undefined,
     });
 
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kuidhinisha mteja kwenye Omada.' });
+  }
+});
+
+// 4c. Orodha ya Vocha zilizopo kwenye Omada Controller (Hotspot Manager > Vouchers)
+apiRouter.get('/omada/vouchers', async (req: Request, res: Response) => {
+  try {
+    const { siteId } = req.query;
+    const automation = new OmadaAutomationService();
+    const vouchers = await automation.getOmadaVouchers(siteId ? String(siteId) : undefined);
+    res.json({
+      success: true,
+      count: vouchers.length,
+      vouchers,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kupata vocha za Omada.' });
+  }
+});
+
+// 4d. Tengeneza Vocha moja kwa moja kwenye Omada Controller
+apiRouter.post('/omada/vouchers/create', async (req: Request, res: Response) => {
+  try {
+    const { siteId, name = 'TZWIFI-BATCH', amount = 10, durationMinutes = 60, codeLength = 6, rateLimit, quotaMb } = req.body;
+    const automation = new OmadaAutomationService();
+    const result = await automation.createOmadaVoucherBatch({
+      siteId,
+      name,
+      amount: Number(amount) || 10,
+      durationMinutes: Number(durationMinutes) || 60,
+      codeLength: Number(codeLength) || 6,
+      rateLimit,
+      quotaMb: quotaMb ? Number(quotaMb) : undefined,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Hitilafu ya kutengeneza vocha kwenye Omada Controller.' });
   }
 });
 

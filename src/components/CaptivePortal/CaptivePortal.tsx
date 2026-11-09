@@ -72,6 +72,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     ssidName: '',
     site: '',
     target: '',
+    targetPort: '',
     ip: '',
     linkLogin: 'http://192.168.88.1/login',
     linkOrig: 'http://www.google.com',
@@ -99,11 +100,28 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
         pathApMac = pathParts[1];
       }
 
-      const clientMac = p.get('clientMac') || p.get('clientmac') || p.get('mac') || p.get('client_mac') || '';
-      const apMac = p.get('apMac') || p.get('apmac') || p.get('ap_mac') || p.get('ap') || p.get('gatewayMac') || pathApMac || '';
+      const clientMac =
+        p.get('clientMac') ||
+        p.get('clientmac') ||
+        p.get('mac') ||
+        p.get('client_mac') ||
+        p.get('user_mac') ||
+        p.get('usermac') ||
+        p.get('macAddress') ||
+        '';
+      const apMac =
+        p.get('apMac') ||
+        p.get('apmac') ||
+        p.get('ap_mac') ||
+        p.get('ap') ||
+        p.get('gatewayMac') ||
+        p.get('gateway_mac') ||
+        pathApMac ||
+        '';
       const ssidName = p.get('ssidName') || p.get('ssid') || p.get('ssid_name') || '';
-      const site = p.get('site') || p.get('siteId') || p.get('site_id') || '';
-      const target = p.get('target') || p.get('redirectUrl') || p.get('targetUrl') || '';
+      const site = p.get('site') || p.get('siteId') || p.get('site_id') || p.get('siteName') || '';
+      const target = p.get('target') || p.get('redirectUrl') || p.get('targetUrl') || p.get('controllerUrl') || '';
+      const targetPort = p.get('targetPort') || p.get('target_port') || p.get('port') || '';
       const ip = p.get('ip') || '';
       const linkLogin = p.get('link-login') || p.get('link_login') || target || 'http://192.168.88.1/login';
       const linkOrig = p.get('link-orig') || p.get('link_orig') || 'http://www.google.com';
@@ -125,6 +143,7 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
         ssidName,
         site,
         target,
+        targetPort,
         ip,
         linkLogin,
         linkOrig,
@@ -159,7 +178,8 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
     gatewayWarning?: string | null;
     hasRouter?: boolean;
     message?: string;
-    routers?: Array<{ id: number; name: string; brand_name?: string; location?: string; ssid?: string }>;
+    router?: any;
+    routers?: Array<{ id: number; name: string; brand_name?: string; location?: string; ssid?: string; device_type?: string }>;
   }>({
     brandName: 'Hotspot Yako',
     ssid: '',
@@ -553,6 +573,19 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
       : 'grid grid-cols-1 sm:grid-cols-2 gap-3'
     : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3';
 
+  const isOmadaNetwork = Boolean(
+    hotspotClientParams.apMac ||
+    hotspotClientParams.target ||
+    portalInfo.router?.device_type === 'TPLINK_OMADA' ||
+    (portalInfo.routers && portalInfo.routers.some((r: any) => r.device_type === 'TPLINK_OMADA')) ||
+    (typeof window !== 'undefined' && (
+      window.location.search.includes('apMac') ||
+      window.location.search.includes('omada') ||
+      window.location.search.includes('site') ||
+      window.location.search.includes('target')
+    ))
+  );
+
   return (
     <div className={containerClass}>
       {/* Test Preview Banner when no router exists in previewMode */}
@@ -842,6 +875,12 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
           onSelectPlan={(id) => setSelectedPlanId(id)}
           routerId={portalInfo.routerId || (selectedRouterId !== 'ALL' && selectedRouterId !== undefined ? Number(selectedRouterId) : undefined)}
           routerName={portalInfo.routerName || portalInfo.siteName}
+          apMac={hotspotClientParams.apMac}
+          siteId={hotspotClientParams.site}
+          ssidName={hotspotClientParams.ssidName}
+          target={hotspotClientParams.target}
+          targetPort={hotspotClientParams.targetPort}
+          isOmada={isOmadaNetwork}
         />
       )}
 
@@ -1145,6 +1184,11 @@ export const CaptivePortal: React.FC<CaptivePortalProps> = ({
           linkLogin={hotspotClientParams.linkLogin || mikrotikParams.linkLogin}
           linkOrig={hotspotClientParams.linkOrig || mikrotikParams.linkOrig}
           clientMac={hotspotClientParams.clientMac || mikrotikParams.mac}
+          apMac={hotspotClientParams.apMac}
+          siteId={hotspotClientParams.site}
+          target={hotspotClientParams.target}
+          targetPort={hotspotClientParams.targetPort}
+          isOmada={isOmadaNetwork}
           onPaymentSuccess={handlePaymentSuccess}
           lang={lang}
         />

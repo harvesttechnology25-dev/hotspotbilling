@@ -1634,6 +1634,81 @@ const mergedEmail: EmailGatewayConfig = {
     }
   }
 
+  // --- FreeRADIUS MAC Authentication for Omada APs & Guest Bypass ---
+  addRadiusMacAuthUser(
+    macAddress: string,
+    plan: {
+      limit_uptime?: number | null;
+      validity_period?: number | null;
+      rate_limit?: string | null;
+      limit_bytes_total?: number | null;
+    }
+  ): void {
+    if (!macAddress) return;
+    const clean = macAddress.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    if (!clean || clean.length < 10) return;
+    const colon = clean.match(/.{1,2}/g)?.join(':') || macAddress;
+    const dash = clean.match(/.{1,2}/g)?.join('-') || macAddress;
+    const lowerColon = colon.toLowerCase();
+    const lowerDash = dash.toLowerCase();
+    const rawLower = clean.toLowerCase();
+
+    // Support all MAC formats that Omada/FreeRADIUS may query
+    const candidateUsernames = [colon, dash, lowerColon, lowerDash, clean, rawLower];
+    const duration = plan.limit_uptime || plan.validity_period || 86400;
+
+    for (const u of candidateUsernames) {
+      // 1. Remove existing entry if any
+      this.radcheck = this.radcheck.filter((r) => r.username !== u);
+      this.radreply = this.radreply.filter((r) => r.username !== u);
+
+      // 2. Cleartext-Password := MAC (standard RADIUS MAC Auth convention)
+      this.radcheck.push({
+        id: Date.now() + Math.floor(Math.random() * 10000),
+        username: u,
+        attribute: 'Cleartext-Password',
+        op: ':=',
+        value: u,
+      });
+
+      // 3. Auth-Type := Accept (auto-accept fallback)
+      this.radcheck.push({
+        id: Date.now() + Math.floor(Math.random() * 10000) + 1,
+        username: u,
+        attribute: 'Auth-Type',
+        op: ':=',
+        value: 'Accept',
+      });
+
+      // 4. Session-Timeout
+      this.radreply.push({
+        id: Date.now() + Math.floor(Math.random() * 10000) + 2,
+        username: u,
+        attribute: 'Session-Timeout',
+        op: '=',
+        value: String(duration),
+      });
+
+      if (plan.rate_limit) {
+        this.radreply.push({
+          id: Date.now() + Math.floor(Math.random() * 10000) + 3,
+          username: u,
+          attribute: 'MikroTik-Rate-Limit',
+          op: '=',
+          value: plan.rate_limit,
+        });
+      }
+
+      // Sync to MySQL radcheck & radreply
+      const checks = this.radcheck.filter((r) => r.username === u);
+      for (const rc of checks) mysqlService.syncRadCheck(rc);
+      const replies = this.radreply.filter((r) => r.username === u);
+      for (const rr of replies) mysqlService.syncRadReply(rr);
+    }
+
+    this.saveToDisk();
+  }
+
   getRadiusUser(username: string): { check: RadCheckRecord[]; reply: RadReplyRecord[] } | null {
     const check = this.radcheck.filter((r) => r.username === username);
     const reply = this.radreply.filter((r) => r.username === username);

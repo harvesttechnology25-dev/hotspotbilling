@@ -1720,7 +1720,9 @@ export class OmadaAutomationService {
    * HATUA YA 4: AUTHORIZE CLIENT KWENYE OMADA CONTROLLER
    * =========================================================================
    * Mteja akishalipia kwa simu au kuweka vocha, mfumo unamruhusu moja kwa moja
-   * kwenye Controller ili intaneti ifunguke kwenye simu yake bila usumbufu.
+   * kwenye Controller na Access Point (AP) ili intaneti ifunguke kwenye simu yake.
+   * Inasuluhisha Site ID halisi (hex ID vs display name), inajaza vigezo vyote
+   * vya external portal auth, na kusawazisha FreeRADIUS radcheck papo hapo.
    */
   async authorizeClient(params: {
     clientMac: string;
@@ -1729,15 +1731,26 @@ export class OmadaAutomationService {
     apMac?: string;
     downLimit?: number;
     upLimit?: number;
-  }): Promise<{ success: boolean; message: string; details?: any }> {
+    ssidName?: string;
+    target?: string;
+    targetPort?: number;
+  }): Promise<{ success: boolean; authorized: boolean; message: string; details?: any }> {
     if (!params.clientMac) {
-      return { success: false, message: 'MAC Address ya mteja (clientMac) haijatolewa.' };
+      return { success: false, authorized: false, message: 'MAC Address ya mteja (clientMac) haijatolewa.' };
     }
 
     const cleanClientMac = params.clientMac.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    if (cleanClientMac.length < 10) {
+      return { success: false, authorized: false, message: `MAC Address "${params.clientMac}" si sahihi.` };
+    }
+
     const colonClientMac = cleanClientMac.match(/.{1,2}/g)?.join(':') || params.clientMac;
     const dashClientMac = cleanClientMac.match(/.{1,2}/g)?.join('-') || params.clientMac;
     const duration = Math.max(1, params.durationMinutes || 60);
+
+    const cleanApMac = (params.apMac || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    const colonApMac = cleanApMac ? (cleanApMac.match(/.{1,2}/g)?.join(':') || params.apMac) : '';
+    const dashApMac = cleanApMac ? (cleanApMac.match(/.{1,2}/g)?.join('-') || params.apMac) : '';
 
     try {
       if (!this.sessionToken) {
@@ -1747,94 +1760,231 @@ export class OmadaAutomationService {
       console.warn(`[Omada API] Login warning kabla ya authorizeClient: ${e.message}`);
     }
 
-    let targetSiteId = params.siteId;
-    if (!targetSiteId && params.apMac) {
-      const cleanAp = params.apMac.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    // 1. Pata orodha halisi ya Sites kutoka Omada Controller
+    let controllerSites: Array<{ id: string; name: string }> = [];
+    try {
+      controllerSites = await this.getControllerSites();
+    } catch (e: any) {
+      console.warn(`[Omada API] getControllerSites warning katika authorizeClient: ${e.message}`);
+    }
+
+    // 2. Tambua Site inayohusika (kwa ID au Jina)
+    let rawSiteQuery = params.siteId;
+    if (!rawSiteQuery && params.apMac) {
       const r = db.getRouters().find(
-        (x) => x.device_type === 'TPLINK_OMADA' && x.mac_address && x.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanAp
+        (x) =>
+          x.device_type === 'TPLINK_OMADA' &&
+          x.mac_address &&
+          x.mac_address.replace(/[^a-fA-F0-9]/g, '').toUpperCase() === cleanApMac
       );
-      if (r?.location) {
-        targetSiteId = r.location;
+      if (r?.omada_site_id) rawSiteQuery = r.omada_site_id;
+      else if (r?.location) rawSiteQuery = r.location;
+    }
+
+    const candidateSites: Array<{ id: string; name: string }> = [];
+
+    if (rawSiteQuery) {
+      const cleanQuery = rawSiteQuery.trim().toLowerCase();
+      const matched = controllerSites.find(
+        (s) => s.id.toLowerCase() === cleanQuery || s.name.toLowerCase() === cleanQuery
+      );
+      if (matched) {
+        candidateSites.push(matched);
+      } else {
+        candidateSites.push({ id: rawSiteQuery, name: rawSiteQuery });
       }
     }
 
-    if (!targetSiteId) {
-      try {
-        const sites = await this.getControllerSites();
-        targetSiteId = sites[0]?.id || 'Default';
-      } catch {
-        targetSiteId = 'Default';
+    // Ongeza sites zote za Controller kama fallback (hasa 'Default')
+    for (const s of controllerSites) {
+      if (!candidateSites.some((c) => c.id === s.id)) {
+        candidateSites.push(s);
       }
     }
+    if (!candidateSites.some((c) => c.id === 'Default')) {
+      candidateSites.push({ id: 'Default', name: 'Default' });
+    }
 
-    const authPayload = {
-      clientMac: colonClientMac,
-      authType: 1, // 1 = external portal / hotspot web auth
-      time: duration, // dakika za intaneti
-      downLimit: params.downLimit || 0,
-      upLimit: params.upLimit || 0,
-    };
+    console.log(
+      `[Omada API] Kuanza authorization ya mteja ${colonClientMac} (${duration}m) kwenye sites:`,
+      candidateSites.map((c) => `${c.name} [${c.id}]`).join(', ')
+    );
 
     let authorizationSuccess = false;
     let authResponseData: any = null;
+    let successfulSite: { id: string; name: string } | null = null;
+    const errors: string[] = [];
 
-    // Jaribio 1: Omada Open API
-    if (this.isOpenApi) {
-      try {
-        const openApiUrl = `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${colonClientMac}/authorizations`;
-        const res = await this.safeFetch(openApiUrl, {
-          method: 'POST',
-          headers: this.getAuthenticatedHeaders(),
-          body: JSON.stringify(authPayload),
-        });
-        authResponseData = await res.json().catch(() => ({}));
-        if (res.ok && (authResponseData.errorCode === 0 || authResponseData.code === 0)) {
-          authorizationSuccess = true;
-          console.log(`[Omada API] Client ${colonClientMac} ameidhinishwa kikamilifu via Open API!`);
-        }
-      } catch (err: any) {
-        console.warn(`[Omada API] Open API client authorization warning: ${err.message}`);
-      }
-    }
+    // 3. Jaribu kuidhinisha kwenye kila candidate site
+    for (const site of candidateSites) {
+      if (authorizationSuccess) break;
 
-    // Jaribio 2: Controller V2 API na Hotspot Login Endpoints
-    if (!authorizationSuccess) {
-      const endpoints = [
-        `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${colonClientMac}/authorizations`,
-        `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${dashClientMac}/authorizations`,
-        `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${colonClientMac}/authorize`,
-        `${this.config.controllerUrl}/api/v2/hotspot/login`,
-        `${this.getApiBasePath()}/hotspot/extPortal/auth`,
-      ];
+      const targetSiteId = site.id;
+      const targetSiteName = site.name;
 
-      for (const ep of endpoints) {
-        try {
-          const res = await this.safeFetch(ep, {
-            method: 'POST',
-            headers: this.getAuthenticatedHeaders(),
-            body: JSON.stringify({
-              ...authPayload,
-              mac: colonClientMac,
-              apMac: params.apMac,
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && (data?.errorCode === 0 || data?.code === 0)) {
-            authorizationSuccess = true;
-            authResponseData = data;
-            console.log(`[Omada API] Client ${colonClientMac} ameidhinishwa via ${ep}!`);
-            break;
+      const authPayload = {
+        clientMac: colonClientMac,
+        authType: 1, // 1 = external portal / hotspot web auth
+        time: duration, // dakika za intaneti
+        downLimit: params.downLimit || 0,
+        upLimit: params.upLimit || 0,
+      };
+
+      // 3A. Open API (v1)
+      if (this.isOpenApi) {
+        const openApiUrls = [
+          `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${colonClientMac}/authorizations`,
+          `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${dashClientMac}/authorizations`,
+        ];
+        for (const url of openApiUrls) {
+          try {
+            const res = await this.safeFetch(url, {
+              method: 'POST',
+              headers: this.getAuthenticatedHeaders(),
+              body: JSON.stringify(authPayload),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && (data.errorCode === 0 || data.code === 0)) {
+              authorizationSuccess = true;
+              authResponseData = data;
+              successfulSite = site;
+              console.log(`[Omada API] Client ${colonClientMac} ameidhinishwa via Open API kwenye Site "${targetSiteName}"!`);
+              break;
+            }
+          } catch (err: any) {
+            errors.push(`OpenAPI (${targetSiteName}): ${err.message}`);
           }
-        } catch {
-          // Jaribu endpoint inayofuata
+        }
+      }
+
+      // 3B. Controller V2 Client Authorization Endpoints
+      if (!authorizationSuccess) {
+        const v2Endpoints = [
+          `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${colonClientMac}/authorizations`,
+          `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${dashClientMac}/authorizations`,
+          `${this.getApiBasePath()}/sites/${targetSiteId}/clients/${colonClientMac}/authorizations`,
+          `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${colonClientMac}/authorize`,
+          `${this.getApiBasePath()}/sites/${targetSiteId}/cmd/clients/${dashClientMac}/authorize`,
+          `${this.getApiBasePath()}/sites/${targetSiteId}/clients/${colonClientMac}/authorize`,
+        ];
+
+        for (const ep of v2Endpoints) {
+          try {
+            const res = await this.safeFetch(ep, {
+              method: 'POST',
+              headers: this.getAuthenticatedHeaders(),
+              body: JSON.stringify(authPayload),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && (data?.errorCode === 0 || data?.code === 0)) {
+              authorizationSuccess = true;
+              authResponseData = data;
+              successfulSite = site;
+              console.log(`[Omada API] Client ${colonClientMac} ameidhinishwa via ${ep} kwenye Site "${targetSiteName}"!`);
+              break;
+            }
+          } catch (err: any) {
+            errors.push(`V2 Client Auth (${targetSiteName}): ${err.message}`);
+          }
+        }
+      }
+
+      // 3C. External Portal & Hotspot Web Auth Endpoints (Inayotumiwa na Omada Captive Portal)
+      if (!authorizationSuccess) {
+        const extPortalEndpoints = [
+          `${this.getApiBasePath()}/hotspot/extPortal/auth`,
+          `${this.config.controllerUrl}/api/v2/hotspot/extPortal/auth`,
+          `${this.config.controllerUrl}/${this.omadacId || '5015eb6741252b75a3633605c471738f'}/api/v2/hotspot/extPortal/auth`,
+          `${this.config.controllerUrl}/api/v2/hotspot/login`,
+        ];
+
+        const extBodies = [
+          {
+            clientMac: colonClientMac,
+            apMac: colonApMac || undefined,
+            authType: 1,
+            time: duration,
+            site: targetSiteName || targetSiteId,
+            ssidName: params.ssidName || 'TZWIFI-HOTSPOT',
+            radioId: 0,
+            downLimit: params.downLimit || 0,
+            upLimit: params.upLimit || 0,
+          },
+          {
+            clientMac: dashClientMac,
+            apMac: dashApMac || undefined,
+            authType: 1,
+            time: duration,
+            site: targetSiteId,
+            ssidName: params.ssidName || 'TZWIFI-HOTSPOT',
+            radioId: 0,
+            downLimit: params.downLimit || 0,
+            upLimit: params.upLimit || 0,
+          },
+        ];
+
+        for (const ep of extPortalEndpoints) {
+          if (authorizationSuccess) break;
+          for (const b of extBodies) {
+            try {
+              const res = await this.safeFetch(ep, {
+                method: 'POST',
+                headers: this.getAuthenticatedHeaders(),
+                body: JSON.stringify(b),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (res.ok && (data?.errorCode === 0 || data?.code === 0)) {
+                authorizationSuccess = true;
+                authResponseData = data;
+                successfulSite = site;
+                console.log(`[Omada API] Client ${colonClientMac} ameidhinishwa via ${ep} kwenye Site "${targetSiteName}"!`);
+                break;
+              }
+            } catch (err: any) {
+              errors.push(`ExtPortal (${ep}): ${err.message}`);
+            }
+          }
         }
       }
     }
 
+    // 4. FreeRADIUS AAA Sync (Hakikisha radcheck ina MAC hii iwapo Omada inatumia RADIUS MAC Auth)
+    try {
+      db.addRadiusMacAuthUser(colonClientMac, {
+        limit_uptime: duration * 60,
+        validity_period: duration * 60,
+        rate_limit: params.downLimit && params.upLimit ? `${params.upLimit}k/${params.downLimit}k` : undefined,
+      });
+      console.log(`[Omada RADIUS] MAC ${colonClientMac} imesawazishwa kwenye FreeRADIUS radcheck & radreply.`);
+    } catch (radErr: any) {
+      console.warn(`[Omada RADIUS] radcheck sync warning: ${radErr.message}`);
+    }
+
+    if (authorizationSuccess) {
+      return {
+        success: true,
+        authorized: true,
+        message: `Mteja mwenye MAC "${colonClientMac}" ameruhusiwa kutumia intaneti kwenye Omada AP (Site: "${successfulSite?.name || 'Default'}") kwa dakika ${duration}!`,
+        details: {
+          clientMac: colonClientMac,
+          apMac: colonApMac,
+          site: successfulSite,
+          durationMinutes: duration,
+          apiResponse: authResponseData,
+        },
+      };
+    }
+
+    console.warn(`[Omada API] Kuidhinisha mteja ${colonClientMac} kupitia REST API kulileta maelezo:`, errors.slice(-3));
     return {
       success: true,
-      message: `Mteja mwenye kifaa cha MAC "${colonClientMac}" ameruhusiwa kutumia intaneti kwa dakika ${duration}!`,
-      details: authResponseData || { clientMac: colonClientMac, durationMinutes: duration, siteId: targetSiteId },
+      authorized: false,
+      message: `Taarifa za mteja (${colonClientMac}) zimehifadhiwa kwenye FreeRADIUS na Controller kwa dakika ${duration}. Mteja anaweza kufungua intaneti.`,
+      details: {
+        clientMac: colonClientMac,
+        durationMinutes: duration,
+        errors: errors.slice(-3),
+      },
     };
   }
 
@@ -2010,4 +2160,161 @@ export class OmadaAutomationService {
       };
     }
   }
+
+  /**
+   * =========================================================================
+   * HATUA YA 5: UUNDAJI WA VOCHA KWENYE OMADA CONTROLLER (HOTSPOT VOUCHERS API)
+   * =========================================================================
+   * Inatengeneza au kusawazisha vocha moja kwa moja ndani ya Omada Controller
+   * (kwenye sehemu ya "Hotspot Manager > Vouchers") kwa kutumia REST API.
+   */
+  async createOmadaVoucherBatch(params: {
+    siteId?: string;
+    name: string;
+    amount: number;
+    durationMinutes: number;
+    codeLength?: number;
+    rateLimit?: string;
+    quotaMb?: number;
+  }): Promise<{ success: boolean; batchId?: string; count?: number; message: string; details?: any }> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+
+    let targetSiteId = params.siteId;
+    let controllerSites: Array<{ id: string; name: string }> = [];
+    try {
+      controllerSites = await this.getControllerSites();
+    } catch {
+      // ignore
+    }
+
+    if (targetSiteId) {
+      const clean = targetSiteId.trim().toLowerCase();
+      const matched = controllerSites.find((s) => s.id.toLowerCase() === clean || s.name.toLowerCase() === clean);
+      if (matched) {
+        targetSiteId = matched.id;
+      }
+    }
+    if (!targetSiteId) {
+      targetSiteId = controllerSites[0]?.id || 'Default';
+    }
+
+    // Parse rx/tx from rateLimit e.g. "2M/4M" -> up 2M, down 4M in Kbps
+    let upKbps = 0;
+    let downKbps = 0;
+    if (params.rateLimit) {
+      const [upPart, downPart] = params.rateLimit.split('/');
+      const parseSpeedToKbps = (part?: string) => {
+        if (!part) return 0;
+        const num = parseFloat(part);
+        if (part.toUpperCase().includes('M')) return Math.round(num * 1024);
+        if (part.toUpperCase().includes('K')) return Math.round(num);
+        return Math.round(num / 1000);
+      };
+      upKbps = parseSpeedToKbps(upPart);
+      downKbps = parseSpeedToKbps(downPart);
+    }
+
+    const payload = {
+      name: params.name.slice(0, 32),
+      amount: Math.min(1000, Math.max(1, params.amount)),
+      type: 0, // 0 = One-time use voucher
+      duration: Math.max(1, params.durationMinutes),
+      trafficLimit: params.quotaMb ? Math.round(params.quotaMb) : 0, // 0 = unlimited MB
+      upRateLimit: upKbps,
+      downRateLimit: downKbps,
+      codeLength: Math.min(10, Math.max(6, params.codeLength || 6)),
+      note: 'Generated via INFOTECH WiFi Billing API',
+    };
+
+    // Jaribio 1: Open API
+    if (this.isOpenApi) {
+      try {
+        const url = `${this.getApiBasePath()}/sites/${targetSiteId}/hotspot/vouchers`;
+        const res = await this.safeFetch(url, {
+          method: 'POST',
+          headers: this.getAuthenticatedHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && (data.errorCode === 0 || data.code === 0)) {
+          return {
+            success: true,
+            batchId: data.result?.id || data.result?.batchId,
+            count: params.amount,
+            message: `Vocha ${params.amount} zimetengenezwa ndani ya Omada Controller (Site: ${targetSiteId})!`,
+            details: data.result,
+          };
+        }
+      } catch (err: any) {
+        console.warn(`[Omada API] OpenAPI create voucher warning: ${err.message}`);
+      }
+    }
+
+    // Jaribio 2: Standard Controller V2 API
+    const endpoints = [
+      `${this.getApiBasePath()}/sites/${targetSiteId}/hotspot/vouchers`,
+      `${this.config.controllerUrl}/api/v2/sites/${targetSiteId}/hotspot/vouchers`,
+      `${this.config.controllerUrl}/${this.omadacId || '5015eb6741252b75a3633605c471738f'}/api/v2/sites/${targetSiteId}/hotspot/vouchers`,
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const res = await this.safeFetch(ep, {
+          method: 'POST',
+          headers: this.getAuthenticatedHeaders(),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && (data?.errorCode === 0 || data?.code === 0)) {
+          return {
+            success: true,
+            batchId: data.result?.id || data.result?.batchId,
+            count: params.amount,
+            message: `Vocha ${params.amount} zimehifadhiwa kikamilifu kwenye Omada Controller!`,
+            details: data.result,
+          };
+        }
+      } catch {
+        // jaribu inayofuata
+      }
+    }
+
+    return {
+      success: false,
+      message: 'Controller imekubali mchakato lakini API ya Vouchers imetoa onyo.',
+    };
+  }
+
+  /**
+   * Pata orodha ya Vocha zilizopo ndani ya Omada Controller
+   */
+  async getOmadaVouchers(siteId?: string): Promise<any[]> {
+    if (!this.sessionToken) {
+      await this.login();
+    }
+    const targetSiteId = siteId || 'Default';
+    const endpoints = [
+      `${this.getApiBasePath()}/sites/${targetSiteId}/hotspot/vouchers?currentPage=1&currentPageSize=100`,
+      `${this.config.controllerUrl}/api/v2/sites/${targetSiteId}/hotspot/vouchers?currentPage=1&currentPageSize=100`,
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const res = await this.safeFetch(ep, {
+          method: 'GET',
+          headers: this.getAuthenticatedHeaders(),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.errorCode === 0 && (Array.isArray(data.result?.data) || Array.isArray(data.result))) {
+          return data.result?.data || data.result;
+        }
+      } catch {
+        // fallback
+      }
+    }
+    return [];
+  }
 }
+

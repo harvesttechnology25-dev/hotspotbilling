@@ -31,6 +31,11 @@ interface PaymentModalProps {
   linkLogin?: string;
   linkOrig?: string;
   clientMac?: string;
+  apMac?: string;
+  siteId?: string;
+  target?: string;
+  targetPort?: string;
+  isOmada?: boolean;
   onPaymentSuccess: (voucherCode: string, plan: Plan) => void;
   lang: 'sw' | 'en';
 }
@@ -46,6 +51,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   linkLogin = 'http://192.168.88.1/login',
   linkOrig = 'http://www.google.com',
   clientMac,
+  apMac,
+  siteId,
+  target,
+  targetPort,
+  isOmada = false,
   onPaymentSuccess,
   lang,
 }) => {
@@ -54,6 +64,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     code: string;
     password: string;
     expiresAt?: string;
+    mac_address?: string;
   } | null>(null);
   const [hotspotUrl, setHotspotUrl] = useState<string>(linkLogin);
   const [secondsLeft, setSecondsLeft] = useState(90);
@@ -62,6 +73,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isVerifyingNow, setIsVerifyingNow] = useState(false);
+  const [isOmadaNetwork, setIsOmadaNetwork] = useState<boolean>(Boolean(isOmada || apMac || target));
+  const [isConnectingInternet, setIsConnectingInternet] = useState(false);
 
   const handleCheckPaymentNow = async () => {
     setIsVerifyingNow(true);
@@ -75,6 +88,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         if (data.hotspotLoginUrl) {
           setHotspotUrl(data.hotspotLoginUrl);
         }
+        if (typeof data.isOmada === 'boolean') {
+          setIsOmadaNetwork(data.isOmada);
+        }
         if (data.voucher?.code) {
           onPaymentSuccess(data.voucher.code, plan);
           const targetLogin = data.hotspotLoginUrl || linkLogin;
@@ -82,6 +98,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           generateQrCodeUrl(fullLoginUrl).then((url) => {
             setQrCodeDataUrl(url);
           });
+        }
+        // Auto-authorize on Omada in background if on Omada AP
+        const effMac = clientMac || data.voucher?.mac_address;
+        if (effMac && (data.isOmada || isOmada || apMac || target)) {
+          fetch('/api/v1/omada/authorize-client', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientMac: effMac,
+              apMac,
+              siteId,
+              durationMinutes: Math.max(15, Math.ceil((plan?.limit_uptime || 3600) / 60)),
+            }),
+          }).catch(() => {});
         }
       } else if (data.status === 'FAILED') {
         setStatus('FAILED');
@@ -130,6 +160,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           if (data.hotspotLoginUrl) {
             setHotspotUrl(data.hotspotLoginUrl);
           }
+          if (typeof data.isOmada === 'boolean') {
+            setIsOmadaNetwork(data.isOmada);
+          }
           if (data.voucher?.code) {
             onPaymentSuccess(data.voucher.code, plan);
             // Generate QR Code for auto login
@@ -138,6 +171,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             generateQrCodeUrl(fullLoginUrl).then((url) => {
               if (isMounted) setQrCodeDataUrl(url);
             });
+          }
+          // Auto-authorize on Omada in background if on Omada AP
+          const effMac = clientMac || data.voucher?.mac_address;
+          if (effMac && (data.isOmada || isOmada || apMac || target)) {
+            fetch('/api/v1/omada/authorize-client', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                clientMac: effMac,
+                apMac,
+                siteId,
+                durationMinutes: Math.max(15, Math.ceil((plan?.limit_uptime || 3600) / 60)),
+              }),
+            }).catch(() => {});
           }
         } else if (data.status === 'FAILED') {
           setStatus('FAILED');
@@ -198,9 +245,41 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!isOpen) return null;
-
   const targetLoginUrl = hotspotUrl || linkLogin;
+  const effectiveIsOmada = Boolean(isOmadaNetwork || isOmada || apMac || target);
+
+  const handleOmadaConnect = async () => {
+    setIsConnectingInternet(true);
+    try {
+      const effMac = clientMac || voucherData?.mac_address;
+      if (effMac) {
+        await fetch('/api/v1/omada/authorize-client', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientMac: effMac,
+            apMac,
+            siteId,
+            durationMinutes: Math.max(15, Math.ceil((plan?.limit_uptime || 3600) / 60)),
+          }),
+        }).catch(() => {});
+      }
+
+      if (voucherData?.code) {
+        onPaymentSuccess(voucherData.code, plan);
+      }
+
+      const destination =
+        linkOrig && linkOrig !== 'http://www.google.com'
+          ? linkOrig
+          : 'http://connectivitycheck.gstatic.com/generate_204';
+      window.location.href = destination;
+    } catch (e) {
+      console.error('Omada connect error:', e);
+    } finally {
+      setIsConnectingInternet(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-xs overflow-y-auto">
@@ -411,22 +490,44 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               )}
 
-              {/* Action Buttons & MikroTik Form POST */}
+              {/* Action Buttons: Omada Direct Connect vs MikroTik Form POST */}
               <div className="space-y-2 pt-1">
-                {/* Standard MikroTik Hotspot Form Post */}
-                <form method="POST" action={targetLoginUrl} className="w-full">
-                  <input type="hidden" name="username" value={voucherData?.code || ''} />
-                  <input type="hidden" name="password" value={voucherData?.password || voucherData?.code || ''} />
-                  <input type="hidden" name="dst" value={linkOrig} />
-                  
-                  <button
-                    type="submit"
-                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2"
-                  >
-                    <Wifi className="w-4 h-4" />
-                    {lang === 'sw' ? 'UNGANISHA KWENYE INTANETI SASA' : 'CONNECT TO INTERNET NOW'}
-                  </button>
-                </form>
+                {effectiveIsOmada ? (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={handleOmadaConnect}
+                      disabled={isConnectingInternet}
+                      className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isConnectingInternet ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Wifi className="w-4 h-4" />
+                      )}
+                      <span>{lang === 'sw' ? 'UNGANISHA KWENYE INTANETI SASA' : 'CONNECT TO INTERNET NOW'}</span>
+                    </button>
+                    <p className="text-[11px] text-emerald-700 text-center font-medium">
+                      {lang === 'sw'
+                        ? '✓ Malipo yamekamilika na TP-Link Omada AP imeruhusu kifaa chako moja kwa moja.'
+                        : '✓ Payment verified and TP-Link Omada AP unblocked your client.'}
+                    </p>
+                  </div>
+                ) : (
+                  <form method="POST" action={targetLoginUrl} className="w-full">
+                    <input type="hidden" name="username" value={voucherData?.code || ''} />
+                    <input type="hidden" name="password" value={voucherData?.password || voucherData?.code || ''} />
+                    <input type="hidden" name="dst" value={linkOrig} />
+                    
+                    <button
+                      type="submit"
+                      className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Wifi className="w-4 h-4" />
+                      {lang === 'sw' ? 'UNGANISHA KWENYE INTANETI SASA' : 'CONNECT TO INTERNET NOW'}
+                    </button>
+                  </form>
+                )}
 
                 <div className="flex gap-2">
                   <button
@@ -437,21 +538,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       }
                       onClose();
                     }}
-                    className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition"
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition cursor-pointer"
                   >
                     {lang === 'sw' ? 'Fungua Dashibodi' : 'View Session'}
                   </button>
 
-                  <a
-                    href={`${targetLoginUrl}?username=${voucherData?.code}&password=${voucherData?.password || voucherData?.code}&dst=${encodeURIComponent(linkOrig)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1"
-                    title="Direct RouterOS Link"
-                  >
-                    <span>Direct Link</span>
-                    <ExternalLink className="w-3 h-3 text-slate-400" />
-                  </a>
+                  {!effectiveIsOmada && (
+                    <a
+                      href={`${targetLoginUrl}?username=${voucherData?.code}&password=${voucherData?.password || voucherData?.code}&dst=${encodeURIComponent(linkOrig)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1"
+                      title="Direct RouterOS Link"
+                    >
+                      <span>Direct Link</span>
+                      <ExternalLink className="w-3 h-3 text-slate-400" />
+                    </a>
+                  )}
                 </div>
               </div>
             </div>

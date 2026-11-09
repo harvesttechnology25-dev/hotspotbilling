@@ -993,6 +993,7 @@ export class PaymentGatewayService {
     message: string;
     voucher?: VoucherRecord;
     alreadyProcessed?: boolean;
+    isOmada?: boolean;
   }> {
     const { externalReference, transactionId, status, amount } = payload;
 
@@ -1156,36 +1157,58 @@ export class PaymentGatewayService {
 
     db.saveVoucher(voucher);
 
+    // FreeRADIUS AAA provisioning (Both voucher user & MAC auth for Omada APs)
+    if (plan) {
+      try {
+        db.addRadiusUser(voucherCode, voucherPassword, plan, transaction.mac_address);
+        if (transaction.mac_address) {
+          db.addRadiusMacAuthUser(transaction.mac_address, plan);
+        }
+      } catch (radErr: any) {
+        console.warn(`[Payment FreeRADIUS] radcheck error: ${radErr.message}`);
+      }
+    }
+
+    const omadaRouters = db.getRouters().filter((r) => r.device_type === 'TPLINK_OMADA');
+    const isOmadaTarget = router?.device_type === 'TPLINK_OMADA' || omadaRouters.length > 0;
+
     // Automatically authorize or provision user depending on router type
-    if (router && plan) {
-      // 1. Authorize on TP-Link Omada Controller if AP or Omada router
-      if (router.device_type === 'TPLINK_OMADA' || transaction.mac_address) {
+    if (plan) {
+      // 1. Authorize on TP-Link Omada Controller & Access Point
+      if (isOmadaTarget && transaction.mac_address) {
         try {
           const automation = new OmadaAutomationService();
           const durationMinutes = Math.max(15, Math.ceil((plan.limit_uptime || plan.validity_period || 3600) / 60));
+          const targetOmadaRouter = router?.device_type === 'TPLINK_OMADA' ? router : omadaRouters[0];
           await automation.authorizeClient({
-            clientMac: transaction.mac_address || '00:00:00:00:00:00',
+            clientMac: transaction.mac_address,
             durationMinutes,
-            siteId: router.location,
-            apMac: router.mac_address,
+            siteId: targetOmadaRouter?.omada_site_id || targetOmadaRouter?.location,
+            apMac: targetOmadaRouter?.mac_address,
+            ssidName: targetOmadaRouter?.ssid,
           });
+          console.log(`[Omada Payment Auth] Client ${transaction.mac_address} authorized for ${durationMinutes}m!`);
         } catch (err: any) {
           console.warn(`[Omada Payment Auth] Warning: ${err.message}`);
         }
       }
 
       // 2. Automatically provision user into MikroTik RouterOS!
-      if (router.device_type !== 'TPLINK_OMADA') {
-        await MikrotikService.provisionUser(router, {
-          username: voucherCode,
-          password: voucherPassword,
-          server: router.hotspot_server_name,
-          limitUptimeSeconds: plan.limit_uptime,
-          limitBytesTotal: plan.limit_bytes_total,
-          rateLimit: plan.rate_limit,
-          macAddress: transaction.mac_address,
-          comment: `TZ-WiFi Paid via ${transaction.network_provider} (${transaction.phone_number}) Ref:${transaction.external_reference}`,
-        });
+      if (router && router.device_type !== 'TPLINK_OMADA') {
+        try {
+          await MikrotikService.provisionUser(router, {
+            username: voucherCode,
+            password: voucherPassword,
+            server: router.hotspot_server_name,
+            limitUptimeSeconds: plan.limit_uptime,
+            limitBytesTotal: plan.limit_bytes_total,
+            rateLimit: plan.rate_limit,
+            macAddress: transaction.mac_address,
+            comment: `TZ-WiFi Paid via ${transaction.network_provider} (${transaction.phone_number}) Ref:${transaction.external_reference}`,
+          });
+        } catch (mikErr: any) {
+          console.warn(`[MikroTik Payment Auth] Warning: ${mikErr.message}`);
+        }
       }
     }
 
@@ -1204,8 +1227,11 @@ export class PaymentGatewayService {
 
     return {
       success: true,
-      message: 'Payment confirmed and Hotspot user provisioned in MikroTik RouterOS.',
+      message: isOmadaTarget
+        ? 'Payment confirmed and Hotspot client authorized on Omada AP.'
+        : 'Payment confirmed and Hotspot user provisioned in MikroTik RouterOS.',
       voucher,
+      isOmada: isOmadaTarget,
     };
   }
 }

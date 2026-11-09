@@ -13,6 +13,12 @@ interface VoucherLoginProps {
   onSelectPlan?: (planId: number | null) => void;
   routerId?: number;
   routerName?: string;
+  apMac?: string;
+  siteId?: string;
+  ssidName?: string;
+  target?: string;
+  targetPort?: string;
+  isOmada?: boolean;
 }
 
 export const VoucherLogin: React.FC<VoucherLoginProps> = ({
@@ -26,6 +32,12 @@ export const VoucherLogin: React.FC<VoucherLoginProps> = ({
   onSelectPlan,
   routerId,
   routerName,
+  apMac,
+  siteId,
+  ssidName,
+  target,
+  targetPort,
+  isOmada = false,
 }) => {
   const [voucherCode, setVoucherCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +50,10 @@ export const VoucherLogin: React.FC<VoucherLoginProps> = ({
     code: string;
     password: string;
     plan: Plan;
+    isOmada?: boolean;
+    omadaAuthorized?: boolean;
   } | null>(null);
+  const [isBrowsing, setIsBrowsing] = useState(false);
 
   // Sync active target plan when selectedPlan prop changes
   React.useEffect(() => {
@@ -59,6 +74,12 @@ export const VoucherLogin: React.FC<VoucherLoginProps> = ({
       const payload: Record<string, any> = {
         code: voucherCode.trim().toUpperCase(),
         macAddress,
+        clientMac: macAddress,
+        apMac,
+        siteId,
+        ssidName,
+        target,
+        targetPort,
       };
 
       if (routerId) {
@@ -86,10 +107,14 @@ export const VoucherLogin: React.FC<VoucherLoginProps> = ({
         throw new Error(data.error || 'Vocha siyo sahihi au imekwisha muda.');
       }
 
+      const isTargetOmada = Boolean(data.isOmada || data.omadaAuthorized || isOmada || apMac);
+
       setRedeemed({
         code: data.voucher.code,
         password: data.voucher.password || data.voucher.code,
         plan: data.plan,
+        isOmada: isTargetOmada,
+        omadaAuthorized: Boolean(data.omadaAuthorized),
       });
 
       onSuccess(data.voucher.code, data.plan);
@@ -99,6 +124,17 @@ export const VoucherLogin: React.FC<VoucherLoginProps> = ({
       setLoading(false);
     }
   };
+
+  const handleOmadaBrowse = () => {
+    setIsBrowsing(true);
+    const destination =
+      linkOrig && linkOrig !== 'http://www.google.com'
+        ? linkOrig
+        : 'http://connectivitycheck.gstatic.com/generate_204';
+    window.location.href = destination;
+  };
+
+  const effectiveIsOmada = Boolean(redeemed?.isOmada || isOmada || apMac || target);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
@@ -228,41 +264,73 @@ export const VoucherLogin: React.FC<VoucherLoginProps> = ({
         </form>
       ) : (
         <div className="space-y-4 text-center animate-in fade-in">
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium">
-            {lang === 'sw'
-              ? `Vocha ${redeemed.code} imekubaliwa! Unaweza kuunganishwa kwenye mtandao mara moja.`
-              : `Voucher ${redeemed.code} verified! You can now log into the router.`}
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium space-y-1">
+            <div className="font-bold text-sm text-emerald-950 flex items-center justify-center gap-1.5">
+              <Wifi className="w-4 h-4 text-emerald-600" />
+              <span>{lang === 'sw' ? '🎉 Vocha Imekubaliwa Kikamilifu!' : '🎉 Voucher Verified Successfully!'}</span>
+            </div>
+            <p>
+              {lang === 'sw'
+                ? `Vocha ${redeemed.code} imekamilika! Kifaa chako kimeruhusiwa kutumia intaneti.`
+                : `Voucher ${redeemed.code} verified! Your device is granted access.`}
+            </p>
           </div>
 
-          <form method="POST" action={linkLogin}>
-            <input type="hidden" name="username" value={redeemed.code} />
-            <input type="hidden" name="password" value={redeemed.password} />
-            <input type="hidden" name="dst" value={linkOrig} />
-            <button
-              type="submit"
-              className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2"
-            >
-              <Wifi className="w-4 h-4" />
-              <span>{lang === 'sw' ? 'Unganisha Kwenye Intaneti (Auto-Login)' : 'Auto-Login To Hotspot'}</span>
-            </button>
-          </form>
+          {effectiveIsOmada ? (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleOmadaBrowse}
+                disabled={isBrowsing}
+                className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isBrowsing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wifi className="w-4 h-4" />
+                )}
+                <span>{lang === 'sw' ? 'FUNGUA INTANETI SASA (BROWSE NOW)' : 'BROWSE INTERNET NOW'}</span>
+              </button>
+              <p className="text-[11px] text-slate-500">
+                {lang === 'sw'
+                  ? 'Access Point yako ya TP-Link Omada imeshafunguliwa moja kwa moja.'
+                  : 'Your TP-Link Omada Access Point has unblocked your client.'}
+              </p>
+            </div>
+          ) : (
+            <form method="POST" action={linkLogin}>
+              <input type="hidden" name="username" value={redeemed.code} />
+              <input type="hidden" name="password" value={redeemed.password} />
+              <input type="hidden" name="dst" value={linkOrig} />
+              <button
+                type="submit"
+                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Wifi className="w-4 h-4" />
+                <span>{lang === 'sw' ? 'Unganisha Kwenye Intaneti (Auto-Login)' : 'Auto-Login To Hotspot'}</span>
+              </button>
+            </form>
+          )}
 
-          <a
-            href={`${linkLogin}?username=${redeemed.code}&password=${redeemed.password}&dst=${encodeURIComponent(linkOrig)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
-          >
-            <span>Direct router login page</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
+          {!effectiveIsOmada && (
+            <a
+              href={`${linkLogin}?username=${redeemed.code}&password=${redeemed.password}&dst=${encodeURIComponent(linkOrig)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
+            >
+              <span>Direct router login page</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
         </div>
       )}
 
       <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
         <Wifi className="w-3.5 h-3.5" />
-        <span>MikroTik RouterOS High-Speed Gateway</span>
+        <span>TP-Link Omada & MikroTik RouterOS Multi-Carrier Gateway</span>
       </div>
     </div>
   );
 };
+
